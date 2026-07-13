@@ -393,11 +393,15 @@ def run_update_check(root: Path, interactive: bool = True) -> bool:
     except Exception as exc:
         log(f"pre-update backup warning: {exc}")
 
-    exe = Path(sys.executable).resolve()
+    # The code (BGDDR.exe + _internal) lives in the APP folder, which is NOT the
+    # data dir: since the data dir was moved to %LOCALAPPDATA%\GDES\Data, the
+    # swap must target app_dir(), not `root` (the data dir). Getting this wrong
+    # makes the updater "succeed" but silently swap nothing.
+    code_dir = app_dir()
     started = updater.apply_update(
-        app_dir=root, staging_root=staging,
+        app_dir=code_dir, staging_root=staging,
         old_version=current, new_version=manifest["version"],
-        log_path=root / "Logs" / "update.log", log=log,
+        log_path=Path(root) / "Logs" / "update.log", log=log,
     )
     if started and interactive:
         _info_msg("BGDDR — Updating",
