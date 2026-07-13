@@ -11,10 +11,14 @@ __pycache__/
 
 # --- Patient data & runtime state (NEVER commit) --------------------------
 *.sqlite3
+*.sqlite3.*
 *.sqlite3-journal
 *.sqlite3-wal
 *.sqlite3-shm
 db-*.sqlite3
+*.bak
+*.backup
+*.dump
 /Backups/
 /Logs/
 /Media/
