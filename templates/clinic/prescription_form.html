@@ -1,0 +1,459 @@
+{% extends "base.html" %}
+{% block title %}Prescription — {{ patient.patient_id }}{% endblock %}
+{% block heading %}New prescription · {{ patient.patient_id }}{% endblock %}
+{% block content %}
+
+<div class="crumbs"><a href="{% url 'clinic:patients' %}">Patients</a> ›
+  <a href="{% url 'clinic:patient_detail' patient.pk %}">{{ patient.patient_id }}</a> › Prescription</div>
+
+<!-- Page nav: back + shortcuts -->
+<div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px;margin-bottom:16px">
+  <div style="display:flex;gap:8px">
+    <a class="btn ghost sm" href="{% url 'clinic:patient_detail' patient.pk %}"><i class="fas fa-arrow-left"></i> Back to patient</a>
+  </div>
+  <div style="display:flex;gap:8px">
+    <a class="btn ghost sm" href="{% url 'clinic:followup' patient.pk %}"><i class="fas fa-notes-medical"></i> Follow-up</a>
+  </div>
+</div>
+
+<div class="help" style="margin-bottom:14px">
+  For the visit on <b>{{ encounter.encounter_date }}</b>. Enter the patient's
+  <b>full current medication list</b> — finalizing builds the research medication history automatically.
+</div>
+
+<form method="post" autocomplete="off" id="rx-form">
+  {% csrf_token %}
+  <div class="panel"><div class="pb">
+    <fieldset class="fieldset">
+      <legend>Visit</legend>
+      <div class="cols2">
+        <div class="frow">
+          <label for="diagnosis">Diagnosis</label>
+          <select id="diagnosis" name="diagnosis_text" style="width:100%">
+            <option value="">— select diagnosis —</option>
+            {% for val, label in diagnosis_choices %}
+            <option value="{{ val }}" {% if val == default_diagnosis %}selected{% endif %}>{{ label }}</option>
+            {% endfor %}
+          </select>
+          <div style="margin-top:10px">
+            <label style="display:block;margin-bottom:4px">Comorbidities
+              <span class="help" style="display:inline;margin:0">(pre-filled from baseline)</span>
+            </label>
+            <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:4px 10px">
+              {% for c in comorbidity_options %}
+              <label style="display:flex;align-items:center;gap:6px;font-size:13px;cursor:pointer">
+                <input type="checkbox" name="comorbidities" value="{{ c }}"{% if c in prefill_comorbid %} checked{% endif %}> {{ c }}
+              </label>
+              {% endfor %}
+            </div>
+            <input type="text" name="comorbidities_text" placeholder="Other comorbidities (free text)" style="width:100%;margin-top:6px" value="{{ comorbid_extra }}">
+          </div>
+        </div>
+        <div class="frow">
+          <label>Investigations advised</label>
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px">
+            <span class="help" style="margin:0">Tick the tests to order:</span>
+            <a href="javascript:void(0)" id="inv-toggle" style="font-size:12px;color:#26215C;text-decoration:none" onclick="var chks=document.querySelectorAll('input[name=investigations_advised]');var allOn=[...chks].every(c=>c.checked);chks.forEach(c=>c.checked=!allOn);this.textContent=allOn?'Select all':'Clear all';return false;">Select all</a>
+          </div>
+          <div class="inv-grid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:6px;margin-bottom:8px;max-height:160px;overflow-y:auto;border:1px solid #ddd;padding:8px;border-radius:6px;background:#fafafa">
+            {% for t in lab_tests %}
+            <label class="inv-chk" style="display:flex;align-items:center;gap:6px;font-size:13px;cursor:pointer;padding:2px 4px;border-radius:4px;transition:background .15s" onmouseover="this.style.background='#e8e6f3'" onmouseout="if(!this.querySelector('input').checked)this.style.background='transparent'">
+              <input type="checkbox" name="investigations_advised" value="{{ t.name }}" style="cursor:pointer"{% if t.name in prefill_invest %} checked{% endif %} onchange="this.parentElement.style.background=this.checked?'#d7d4ec':'transparent'">
+              <span>{{ t.name }}</span>
+            </label>
+            {% empty %}
+            <div class="help" style="grid-column:1/-1">No lab tests configured. Add them in admin first.</div>
+            {% endfor %}
+          </div>
+          <input type="text" name="investigations_advised_text" placeholder="Additional investigations (free text)" style="width:100%">
+        </div>
+      </div>
+      <div class="cols2" style="margin-top:14px">
+        <div class="frow">
+          <label for="next_due_date">Next visit date</label>
+          <input type="date" id="next_due_date" name="next_due_date" value="{{ default_next_visit }}" style="width:100%">
+          <div class="help">Auto-filled from the clinic schedule (4 weeks). Edit if needed.</div>
+        </div>
+      </div>
+    </fieldset>
+
+    <fieldset class="fieldset">
+      <legend><i class="fas fa-prescription"></i> Medications</legend>
+      {% if carried_count %}<div class="msg info" style="margin-bottom:10px"><i class="fas fa-clock-rotate-left"></i> Carried forward {{ carried_count }} medication(s) and the investigations from the previous prescription — edit, remove, or add before finalizing.</div>{% endif %}
+      <div id="dup-warning" class="msg warning" style="display:none;margin-bottom:10px"><i class="fas fa-triangle-exclamation"></i> <span id="dup-warning-text"></span></div>
+      <div id="renal-warning" class="msg warning" style="display:none;margin-bottom:10px"><i class="fas fa-kidneys"></i> <span id="renal-warning-text"></span></div>
+
+      <div class="help" style="margin-bottom:10px">Pick a drug per row; leave rows blank if unused. <b>Brand</b>, <b>Route</b>, <b>Strength</b> and <b>Frequency</b> auto-fill from the formulary — strengths follow the chosen route (e.g. cyclophosphamide PO tablets vs IV vials). Choose "Other" to type freely.</div>
+      <div style="overflow-x:auto">
+      <table class="grid" style="min-width:1080px;table-layout:fixed;width:100%">
+        <colgroup>
+          <col style="width:5%"><col style="width:20%"><col style="width:13%">
+          <col style="width:8%"><col style="width:14%">
+          <col style="width:14%"><col style="width:12%"><col style="width:14%">
+        </colgroup>
+        <thead><tr>
+          <th>#</th><th>Drug</th><th>Brand</th>
+          <th>Route</th><th>Strength</th>
+          <th>Frequency</th><th>Timing</th><th>Duration</th>
+        </tr></thead>
+        <tbody>
+          {% for r in rows_data %}
+          <tr data-row="{{ r.i }}" class="rx-row{% if r.i > initial_visible %} rx-extra{% endif %}"{% if r.i > initial_visible %} style="display:none"{% endif %}>
+            <td style="white-space:nowrap">{{ r.i }}
+              <button type="button" class="rx-remove" data-row="{{ r.i }}" title="Remove this medication"
+                      style="border:0;background:none;color:#dc2626;cursor:pointer;padding:2px;display:none"><i class="fas fa-trash"></i></button>
+            </td>
+            <td>
+              <select name="drug_{{ r.i }}" class="drug-select" data-row="{{ r.i }}">
+                <option value="">— select —</option>
+                {% for label, items in drug_groups %}
+                <optgroup label="{{ label }}">
+                  {% for d in items %}<option value="{{ d.pk }}"{% if d.pk == r.drug_id %} selected{% endif %}>{{ d.generic_name }}</option>{% endfor %}
+                </optgroup>
+                {% endfor %}
+              </select>
+            </td>
+            <td>
+              <select name="brand_sel_{{ r.i }}" class="brand-sel" data-row="{{ r.i }}" style="width:100%;margin-bottom:4px">
+                <option value="">— generic —</option>
+                <option value="__other__">Other → type</option>
+              </select>
+              <input type="text" name="brand_{{ r.i }}" class="brand-inp" placeholder="brand name" style="width:100%;{% if not r.brand %}display:none{% endif %}" value="{{ r.brand|default:'' }}">
+            </td>
+            <td>
+              <select name="route_{{ r.i }}" class="route-sel" data-row="{{ r.i }}" style="width:100%">
+                {% if r.route %}<option value="{{ r.route }}" selected>{{ r.route }}</option>{% endif %}
+              </select>
+            </td>
+            <td>
+              <select name="strength_sel_{{ r.i }}" class="strength-sel" data-row="{{ r.i }}" style="width:100%;margin-bottom:4px">
+                <option value="">— select —</option>
+                <option value="__other__">Other → type</option>
+              </select>
+              <input type="text" name="strength_{{ r.i }}" class="strength-inp" placeholder="e.g. 10mg" style="width:100%;{% if not r.strength %}display:none{% endif %}" value="{{ r.strength|default:'' }}">
+            </td>
+            <td>
+              <select name="frequency_sel_{{ r.i }}" class="freq-sel" data-row="{{ r.i }}" style="width:100%;margin-bottom:4px">
+                <option value="">— select —</option>
+                <option value="__other__">Other → type</option>
+              </select>
+              <input type="text" name="frequency_{{ r.i }}" class="freq-inp" placeholder="1+0+1" style="width:100%;{% if not r.frequency %}display:none{% endif %}" value="{{ r.frequency|default:'' }}">
+            </td>
+            <td>
+              <select name="timing_{{ r.i }}" style="width:100%">
+                {% for val,label in timings %}<option value="{{ val }}"{% if r.timing %}{% if val == r.timing %} selected{% endif %}{% elif val == 'after' %} selected{% endif %}>{{ label }}</option>{% endfor %}
+              </select>
+            </td>
+            <td>
+              <select name="duration_sel_{{ r.i }}" class="dur-sel" data-row="{{ r.i }}" style="width:100%;margin-bottom:4px">
+                <option value="">— select —</option>
+                <option value="continue">Continue</option>
+                <option value="1 week">1 week</option>
+                <option value="2 weeks">2 weeks</option>
+                <option value="4 weeks">4 weeks</option>
+                <option value="6 weeks">6 weeks</option>
+                <option value="8 weeks">8 weeks</option>
+                <option value="12 weeks">12 weeks</option>
+                <option value="3 months">3 months</option>
+                <option value="6 months">6 months</option>
+                <option value="__other__">Other → type</option>
+              </select>
+              <input type="text" name="duration_{{ r.i }}" class="dur-inp" placeholder="e.g. 6 weeks" style="width:100%;{% if not r.duration %}display:none{% endif %}" value="{{ r.duration|default:'' }}">
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+      </div>
+      <button type="button" id="add-med-row" class="btn ghost sm" style="margin-top:10px">
+        <i class="fas fa-plus"></i> Add medication
+      </button>
+      {{ drug_data|json_script:"drug-data" }}
+    </fieldset>
+
+    <fieldset class="fieldset">
+      <legend><i class="fas fa-comment-medical"></i> Advice / OTC</legend>
+      <div style="display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:6px">
+        <div class="help" style="margin:0">Free text — general advice and any OTC / temporary drug advice. Prints on the slip.</div>
+        {% if advice_templates %}
+        <div style="display:flex;align-items:center;gap:6px">
+          <label for="advice-template-sel" style="font-size:12px;color:#64748b;margin:0">Insert template:</label>
+          <select id="advice-template-sel" style="min-width:200px">
+            <option value="">— choose advice template —</option>
+          </select>
+        </div>
+        {% endif %}
+      </div>
+      <textarea id="advice-field" name="advice" rows="4" style="width:100%" placeholder="e.g. Low-salt diet. Paracetamol 500 mg up to 3×/day if fever.">{{ prefill_advice|default:'' }}</textarea>
+      {% if advice_templates %}<div class="help" style="margin-top:4px">Build reusable templates in <b>Admin → Prescriptions → Advice templates</b>; selecting one appends it here.</div>{% endif %}
+    </fieldset>
+    <input type="hidden" name="stop_notes" id="stop-notes-field" value="">
+    {{ advice_templates|json_script:"advice-templates" }}
+
+    <div style="display:flex;gap:10px">
+      <button class="btn" type="submit"><i class="fas fa-floppy-disk"></i> Create draft &amp; review</button>
+      <a class="btn ghost" href="{% url 'clinic:patient_detail' patient.pk %}">Cancel</a>
+    </div>
+    <div class="help" style="margin-top:10px">After creating the draft you'll see a preview — from there you can <b>Finalize</b> (freeze + reconcile) and print the <b>PDF</b>.</div>
+  </div></div>
+</form>
+
+<script>
+(function(){
+  // Formulary data: {drug_pk: {brands, routes, default_route, strengths,
+  //                            strengths_by_route, freq}}
+  var DRUGS = JSON.parse(document.getElementById('drug-data').textContent);
+
+  // Standard dosing-frequency presets (Bangla-style morning+noon+night, plus
+  // common cadences) — always offered, with the drug's own default first.
+  var FREQ_PRESETS = ['1+0+0','0+1+0','0+0+1','1+0+1','1+1+1','1+1+1+1',
+                      '0+0+1 (HS)','half+0+half','alt day','once weekly',
+                      'once daily','twice daily','stat','SOS (as needed)'];
+  function freqOptions(d){
+    var out = [];
+    if (d && d.freq) out.push(d.freq);
+    FREQ_PRESETS.forEach(function(f){ if (out.indexOf(f) === -1) out.push(f); });
+    return out;
+  }
+
+  function el(name, row){ return document.querySelector('[name="' + name + '_' + row + '"]'); }
+  function opt(v, label){ var o = document.createElement('option'); o.value = v; o.textContent = label || v; return o; }
+
+  function fill(sel, values, head, withOther){
+    sel.innerHTML = '';
+    if (head) sel.appendChild(opt('', head));
+    (values || []).forEach(function(v){ sel.appendChild(opt(v)); });
+    if (withOther) sel.appendChild(opt('__other__', 'Other → type'));
+  }
+
+  // Pick `value` in `sel`; if it isn't among the options, switch to
+  // "Other → type" and reveal the text input holding it.
+  function pick(sel, inp, value){
+    if (!value){ sel.value = ''; inp.style.display = 'none'; return; }
+    var has = [].some.call(sel.options, function(o){ return o.value === value; });
+    if (has && value !== '__other__'){ sel.value = value; inp.style.display = 'none'; }
+    else { sel.value = '__other__'; inp.style.display = 'block'; }
+  }
+
+  function strengthsFor(d, route){
+    return (d.strengths_by_route && d.strengths_by_route[route] && d.strengths_by_route[route].length)
+           ? d.strengths_by_route[route] : (d.strengths || []);
+  }
+
+  // (Re)build one row's dependent dropdowns. keep=true preserves the current
+  // text-input values (carry-forward / server-rendered state).
+  function populateRow(row, keep){
+    var drugSel = el('drug', row);
+    var d = DRUGS[drugSel.value];
+    var brandSel = el('brand_sel', row), brandInp = el('brand', row);
+    var routeSel = el('route', row);
+    var strSel = el('strength_sel', row), strInp = el('strength', row);
+    var freqSel = el('frequency_sel', row), freqInp = el('frequency', row);
+    if (!d){
+      fill(brandSel, [], '— generic —', true);
+      routeSel.innerHTML = '';
+      fill(strSel, [], '— select —', true);
+      fill(freqSel, FREQ_PRESETS, '— select —', true);
+      if (!keep){ brandInp.value = strInp.value = freqInp.value = ''; }
+      return;
+    }
+    var keptBrand = keep ? brandInp.value : '';
+    var keptRoute = keep ? routeSel.value : '';
+    var keptStr   = keep ? strInp.value : '';
+    var keptFreq  = keep ? freqInp.value : '';
+
+    fill(brandSel, d.brands, '— generic —', true);
+    routeSel.innerHTML = '';
+    (d.routes || ['PO']).forEach(function(r){ routeSel.appendChild(opt(r)); });
+    routeSel.value = (keptRoute && [].some.call(routeSel.options, function(o){ return o.value === keptRoute; }))
+                     ? keptRoute : (d.default_route || 'PO');
+
+    fill(strSel, strengthsFor(d, routeSel.value), '— select —', true);
+    fill(freqSel, freqOptions(d), '— select —', true);
+
+    if (keep){
+      pick(brandSel, brandInp, keptBrand);
+      pick(strSel, strInp, keptStr);
+      pick(freqSel, freqInp, keptFreq);
+    } else {
+      // Sensible defaults for a fresh selection: first brand, default freq.
+      if (d.brands && d.brands.length){ brandSel.value = d.brands[0]; brandInp.value = d.brands[0]; brandInp.style.display = 'none'; }
+      else { brandSel.value = ''; brandInp.value = ''; brandInp.style.display = 'none'; }
+      strSel.value = ''; strInp.value = ''; strInp.style.display = 'none';
+      if (d.freq){ freqSel.value = d.freq; freqInp.value = d.freq; freqInp.style.display = 'none'; }
+      else { freqSel.value = ''; freqInp.value = ''; freqInp.style.display = 'none'; }
+    }
+  }
+
+  // Live duplicate-drug-class warning: two agents of the same research class on
+  // one prescription (e.g. two RAAS inhibitors, two sulfonylureas). Mirrors the
+  // finalize-time safety check so the clinician sees it while entering.
+  function checkDuplicates(){
+    var byClass = {};   // cls -> [drug names]
+    document.querySelectorAll('.drug-select').forEach(function(sel){
+      var tr = sel.closest('tr');
+      if (tr && tr.style.display === 'none') return;      // ignore hidden rows
+      var d = DRUGS[sel.value];
+      if (!d || !d.cls || d.cls === 'insulin') return;     // skip blanks/OTHER/insulin
+      (byClass[d.cls] = byClass[d.cls] || []).push(
+        sel.options[sel.selectedIndex].textContent + ' (' + d.cls_label + ')');
+    });
+    var dups = [];
+    Object.keys(byClass).forEach(function(c){
+      if (byClass[c].length > 1) dups.push(byClass[c].join(' + '));
+    });
+    var box = document.getElementById('dup-warning');
+    if (dups.length){
+      document.getElementById('dup-warning-text').textContent =
+        'Duplicate drug class on this prescription: ' + dups.join('; ') +
+        '. Confirm this is intended.';
+      box.style.display = '';
+    } else { box.style.display = 'none'; }
+  }
+
+  document.querySelectorAll('.drug-select').forEach(function(sel){
+    sel.addEventListener('change', function(){
+      populateRow(this.getAttribute('data-row'), false);
+      checkDuplicates();
+    });
+  });
+
+  // Route change re-derives the strength list (PO tablets vs IV vials).
+  document.querySelectorAll('.route-sel').forEach(function(sel){
+    sel.addEventListener('change', function(){
+      var row = this.getAttribute('data-row');
+      var d = DRUGS[el('drug', row).value];
+      if (!d) return;
+      var strSel = el('strength_sel', row), strInp = el('strength', row);
+      fill(strSel, strengthsFor(d, this.value), '— select —', true);
+      strSel.value = ''; strInp.value = ''; strInp.style.display = 'none';
+    });
+  });
+
+  // "Other → type" toggling: the select mirrors into the text input, which is
+  // what actually POSTs.
+  function toggleOther(selName, inpName){
+    document.querySelectorAll('select[name^="' + selName + '_"]').forEach(function(sel){
+      sel.addEventListener('change', function(){
+        var row = this.getAttribute('data-row');
+        var inp = el(inpName, row);
+        if (this.value === '__other__'){ inp.style.display = 'block'; inp.value = ''; inp.focus(); }
+        else { inp.style.display = 'none'; inp.value = this.value; }
+      });
+    });
+  }
+  toggleOther('brand_sel', 'brand');
+  toggleOther('strength_sel', 'strength');
+  toggleOther('frequency_sel', 'frequency');
+  toggleOther('duration_sel', 'duration');
+
+  // Initialize carried-forward rows (server put values in the text inputs).
+  document.querySelectorAll('.drug-select').forEach(function(sel){
+    if (sel.value) populateRow(sel.getAttribute('data-row'), true);
+  });
+  // Duration has a static option list — reconcile the carried text value into
+  // the dropdown (so "continue" selects the option and hides the text box).
+  document.querySelectorAll('.dur-sel').forEach(function(sel){
+    var inp = el('duration', sel.getAttribute('data-row'));
+    pick(sel, inp, inp.value);
+  });
+  checkDuplicates();
+
+  // "Add medication": reveal the next hidden row; hide the button when none left.
+  var addBtn = document.getElementById('add-med-row');
+  function updateAddBtn(){
+    var hidden = document.querySelector('tr.rx-extra[style*="display:none"], tr.rx-extra[style*="display: none"]');
+    if (addBtn) addBtn.style.display = hidden ? '' : 'none';
+  }
+  if (addBtn){
+    addBtn.addEventListener('click', function(){
+      var row = document.querySelector('tr.rx-extra[style*="display:none"], tr.rx-extra[style*="display: none"]');
+      if (row){ row.style.display = ''; row.classList.remove('rx-extra'); }
+      updateAddBtn();
+    });
+    updateAddBtn();
+  }
+
+  // ---- Renal-dose live warning --------------------------------------------
+  var PATIENT_EGFR = {{ patient_egfr|default:"null" }};
+  function checkRenal(){
+    var box = document.getElementById('renal-warning');
+    if (PATIENT_EGFR === null){ box.style.display = 'none'; return; }
+    var hits = [];
+    document.querySelectorAll('.drug-select').forEach(function(sel){
+      var tr = sel.closest('tr');
+      if (tr && tr.style.display === 'none') return;
+      var d = DRUGS[sel.value];
+      if (d && d.egfr_caution != null && PATIENT_EGFR < d.egfr_caution){
+        hits.push(sel.options[sel.selectedIndex].textContent + ' (caution < ' + d.egfr_caution + ')');
+      }
+    });
+    if (hits.length){
+      document.getElementById('renal-warning-text').textContent =
+        'Renal dosing: eGFR ' + PATIENT_EGFR + ' is below the caution threshold for ' +
+        hits.join('; ') + '. Review dose / contraindication.';
+      box.style.display = '';
+    } else box.style.display = 'none';
+  }
+
+  // ---- Remove a medication (with justification) ---------------------------
+  var stopNotes = [];
+  function syncStopNotes(){ document.getElementById('stop-notes-field').value = stopNotes.join('\n'); }
+  function showRemoveButtons(){
+    document.querySelectorAll('.rx-remove').forEach(function(btn){
+      var s = el('drug', btn.getAttribute('data-row'));
+      btn.style.display = (s && s.value) ? '' : 'none';
+    });
+  }
+  document.querySelectorAll('.rx-remove').forEach(function(btn){
+    btn.addEventListener('click', function(){
+      var row = this.getAttribute('data-row');
+      var drugSel = el('drug', row);
+      if (!drugSel || !drugSel.value) return;
+      var name = drugSel.options[drugSel.selectedIndex].textContent;
+      var reason = prompt('Remove "' + name + '" — reason / justification:', '');
+      if (reason === null) return;                 // cancelled
+      reason = reason.trim();
+      if (!reason){ alert('A reason is required to remove a medication.'); return; }
+      stopNotes.push(name + ' — ' + reason);
+      syncStopNotes();
+      drugSel.value = '';                          // dropped from the Rx
+      populateRow(row, false);
+      ['brand','strength','frequency','duration','instruction'].forEach(function(f){
+        var i = el(f, row); if (i) i.value = '';
+      });
+      drugSel.closest('tr').style.display = 'none';
+      checkDuplicates(); checkRenal(); showRemoveButtons();
+    });
+  });
+
+  // ---- Advice templates: paste a pre-written snippet into the advice field -
+  var advSel = document.getElementById('advice-template-sel');
+  if (advSel){
+    var TEMPLATES = JSON.parse(document.getElementById('advice-templates').textContent);
+    TEMPLATES.forEach(function(t, i){
+      var o = document.createElement('option'); o.value = i; o.textContent = t.title;
+      advSel.appendChild(o);
+    });
+    advSel.addEventListener('change', function(){
+      if (this.value === '') return;
+      var ta = document.getElementById('advice-field');
+      ta.value = (ta.value.trim() ? ta.value.replace(/\s*$/, '') + '\n' : '') + TEMPLATES[+this.value].body;
+      this.value = '';
+      ta.focus();
+    });
+  }
+
+  // Wire renal + remove-button state into drug/route changes and initialise.
+  document.querySelectorAll('.drug-select').forEach(function(sel){
+    sel.addEventListener('change', function(){ checkRenal(); showRemoveButtons(); });
+  });
+  document.querySelectorAll('.route-sel').forEach(function(sel){
+    sel.addEventListener('change', checkRenal);
+  });
+  checkRenal();
+  showRemoveButtons();
+})();
+</script>
+
+{% endblock %}

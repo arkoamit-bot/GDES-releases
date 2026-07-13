@@ -1,0 +1,121 @@
+{% extends "base.html" %}
+{% block title %}Worklist — GDES{% endblock %}
+{% block heading %}Follow-up worklist{% endblock %}
+{% block content %}
+
+<!-- Page nav -->
+<div class="page-nav">
+  <div class="page-nav-left">
+    <a class="btn ghost sm" href="/"><i class="fas fa-arrow-left"></i> Dashboard</a>
+  </div>
+</div>
+
+<div class="crumbs">Scheduling › Worklist</div>
+
+<!-- Date filter -->
+<div class="filter-bar" style="margin-bottom:16px">
+  <form method="get" style="display:flex;gap:12px;align-items:center;flex-wrap:wrap;width:100%">
+    <div class="field">
+      <label>As of</label>
+      <input type="date" name="as_of" value="{{ today|date:'Y-m-d' }}" class="form-control" style="width:auto">
+    </div>
+    <button class="btn sm" type="submit"><i class="fas fa-rotate"></i> Refresh</button>
+  </form>
+</div>
+
+<!-- Overdue -->
+<div id="overdue" class="card" style="margin-bottom:16px;border-left:4px solid #dc2626">
+  <div class="card-header" style="color:#dc2626">
+    <i class="fas fa-calendar-xmark"></i> Overdue
+    <span class="badge danger" style="margin-left:auto">{{ overdue|length }}</span>
+  </div>
+  <div class="card-body" style="padding:0">
+    {% if overdue %}
+    <div class="overflow-x-auto">
+      <table class="grid">
+        <thead><tr><th>Patient</th><th>Visit</th><th>Target date</th><th>Window</th></tr></thead>
+        <tbody>
+          {% for v in overdue %}
+          <tr>
+            <td><a href="{% url 'clinic:patient_detail' v.patient.pk %}" class="font-semibold text-primary-600">{{ v.patient.patient_id }}</a> {{ v.patient.name }}</td>
+            <td>{{ v.label }}</td>
+            <td>{{ v.target_date }}</td>
+            <td>{{ v.window_start }} → {{ v.window_end }}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% else %}
+    <div class="empty-state">
+      <div class="icon"><i class="fas fa-calendar-xmark"></i></div>
+      <div class="title">Nothing overdue</div>
+      <div class="desc">All patients are up to date. 🎉</div>
+    </div>
+    {% endif %}
+  </div>
+</div>
+
+<!-- Due now -->
+<div id="due" class="card" style="margin-bottom:16px;border-left:4px solid #16a34a">
+  <div class="card-header" style="color:#15803d">
+    <i class="fas fa-calendar-check"></i> Due (within window)
+    <span class="badge ok" style="margin-left:auto">{{ due|length }}</span>
+  </div>
+  <div class="card-body" style="padding:0">
+    {% if due %}
+    <div class="overflow-x-auto">
+      <table class="grid">
+        <thead><tr><th>Patient</th><th>Visit</th><th>Target date</th><th>Clinic day</th><th></th></tr></thead>
+        <tbody>
+          {% for v in due %}
+          <tr>
+            <td><a href="{% url 'clinic:patient_detail' v.patient.pk %}" class="font-semibold text-primary-600">{{ v.patient.patient_id }}</a> {{ v.patient.name }}</td>
+            <td>{{ v.label }}</td>
+            <td>{{ v.target_date }}</td>
+            <td>{{ v.clinic_date }}</td>
+            <td class="text-right"><a class="btn ghost sm" href="{% url 'clinic:followup' v.patient.pk %}">Record visit</a></td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% else %}
+    <div class="empty-state">
+      <div class="icon"><i class="fas fa-calendar-check"></i></div>
+      <div class="title">No visits currently due</div>
+    </div>
+    {% endif %}
+  </div>
+</div>
+
+<!-- Today's clinic roster -->
+{% if roster %}
+<div class="card">
+  <div class="card-header">
+    <i class="fas fa-list-check"></i> Clinic roster — {{ roster.clinic_date }}
+    <span class="badge {% if roster.patients|length >= roster.capacity %}warn{% else %}ok{% endif %}" style="margin-left:auto">{{ roster.patients|length }} / {{ roster.capacity }} slots</span>
+  </div>
+  <div class="card-body" style="padding:0">
+    {% if roster.patients %}
+    <div class="overflow-x-auto">
+      <table class="grid">
+        <thead><tr><th>Patient</th><th>Visit</th><th>Status</th></tr></thead>
+        <tbody>
+          {% for p in roster.patients %}
+          <tr><td class="font-medium">{{ p.patient }}</td><td>{{ p.label }}</td><td>{{ p.status }}</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% else %}
+    <div class="empty-state">
+      <div class="icon"><i class="fas fa-list-check"></i></div>
+      <div class="title">No visits booked</div>
+    </div>
+    {% endif %}
+  </div>
+</div>
+{% endif %}
+
+{% endblock %}

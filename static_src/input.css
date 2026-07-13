@@ -1,0 +1,191 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Page-scoped <style> blocks still reference these CSS variables — re-pointed to
+   the modern slate/blue palette so every page stays visually consistent. */
+:root {
+  --brand:#0c92d4; --brand-2:#0ea5e9; --ink:#0f172a; --muted:#64748b;
+  --line:#e2e8f0; --bg:#eef3f8; --card:#ffffff;
+  --ok:#15803d; --warn:#b45309; --danger:#dc2626;
+}
+a { color:#0c92d4; text-decoration:none; }
+a:hover { text-decoration:underline; }
+
+@layer base {
+  /* Soft blue-grey app canvas (BADAS DKD look) instead of flat slate. */
+  body { @apply font-sans text-slate-900 antialiased; background:#eef3f8; }
+}
+
+/* The shared component classes used across the app, powered by Tailwind so the
+   whole UI shares ONE design system. */
+@layer components {
+  .crumbs { @apply text-xs text-slate-500 mb-4; }
+  .crumbs a { @apply text-slate-500 hover:text-primary-600 no-underline; }
+  h2.sec { @apply text-xs uppercase tracking-wide text-slate-500 font-semibold mt-6 mb-3; }
+  .empty { @apply text-slate-400 text-sm py-2; }
+
+  .btn { @apply inline-flex items-center gap-2 rounded-lg bg-primary-600 text-white px-4 py-2 text-sm font-medium border-0 cursor-pointer transition no-underline; }
+  .btn:hover { @apply bg-primary-700 text-white no-underline; }
+  .btn.ghost { @apply bg-white text-slate-700 border border-slate-300; }
+  .btn.ghost:hover { @apply bg-slate-50 border-slate-400 text-slate-900; }
+  .btn.danger { @apply bg-red-600; }
+  .btn.danger:hover { @apply bg-red-700; }
+  .btn.sm { @apply px-3 py-1.5 text-xs; }
+
+  .panel { @apply bg-white border border-slate-200 rounded-2xl; box-shadow:0 1px 2px rgba(15,23,42,.04), 0 6px 16px -6px rgba(15,23,42,.06); }
+  .panel .ph { @apply px-5 py-3.5 border-b border-slate-100 font-semibold text-sm text-slate-700 flex items-center gap-2; }
+  .panel .pb { @apply px-5 py-4; }
+
+  /* display:table guards against Tailwind's `.grid{display:grid}` utility, which
+     would otherwise win (same property, no `display` set here) and break the
+     colgroup-based column alignment on every data table. */
+  table.grid { @apply w-full text-sm text-left text-slate-600; border-collapse: collapse; display: table; }
+  table.grid th { @apply px-4 py-3 text-[11px] uppercase tracking-wide text-slate-500 bg-slate-50 border-b border-slate-200 font-semibold; }
+  table.grid td { @apply px-4 py-3 border-b border-slate-100 align-top; }
+  table.grid tr:last-child td { @apply border-b-0; }
+  table.grid tbody tr:hover td { @apply bg-slate-50; }
+
+  .chip { @apply inline-flex items-center rounded-full text-[11px] font-semibold px-2.5 py-0.5; }
+  .chip.ok { @apply bg-green-50 text-green-700 ring-1 ring-inset ring-green-200; }
+  .chip.todo { @apply bg-slate-100 text-slate-500; }
+  .chip.warn { @apply bg-amber-50 text-amber-700 ring-1 ring-inset ring-amber-200; }
+  .chip.danger { @apply bg-red-50 text-red-700 ring-1 ring-inset ring-red-200; }
+
+  .msg { @apply px-4 py-3 rounded-lg mb-4 text-sm flex items-center gap-2; }
+  .msg.success { @apply bg-green-50 text-green-700 ring-1 ring-inset ring-green-200; }
+  .msg.error { @apply bg-red-50 text-red-700 ring-1 ring-inset ring-red-200; }
+  .msg.warning { @apply bg-amber-50 text-amber-700 ring-1 ring-inset ring-amber-200; }
+  .msg.info { @apply bg-primary-50 text-primary-700 ring-1 ring-inset ring-primary-200; }
+
+  form .frow { @apply mb-3.5; }
+  form label { @apply block text-sm font-medium text-slate-700 mb-1.5; }
+  form input[type=text], form input[type=number], form input[type=date],
+  form input[type=email], form input[type=password], form input[type=tel],
+  form select, form textarea {
+    @apply w-full px-3 py-2 border border-slate-300 rounded-lg text-sm bg-white text-slate-900; }
+  form input:focus, form select:focus, form textarea:focus {
+    @apply outline-none border-primary-500 ring-2 ring-primary-200; }
+  form .help { @apply text-xs text-slate-500 mt-1; }
+  form .errs { @apply text-red-600 text-xs mt-1; }
+  .fieldset { @apply border border-slate-200 rounded-2xl p-5 mb-5; }
+  .fieldset > legend { @apply text-[15px] font-semibold text-slate-800 px-2 flex items-center gap-2; }
+  .fieldset > legend i { @apply text-primary-500; }
+  .cols2 { @apply grid gap-x-5; grid-template-columns: 1fr 1fr; }
+
+  /* ===== Extended modern components ===== */
+  .page-nav { @apply flex justify-between items-center flex-wrap gap-2.5 mb-4; }
+  .page-nav-left, .page-nav-right { @apply flex gap-2 items-center; }
+  .page-desc { @apply text-sm text-slate-500 mb-4; }
+
+  .card { @apply bg-white border border-slate-200 rounded-2xl transition; box-shadow:0 1px 2px rgba(15,23,42,.04), 0 6px 16px -6px rgba(15,23,42,.06); }
+  .card:hover { box-shadow:0 4px 12px rgba(12,146,212,.10), 0 12px 28px -10px rgba(15,23,42,.12); }
+  .card-header { @apply flex items-center gap-2 px-5 py-3.5 border-b border-slate-100 font-semibold text-sm text-slate-700; }
+  .card-body { @apply px-5 py-4; }
+  .card-footer { @apply px-5 py-3 border-t border-slate-100 text-xs text-slate-500; }
+
+  /* ===== BADAS-style hero task cards ===== */
+  .task-grid { @apply grid gap-5; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); }
+  .task-card { @apply flex flex-col items-center text-center bg-white border border-slate-200 rounded-2xl px-6 py-8 transition no-underline; box-shadow:0 1px 2px rgba(15,23,42,.04), 0 6px 16px -6px rgba(15,23,42,.06); }
+  .task-card:hover { @apply border-primary-200 no-underline; transform:translateY(-3px); box-shadow:0 10px 28px -8px rgba(12,146,212,.22); }
+  .task-card .ic { @apply w-16 h-16 rounded-2xl bg-primary-50 text-primary-600 flex items-center justify-center text-2xl mb-4; }
+  .task-card h3 { @apply text-base font-bold text-slate-800 mb-1.5; }
+  .task-card p { @apply text-sm text-slate-500 leading-relaxed mb-5 max-w-[16rem]; }
+  .task-card .btn { @apply mt-auto; }
+
+  /* ===== Context / status bar (BADAS top strip) ===== */
+  .context-bar { @apply flex items-center justify-between flex-wrap gap-3 bg-white border border-slate-200 rounded-2xl px-5 py-3 mb-6; box-shadow:0 1px 2px rgba(15,23,42,.04); }
+  .context-bar .meta { @apply flex items-center flex-wrap gap-x-5 gap-y-1 text-sm text-slate-600; }
+  .context-bar .meta i { @apply text-slate-400 mr-1.5; }
+  .status-pill { @apply inline-flex items-center gap-1.5 text-xs font-semibold px-2.5 py-1 rounded-full; }
+  .status-pill.live { @apply bg-green-50 text-green-700; }
+  .status-pill.live::before { content:""; @apply w-1.5 h-1.5 rounded-full bg-green-500; }
+
+  /* ===== Stepped wizard (BADAS registration flow) ===== */
+  .stepper { @apply flex items-center bg-white border border-slate-200 rounded-2xl px-4 py-3 mb-5 overflow-x-auto; box-shadow:0 1px 2px rgba(15,23,42,.04); }
+  .stepper .step { @apply flex items-center gap-2.5 px-1.5 whitespace-nowrap; }
+  .stepper .step .num { @apply w-7 h-7 rounded-full flex items-center justify-center text-xs font-semibold bg-slate-100 text-slate-500 transition; }
+  .stepper .step .lbl { @apply text-sm font-medium text-slate-400 transition; }
+  .stepper .step.active .num { @apply bg-primary-600 text-white; }
+  .stepper .step.active .lbl { @apply text-slate-800; }
+  .stepper .step.done .num { @apply bg-primary-100 text-primary-700; }
+  .stepper .step.done .lbl { @apply text-slate-600; }
+  .stepper .bar { @apply flex-1 h-px bg-slate-200 mx-2 min-w-[16px]; }
+
+  .wiz-step { @apply hidden; }
+  .wiz-step.active { @apply block; }
+  .wiz-summary { @apply rounded-xl border border-slate-200 bg-slate-50/70 p-4 mt-5; }
+  .wiz-summary h4 { @apply text-sm font-semibold text-slate-700 mb-3; }
+  .wiz-summary .grid-kv { @apply grid gap-x-6 gap-y-3; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); }
+  .wiz-summary .k { @apply text-xs text-primary-600 font-medium; }
+  .wiz-summary .v { @apply text-sm text-slate-800 mt-0.5; }
+  .wiz-actions { @apply flex items-center justify-between gap-2 mt-6 pt-4 border-t border-slate-100; }
+
+  .badge { @apply inline-flex items-center gap-1 font-semibold text-[11px] px-2.5 py-0.5 rounded-full; }
+  .badge.ok { @apply bg-green-50 text-green-700; }
+  .badge.warn { @apply bg-amber-50 text-amber-700; }
+  .badge.danger { @apply bg-red-50 text-red-700; }
+  .badge.info { @apply bg-blue-50 text-blue-700; }
+  .badge.neutral { @apply bg-slate-100 text-slate-600; }
+
+  .form-card { @apply bg-white border border-slate-200 rounded-2xl p-5 mb-4; box-shadow:0 1px 2px rgba(15,23,42,.04), 0 6px 16px -6px rgba(15,23,42,.06); }
+  .form-actions { @apply flex gap-2.5 items-center flex-wrap mt-4 pt-4 border-t border-slate-200; }
+  .form-group { @apply mb-4; }
+  .form-group label { @apply block text-sm font-medium text-slate-700 mb-1; }
+  .form-group .help { @apply text-xs text-slate-500 mt-1; }
+  .form-group .errs { @apply text-xs text-red-600 mt-1; }
+  .form-control { @apply w-full px-3 py-2 border border-slate-300 rounded-lg text-sm bg-white text-slate-900 transition; }
+  .form-control:focus { @apply outline-none border-primary-500 ring-2 ring-primary-200; }
+  textarea.form-control { @apply min-h-[80px] resize-y; }
+
+  .empty-state { @apply flex flex-col items-center justify-center py-10 text-center text-slate-500; }
+  .empty-state .icon { @apply text-4xl mb-3 text-slate-300; }
+  .empty-state .title { @apply text-sm font-semibold text-slate-800 mb-1; }
+  .empty-state .desc { @apply text-sm max-w-xs; }
+
+  .status-banner { @apply inline-flex items-center gap-2 px-4 py-2.5 rounded-lg text-sm font-semibold mb-4; }
+  .status-banner.ok { @apply bg-green-50 text-green-700; }
+  .status-banner.warn { @apply bg-amber-50 text-amber-700; }
+  .status-banner.danger { @apply bg-red-50 text-red-700; }
+  .status-banner.info { @apply bg-blue-50 text-blue-700; }
+
+  .section-title { @apply text-xs font-semibold uppercase tracking-wider text-slate-500 mt-6 mb-3; }
+
+  .quick-links { @apply grid gap-2.5; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); }
+  .quick-links a { @apply flex items-center gap-2.5 px-3.5 py-3 border border-slate-200 rounded-lg text-sm font-medium text-slate-700 transition; }
+  .quick-links a:hover { @apply border-primary-400 bg-primary-50 text-primary-700 no-underline; }
+  .quick-links a i { @apply text-primary-600 w-4 text-center; }
+
+  .tab-list { @apply flex gap-1 p-1 bg-slate-100 rounded-lg mb-4 overflow-x-auto; }
+  /* flex-none + nowrap: each tab sizes to its label and the row scrolls
+     horizontally (overflow-x-auto on .tab-list) instead of squeezing long
+     labels below their text width, which made them overflow and overlap. */
+  .tab-list button, .tab-list a { @apply flex-none px-3.5 py-2 rounded-md text-sm font-medium text-slate-500 border-0 bg-transparent cursor-pointer transition whitespace-nowrap text-center no-underline; }
+  .tab-list button:hover, .tab-list a:hover { @apply text-slate-700; }
+  .tab-list button.active, .tab-list a.active { @apply bg-white text-primary-700 font-semibold shadow-sm; }
+  .tab-content { @apply hidden; }
+  .tab-content.active { @apply block; }
+
+  .stats-grid { @apply grid gap-3.5; grid-template-columns: repeat(auto-fill, minmax(170px, 1fr)); }
+  .stat-card { @apply flex items-center gap-3.5 bg-white border border-slate-200 rounded-2xl p-4 transition no-underline; box-shadow:0 1px 2px rgba(15,23,42,.04); }
+  .stat-card:hover { @apply border-primary-200 no-underline; transform:translateY(-2px); box-shadow:0 8px 20px -8px rgba(12,146,212,.20); }
+  .stat-card .icon { @apply w-11 h-11 rounded-xl flex items-center justify-center text-lg flex-shrink-0; }
+  .stat-card .value { @apply text-2xl font-bold text-slate-900 leading-none; }
+  .stat-card .label { @apply text-xs text-slate-500 mt-1; }
+
+  .filter-bar { @apply flex gap-3 items-end flex-wrap mb-4 p-3.5 bg-white border border-slate-200 rounded-lg; }
+  .filter-bar .field { @apply flex flex-col gap-1; }
+  .filter-bar .field label { @apply text-xs font-medium text-slate-500; }
+
+  /* Animations */
+  .fade-in { animation: fadeIn .3s ease; }
+  .slide-up { animation: slideUp .3s ease; }
+  @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+  @keyframes slideUp { from { opacity: 0; transform: translateY(12px); } to { opacity: 1; transform: translateY(0); } }
+
+  /* HTMX loading affordances */
+  .htmx-indicator { opacity:0; transition:opacity .2s; }
+  .htmx-request .htmx-indicator, .htmx-request.htmx-indicator { opacity:1; }
+}
+
+@media (max-width:700px){ .cols2 { grid-template-columns: 1fr; } }

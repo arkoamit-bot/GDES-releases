@@ -1,0 +1,33 @@
+{% extends "base.html" %}
+{% block title %}Delete {{ patient.patient_id }}{% endblock %}
+{% block heading %}Delete patient · {{ patient.patient_id }}{% endblock %}
+{% block content %}
+
+<div class="crumbs"><a href="{% url 'clinic:patients' %}">Patients</a> ›
+  <a href="{% url 'clinic:patient_detail' patient.pk %}">{{ patient.patient_id }}</a> › Delete</div>
+
+<div class="card" style="max-width:640px;border-left:4px solid #dc2626">
+  <div class="card-header" style="color:#dc2626"><i class="fas fa-triangle-exclamation"></i> Permanently delete this patient</div>
+  <div class="card-body">
+    <p>This will <b>permanently delete</b> <b>{{ patient.patient_id }} — {{ patient.name }}</b>
+    and <b>all associated records</b>: encounters, prescriptions, lab orders &amp;
+    results, biopsies, treatment history, outcomes, study enrolments, consents,
+    adverse events and admissions.</p>
+    <p style="color:#b91c1c"><b>This cannot be undone.</b> Consider taking a backup first
+    (Admin → Backups &amp; restore).</p>
+
+    <form method="post" style="margin-top:16px">
+      {% csrf_token %}
+      <label style="display:block;font-size:13px;font-weight:600;margin-bottom:6px">
+        Type the patient ID <code>{{ patient.patient_id }}</code> to confirm:</label>
+      <input type="text" name="confirm_id" autocomplete="off" placeholder="{{ patient.patient_id }}"
+             style="width:100%;max-width:280px;padding:8px 10px;border:1px solid #cbd5e1;border-radius:6px" required>
+      <div style="display:flex;gap:10px;margin-top:16px">
+        <button type="submit" class="btn" style="background:#dc2626;border-color:#dc2626">
+          <i class="fas fa-trash"></i> Delete permanently</button>
+        <a class="btn ghost" href="{% url 'clinic:patient_detail' patient.pk %}">Cancel</a>
+      </div>
+    </form>
+  </div>
+</div>
+{% endblock %}

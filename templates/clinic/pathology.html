@@ -1,0 +1,89 @@
+{% extends "base.html" %}
+{% block title %}Pathology — GDES{% endblock %}
+{% block heading %}Pathology — central review{% endblock %}
+{% block content %}
+
+<!-- Page nav -->
+<div class="page-nav">
+  <div class="page-nav-left">
+    <a class="btn ghost sm" href="/"><i class="fas fa-arrow-left"></i> Dashboard</a>
+  </div>
+  <div class="page-nav-right">
+    <a class="btn ghost sm" href="{% url 'clinic:analytics' %}"><i class="fas fa-chart-area"></i> Analytics</a>
+  </div>
+</div>
+
+<div class="page-header">
+  <h2 class="page-title">Pathology central review</h2>
+  <p class="page-desc">Inter-observer agreement, discordant biopsies awaiting adjudication, and review status.</p>
+</div>
+
+<!-- Review status -->
+{% if status_counts %}
+<div class="card" style="margin-bottom:16px">
+  <div class="card-header"><i class="fas fa-clipboard-check text-primary-500"></i> Biopsy review status</div>
+  <div class="card-body" style="padding:0">
+    <table class="grid"><tbody>
+      {% for s in status_counts %}<tr><td style="text-transform:capitalize">{{ s.review_status|default:"—" }}</td><td class="font-semibold">{{ s.n }}</td></tr>{% endfor %}
+    </tbody></table>
+  </div>
+</div>
+{% endif %}
+
+<!-- Discordant -->
+<div class="card" style="margin-bottom:16px">
+  <div class="card-header">
+    <i class="fas fa-code-compare text-primary-500"></i> Awaiting adjudication (discordant)
+    <span class="badge {% if discordant %}warn{% else %}ok{% endif %}" style="margin-left:auto">{{ discordant|length }}</span>
+  </div>
+  <div class="card-body" style="padding:0">
+    {% if disc_error %}
+      <div class="empty-state">{{ disc_error }}</div>
+    {% elif discordant %}
+    <div class="overflow-x-auto">
+      <table class="grid">
+        <thead><tr><th>Biopsy</th><th>Patient</th><th>Discordant fields</th><th class="text-right">Actions</th></tr></thead>
+        <tbody>
+          {% for b in discordant %}
+          <tr>
+            <td class="font-medium">#{{ b.pk }}</td>
+            <td><strong>{{ b.patient }}</strong></td>
+            <td>{% for f in b.fields %}<span class="badge warn" style="margin-right:4px">{{ f }}</span>{% empty %}—{% endfor %}</td>
+            <td class="text-right"><a class="btn ghost sm" href="/admin/pathology/biopsy/{{ b.pk }}/change/">Open</a></td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% else %}
+    <div class="empty-state">
+      <div class="icon"><i class="fas fa-check-circle"></i></div>
+      <div class="title">No biopsies awaiting adjudication</div>
+      <div class="desc">All reviewed biopsies are concordant. 🎉</div>
+    </div>
+    {% endif %}
+  </div>
+</div>
+
+<!-- Inter-observer agreement -->
+<div class="card">
+  <div class="card-header">
+    <i class="fas fa-people-arrows text-primary-500"></i> Inter-observer agreement (Cohen's κ)
+    {% if agree %}<span class="badge neutral" style="margin-left:auto">{{ agree.n_dual_reviewed }} dual-reviewed</span>{% endif %}
+  </div>
+  <div class="card-body">
+    {% if agree_error %}
+      <div class="empty-state">{{ agree_error }}</div>
+    {% elif agree %}
+      <p style="margin-top:0;font-size:13.5px">Overall diagnosis agreement: <strong style="font-size:18px">κ = {{ agree.kappa|default:"—" }}</strong></p>
+      <div class="help" style="margin-top:4px">{{ agree.interpretation }}</div>
+    {% else %}
+      <div class="empty-state">
+        <div class="icon"><i class="fas fa-people-arrows"></i></div>
+        <div class="title">No dual-reviewed biopsies yet</div>
+      </div>
+    {% endif %}
+  </div>
+</div>
+
+{% endblock %}

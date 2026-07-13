@@ -1,0 +1,26 @@
+{% extends "auth_base.html" %}
+{% block title %}Sign in — GDES{% endblock %}
+{% block auth_content %}
+<h2 class="text-base font-semibold text-slate-800 text-center mb-5">Sign in to your account</h2>
+
+<form method="post" autocomplete="off">
+  {% csrf_token %}
+  {% if form.non_field_errors %}<div class="msg error">{{ form.non_field_errors|striptags }}</div>{% endif %}
+
+  <div class="frow">
+    <label for="{{ form.username.id_for_label }}">Username</label>
+    {{ form.username }}
+  </div>
+  <div class="frow">
+    <label for="{{ form.password.id_for_label }}">Password</label>
+    {{ form.password }}
+  </div>
+
+  <button class="btn w-full justify-center mt-1" type="submit"><i class="fas fa-arrow-right-to-bracket"></i> Sign in</button>
+</form>
+
+<div class="text-center text-xs mt-4 space-y-1">
+  <div><a href="{% url 'users:password_reset' %}" class="text-primary-600">Forgot password?</a></div>
+  <div class="text-slate-400">No account? Ask your administrator for an invitation.</div>
+</div>
+{% endblock %}

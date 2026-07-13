@@ -1,0 +1,44 @@
+{% extends "base.html" %}
+{% block title %}My profile — GDES{% endblock %}
+{% block heading %}My profile{% endblock %}
+{% block content %}
+
+<div class="panel">
+  <div class="ph"><i class="fas fa-id-card"></i> Profile</div>
+  <div class="pb">
+    <form method="post">
+      {% csrf_token %}
+      {% if form.non_field_errors %}<div class="msg error">{{ form.non_field_errors }}</div>{% endif %}
+      <div class="frow">
+        <label for="{{ form.first_name.id_for_label }}">{{ form.first_name.label }}</label>
+        {{ form.first_name }}
+      </div>
+      <div class="frow">
+        <label for="{{ form.last_name.id_for_label }}">{{ form.last_name.label }}</label>
+        {{ form.last_name }}
+      </div>
+      <div class="frow">
+        <label for="{{ form.email.id_for_label }}">{{ form.email.label }}</label>
+        {{ form.email }}
+      </div>
+      <div class="frow">
+        <label for="{{ form.department.id_for_label }}">{{ form.department.label }}</label>
+        {{ form.department }}
+      </div>
+      <div class="frow">
+        <label for="{{ form.phone.id_for_label }}">{{ form.phone.label }}</label>
+        {{ form.phone }}
+      </div>
+      <div class="frow">
+        <label>Role</label>
+        <div class="input" style="background:#f8f9fa;border-color:#e5e7eb;color:#555">
+          {{ profile.get_role_display|default:"No role assigned" }}
+        </div>
+        <div class="help">Role is assigned by an administrator and cannot be changed here.</div>
+      </div>
+      <button class="btn" type="submit"><i class="fas fa-floppy-disk"></i> Save profile</button>
+    </form>
+  </div>
+</div>
+
+{% endblock %}

@@ -1,0 +1,64 @@
+{% extends "base.html" %}
+{% block title %}Add medication — {{ patient.patient_id }}{% endblock %}
+{% block heading %}Add medication · {{ patient.patient_id }}{% endblock %}
+{% block content %}
+
+<div class="crumbs"><a href="{% url 'clinic:patients' %}">Patients</a> ›
+  <a href="{% url 'clinic:patient_detail' patient.pk %}">{{ patient.patient_id }}</a> › Add medication</div>
+
+<!-- Page nav: back + shortcuts -->
+<div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px;margin-bottom:16px">
+  <div style="display:flex;gap:8px">
+    <a class="btn ghost sm" href="{% url 'clinic:patient_detail' patient.pk %}"><i class="fas fa-arrow-left"></i> Back to patient</a>
+  </div>
+  <div style="display:flex;gap:8px">
+    <a class="btn ghost sm" href="{% url 'clinic:prescription' patient.pk %}"><i class="fas fa-prescription"></i> Prescription</a>
+    <a class="btn ghost sm" href="{% url 'clinic:followup' patient.pk %}"><i class="fas fa-notes-medical"></i> Follow-up</a>
+  </div>
+</div>
+
+{% include "clinic/_patient_context.html" %}
+
+<form method="post" autocomplete="off" id="tx-form">
+  {% csrf_token %}
+  {% if form.non_field_errors %}<div class="msg error">{{ form.non_field_errors }}</div>{% endif %}
+  <div class="panel"><div class="pb">
+    <fieldset class="fieldset">
+      <legend><i class="fas fa-pills"></i> Medication episode</legend>
+      <div class="help" style="margin-bottom:10px">For <b>prior or external</b> medications not entered through the clinic's prescription flow (e.g. drugs the patient was already on at registry entry). The current in-clinic regimen should be entered as a <a href="{% url 'clinic:prescription' patient.pk %}">prescription</a> so it reconciles automatically. Leave <b>Ongoing</b> ticked for a current drug, or untick it and give a stop date for a past course.</div>
+      <div class="cols2">
+        {% for f in form %}
+        <div class="frow" {% if f.name == 'frequency_other' %}id="freq-other-row" style="display:none"{% endif %}>
+          <label for="{{ f.id_for_label }}">{{ f.label }}</label>
+          {{ f }}
+          {% if f.help_text %}<div class="help">{{ f.help_text }}</div>{% endif %}
+          {% if f.errors %}<div class="errs">{{ f.errors|striptags }}</div>{% endif %}
+        </div>
+        {% endfor %}
+      </div>
+    </fieldset>
+    <div style="display:flex;gap:10px">
+      <button class="btn" type="submit"><i class="fas fa-floppy-disk"></i> Save medication</button>
+      <a class="btn ghost" href="{% url 'clinic:patient_detail' patient.pk %}">Cancel</a>
+    </div>
+  </div></div>
+</form>
+
+<script>
+(function(){
+  var freqSel = document.querySelector('select[name="frequency"]');
+  var freqOtherRow = document.getElementById('freq-other-row');
+  if(freqSel && freqOtherRow){
+    freqSel.addEventListener('change', function(){
+      freqOtherRow.style.display = (this.value === '__other__') ? 'block' : 'none';
+      if(this.value !== '__other__'){
+        var inp = freqOtherRow.querySelector('input');
+        if(inp) inp.value = '';
+      }
+    });
+    // init on load
+    freqOtherRow.style.display = (freqSel.value === '__other__') ? 'block' : 'none';
+  }
+})();
+</script>
+{% endblock %}

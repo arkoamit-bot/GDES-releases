@@ -1,0 +1,33 @@
+{% if data %}
+<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:16px;text-align:center">
+  <div>
+    <div style="font-size:32px;font-weight:700;color:#0c92d4">{{ data.by_sex.M|default:0 }}</div>
+    <div style="font-size:12px;color:#64748b">Male</div>
+  </div>
+  <div>
+    <div style="font-size:32px;font-weight:700;color:#be185d">{{ data.by_sex.F|default:0 }}</div>
+    <div style="font-size:12px;color:#64748b">Female</div>
+  </div>
+  <div>
+    <div style="font-size:32px;font-weight:700;color:#64748b">{{ data.by_sex.O|default:0 }}</div>
+    <div style="font-size:12px;color:#64748b">Other</div>
+  </div>
+</div>
+<div style="margin-top:12px">
+  <table style="width:100%;font-size:13px">
+    {% for status, count in data.by_diabetes.items %}
+    <tr>
+      <td style="color:#64748b;padding:3px 0">
+        <span class="badge {% if status == 'none' %}neutral{% elif status == 'type2' %}warn{% elif status == 'type1' %}info{% else %}neutral{% endif %}">{{ status }}</span>
+      </td>
+      <td style="text-align:right;font-weight:600;padding:3px 0">{{ count }}</td>
+    </tr>
+    {% endfor %}
+  </table>
+</div>
+{% else %}
+<div class="empty-state" style="padding:16px">
+  <div class="icon"><i class="fas fa-venus-mars"></i></div>
+  <div class="title">No demographics</div>
+</div>
+{% endif %}

@@ -1,0 +1,62 @@
+{% extends "base.html" %}
+{% block title %}Users — GDES{% endblock %}
+{% block heading %}Users & invitations{% endblock %}
+{% block content %}
+
+<div class="panel" style="margin-bottom:18px">
+  <div class="ph" style="display:flex;justify-content:space-between;align-items:center">
+    <span><i class="fas fa-users"></i> Registered users</span>
+    <a href="{% url 'users:invite_user' %}" class="btn sm"><i class="fas fa-user-plus"></i> Invite user</a>
+  </div>
+  <div class="pb" style="padding:0">
+    <table class="grid">
+      <thead>
+        <tr>
+          <th>Username</th><th>Name</th><th>Email</th><th>Role</th>
+          <th>Department</th><th>Joined</th><th>Last login</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for u in users %}
+        <tr>
+          <td><strong>{{ u.username }}</strong></td>
+          <td>{{ u.get_full_name }}</td>
+          <td>{{ u.email }}</td>
+          <td>{{ u.profile.get_role_display|default:"—" }}</td>
+          <td>{{ u.profile.department|default:"—" }}</td>
+          <td>{{ u.date_joined|date:"Y-m-d" }}</td>
+          <td>{% if u.last_login %}{{ u.last_login|date:"Y-m-d H:i" }}{% else %}Never{% endif %}</td>
+        </tr>
+        {% empty %}
+        <tr><td colspan="7" class="empty">No users yet.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+{% if invitations %}
+<div class="panel">
+  <div class="ph"><i class="fas fa-envelope-open-text"></i> Pending invitations (last 7 days)</div>
+  <div class="pb" style="padding:0">
+    <table class="grid">
+      <thead>
+        <tr><th>Email</th><th>Role</th><th>Sent by</th><th>Created</th><th>Link</th></tr>
+      </thead>
+      <tbody>
+        {% for inv in invitations %}
+        <tr>
+          <td>{{ inv.email }}</td>
+          <td>{{ inv.get_role_display|default:"—" }}</td>
+          <td>{{ inv.created_by }}</td>
+          <td>{{ inv.created_at|date:"Y-m-d H:i" }}</td>
+          <td><code style="font-size:11px">/invitation/{{ inv.token }}/</code></td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endif %}
+
+{% endblock %}

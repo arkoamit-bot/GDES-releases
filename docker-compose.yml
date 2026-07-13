@@ -1,0 +1,80 @@
+version: "3.9"
+
+x-app-common: &app-common
+  build: .
+  env_file: .env
+  volumes:
+    - bgddr_data:/data
+    - static_volume:/app/staticfiles
+  depends_on:
+    postgres:
+      condition: service_healthy
+    redis:
+      condition: service_started
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-bgddr}
+      POSTGRES_USER: ${POSTGRES_USER:-bgddr}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD required}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U bgddr"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
+  redis:
+    image: redis:7-alpine
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 3
+    restart: unless-stopped
+
+  app:
+    <<: *app-common
+    command: >
+      sh -c "python manage.py migrate --settings=bgddr.settings_prod &&
+             python manage.py collectstatic --noinput --settings=bgddr.settings_prod &&
+             gunicorn bgddr.wsgi:application --bind 0.0.0.0:8000 --workers 4 --timeout 120 --access-logfile - --error-logfile -"
+    ports:
+      - "8000:8000"
+    restart: unless-stopped
+
+  celery_worker:
+    <<: *app-common
+    command: celery -A bgddr worker -l INFO --concurrency=4
+    restart: unless-stopped
+
+  celery_beat:
+    <<: *app-common
+    command: celery -A bgddr beat -l INFO --scheduler django_celery_beat.schedulers:DatabaseScheduler
+    restart: unless-stopped
+
+  nginx:
+    image: nginx:1.25-alpine
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./nginx/ssl:/etc/nginx/ssl:ro
+      - static_volume:/static:ro
+      - bgddr_data:/data:ro
+    depends_on:
+      - app
+    restart: unless-stopped
+
+volumes:
+  postgres_data:
+  redis_data:
+  static_volume:
+  bgddr_data:

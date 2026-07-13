@@ -1,0 +1,33 @@
+<div class="grid2" style="display:grid;grid-template-columns:1fr 1fr;gap:16px;align-items:start">
+  {% if due %}
+  <div class="card" style="border-left:4px solid #16a34a">
+    <div class="card-header" style="color:#15803d"><i class="fas fa-calendar-check"></i> Due now <span class="badge ok" style="margin-left:auto">{{ due|length }}</span></div>
+    <div class="card-body" style="padding:0">
+      <table class="grid"><thead><tr><th>Patient</th><th>Visit</th><th>Target</th></tr></thead><tbody>
+      {% for v in due %}<tr><td>{% if v.patient_pk %}<a href="{% url 'clinic:patient_detail' v.patient_pk %}" class="font-semibold text-primary-600">{{ v.patient }}</a>{% else %}<span class="font-semibold text-slate-700">{{ v.patient }}</span>{% endif %} {{ v.name }}</td><td>{{ v.label }}</td><td>{{ v.target_date }}</td></tr>{% endfor %}
+      </tbody></table>
+    </div>
+  </div>
+  {% endif %}
+  {% if overdue %}
+  <div class="card" style="border-left:4px solid #dc2626">
+    <div class="card-header" style="color:#dc2626"><i class="fas fa-calendar-xmark"></i> Overdue <span class="badge danger" style="margin-left:auto">{{ overdue|length }}</span></div>
+    <div class="card-body" style="padding:0">
+      <table class="grid"><thead><tr><th>Patient</th><th>Visit</th><th>Target</th></tr></thead><tbody>
+      {% for v in overdue %}<tr><td>{% if v.patient_pk %}<a href="{% url 'clinic:patient_detail' v.patient_pk %}" class="font-semibold text-primary-600">{{ v.patient }}</a>{% else %}<span class="font-semibold text-slate-700">{{ v.patient }}</span>{% endif %} {{ v.name }}</td><td>{{ v.label }}</td><td>{{ v.target_date }}</td></tr>{% endfor %}
+      </tbody></table>
+    </div>
+  </div>
+  {% endif %}
+  {% if not due and not overdue %}
+  <div class="card" style="grid-column:1/-1">
+    <div class="card-body">
+      <div class="empty-state">
+        <div class="icon"><i class="fas fa-calendar-check"></i></div>
+        <div class="title">No visits due</div>
+        <div class="desc">All patients are up to date. New reminders will appear here as follow-up dates approach.</div>
+      </div>
+    </div>
+  </div>
+  {% endif %}
+</div>

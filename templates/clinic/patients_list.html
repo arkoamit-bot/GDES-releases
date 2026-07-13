@@ -1,0 +1,48 @@
+{% extends "base.html" %}
+{% block title %}Patients — GDES{% endblock %}
+{% block heading %}Patients{% endblock %}
+{% block content %}
+
+<div class="flex flex-wrap items-center justify-between gap-3 mb-4">
+  <form method="get" action="{% url 'clinic:patients' %}" class="flex items-center gap-2 flex-1 max-w-lg m-0"
+        hx-get="{% url 'clinic:patients' %}" hx-target="#patient-rows" hx-swap="innerHTML"
+        hx-trigger="keyup changed delay:250ms from:#q, search from:#q"
+        hx-indicator="#search-spin" hx-push-url="true">
+    <div class="relative flex-1">
+      <span class="absolute inset-y-0 left-3 flex items-center text-slate-400"><i class="fas fa-magnifying-glass text-sm"></i></span>
+      <input type="text" id="q" name="q" value="{{ q }}" autocomplete="off" autofocus class="!pl-9"
+             placeholder="Search ID, name, phone, hospital no.">
+      <span id="search-spin" class="htmx-indicator absolute inset-y-0 right-3 flex items-center text-primary-600">
+        <i class="fas fa-circle-notch fa-spin text-sm"></i></span>
+    </div>
+    <button type="submit" class="btn">Search</button>
+    {% if q %}<a href="{% url 'clinic:patients' %}" class="btn ghost">Clear</a>{% endif %}
+  </form>
+  <a class="btn" href="{% url 'clinic:patient_create' %}"><i class="fas fa-user-plus"></i> Register patient</a>
+</div>
+
+<div class="panel overflow-hidden">
+  <div class="flex items-center justify-between px-4 py-2.5 border-b border-slate-100">
+    <span class="text-xs font-semibold uppercase tracking-wide text-slate-500">Patient registry</span>
+    <span id="result-count" class="text-xs text-slate-500">{{ total }} patient{{ total|pluralize }}{% if capped %} · showing first 200{% endif %}</span>
+  </div>
+  <div class="overflow-x-auto">
+    <table class="grid">
+      <thead><tr>
+        <th>Study ID</th><th>Name</th><th>Sex</th><th>Diabetes</th>
+        <th>Diagnosis</th><th>eGFR</th><th></th>
+      </tr></thead>
+      <tbody id="patient-rows">
+        {% include "clinic/_patient_rows.html" %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<style>
+  /* HTMX loading indicator + subtle fade on swapped rows */
+  .htmx-indicator { opacity:0; transition:opacity .2s; }
+  .htmx-request .htmx-indicator, .htmx-request.htmx-indicator { opacity:1; }
+  #patient-rows.htmx-swapping { opacity:.4; transition:opacity .15s; }
+</style>
+{% endblock %}

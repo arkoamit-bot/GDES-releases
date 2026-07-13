@@ -1,0 +1,42 @@
+{% extends "base.html" %}
+{% block title %}Adverse event — {{ patient.patient_id }}{% endblock %}
+{% block heading %}Report adverse event · {{ patient.patient_id }}{% endblock %}
+{% block content %}
+
+<div class="crumbs"><a href="/patients/">Patients</a> ›
+  <a href="{% url 'clinic:patient_detail' patient.pk %}">{{ patient.patient_id }}</a> › Adverse event</div>
+
+<!-- Page nav: back + shortcuts -->
+<div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px;margin-bottom:16px">
+  <div style="display:flex;gap:8px">
+    <a class="btn ghost sm" href="{% url 'clinic:patient_detail' patient.pk %}"><i class="fas fa-arrow-left"></i> Back to patient</a>
+  </div>
+</div>
+
+{% include "clinic/_patient_context.html" %}
+
+<form method="post" autocomplete="off">
+  {% csrf_token %}
+  {% if form.non_field_errors %}<div class="msg error">{{ form.non_field_errors }}</div>{% endif %}
+  <div class="panel"><div class="pb">
+    <fieldset class="fieldset">
+      <legend><i class="fas fa-triangle-exclamation"></i> Event</legend>
+      <div class="help" style="margin-bottom:10px">An event is auto-flagged <b>serious (SAE)</b> if it required hospitalisation or is Grade&nbsp;4–5 — you don't need to set that.</div>
+      <div class="cols2">
+        {% for f in form %}
+        <div class="frow">
+          <label for="{{ f.id_for_label }}">{{ f.label }}</label>
+          {{ f }}
+          {% if f.help_text %}<div class="help">{{ f.help_text }}</div>{% endif %}
+          {% if f.errors %}<div class="errs">{{ f.errors|striptags }}</div>{% endif %}
+        </div>
+        {% endfor %}
+      </div>
+    </fieldset>
+    <div style="display:flex;gap:10px">
+      <button class="btn" type="submit"><i class="fas fa-floppy-disk"></i> Save event</button>
+      <a class="btn ghost" href="{% url 'clinic:patient_detail' patient.pk %}">Cancel</a>
+    </div>
+  </div></div>
+</form>
+{% endblock %}

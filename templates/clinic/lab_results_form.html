@@ -1,0 +1,67 @@
+{% extends "base.html" %}
+{% block title %}Enter lab results — {{ patient.patient_id }}{% endblock %}
+{% block heading %}Enter lab results · {{ patient.patient_id }}{% endblock %}
+{% block content %}
+
+<div class="crumbs"><a href="/patients/">Patients</a> ›
+  <a href="{% url 'clinic:patient_detail' patient.pk %}">{{ patient.patient_id }}</a> › Enter results</div>
+
+<div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px;margin-bottom:16px">
+  <div style="display:flex;gap:8px">
+    <a class="btn ghost sm" href="{% url 'clinic:patient_detail' patient.pk %}"><i class="fas fa-arrow-left"></i> Back to patient</a>
+  </div>
+</div>
+
+{% include "clinic/_patient_context.html" %}
+
+<form method="post" autocomplete="off">
+  {% csrf_token %}
+  {% if form.non_field_errors %}<div class="msg error">{{ form.non_field_errors }}</div>{% endif %}
+  <div class="panel"><div class="pb">
+    <div class="help" style="margin-bottom:12px">
+      Enter <b>result values</b> as they come to hand — at diagnosis (before biopsy), at a visit, or whenever a patient brings a report. Leave anything not done blank.
+      Entering <b>creatinine</b> auto-calculates the CKD-EPI 2021 eGFR. These are stored as dated points on the patient's longitudinal trend.
+    </div>
+
+    <fieldset class="fieldset">
+      <legend><i class="fas fa-calendar-day"></i> Result date</legend>
+      <div class="frow" style="max-width:280px">
+        <label for="{{ form.result_date.id_for_label }}">{{ form.result_date.label }} <span class="text-red-500">*</span></label>
+        {{ form.result_date }}
+        {% if form.result_date.help_text %}<div class="help">{{ form.result_date.help_text }}</div>{% endif %}
+        {% if form.result_date.errors %}<div class="errs">{{ form.result_date.errors|striptags }}</div>{% endif %}
+      </div>
+    </fieldset>
+
+    {% for g in form.grouped %}
+    <fieldset class="fieldset">
+      <legend><i class="fas fa-flask-vial"></i> {{ g.title }}</legend>
+      <div class="cols2">
+        {% for f in g.fields %}
+        <div class="frow">
+          <label for="{{ f.bf.id_for_label }}">{{ f.bf.label }}{% if f.unit and not f.unit_toggle %} <span class="text-slate-400">({{ f.unit }})</span>{% endif %}</label>
+          {% if f.unit_toggle %}
+          <div style="display:flex;gap:6px;align-items:center">
+            <div style="flex:1">{{ f.bf }}</div>
+            <div style="width:105px;flex-shrink:0">{{ f.unit_toggle }}</div>
+          </div>
+          {% elif f.qual %}
+          <div style="display:flex;gap:6px;align-items:center">
+            <div style="flex:1">{{ f.bf }}</div>
+            <div style="width:120px;flex-shrink:0">{{ f.qual }}</div>
+          </div>
+          {% else %}{{ f.bf }}{% endif %}
+          {% if f.bf.errors %}<div class="errs">{{ f.bf.errors|striptags }}</div>{% endif %}
+        </div>
+        {% endfor %}
+      </div>
+    </fieldset>
+    {% endfor %}
+
+    <div style="display:flex;gap:10px">
+      <button class="btn" type="submit"><i class="fas fa-floppy-disk"></i> Save results</button>
+      <a class="btn ghost" href="{% url 'clinic:patient_detail' patient.pk %}">Cancel</a>
+    </div>
+  </div></div>
+</form>
+{% endblock %}

@@ -1,0 +1,41 @@
+{% extends "base.html" %}
+{% block title %}Admission — {{ patient.patient_id }}{% endblock %}
+{% block heading %}Record admission · {{ patient.patient_id }}{% endblock %}
+{% block content %}
+
+<div class="crumbs"><a href="/patients/">Patients</a> ›
+  <a href="{% url 'clinic:patient_detail' patient.pk %}">{{ patient.patient_id }}</a> › Admission</div>
+
+<div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px;margin-bottom:16px">
+  <div style="display:flex;gap:8px">
+    <a class="btn ghost sm" href="{% url 'clinic:patient_detail' patient.pk %}"><i class="fas fa-arrow-left"></i> Back to patient</a>
+  </div>
+</div>
+
+{% include "clinic/_patient_context.html" %}
+
+<form method="post" autocomplete="off">
+  {% csrf_token %}
+  {% if form.non_field_errors %}<div class="msg error">{{ form.non_field_errors }}</div>{% endif %}
+  <div class="panel"><div class="pb">
+    <fieldset class="fieldset">
+      <legend><i class="fas fa-hospital"></i> Inpatient work-up</legend>
+      <div class="help" style="margin-bottom:10px">The admission for diagnostic work-up — link the biopsy done during the stay, and tick when the pre-discharge baseline form is complete.</div>
+      <div class="cols2">
+        {% for f in form %}
+        <div class="frow">
+          <label for="{{ f.id_for_label }}">{{ f.label }}</label>
+          {{ f }}
+          {% if f.help_text %}<div class="help">{{ f.help_text }}</div>{% endif %}
+          {% if f.errors %}<div class="errs">{{ f.errors|striptags }}</div>{% endif %}
+        </div>
+        {% endfor %}
+      </div>
+    </fieldset>
+    <div style="display:flex;gap:10px">
+      <button class="btn" type="submit"><i class="fas fa-floppy-disk"></i> Save admission</button>
+      <a class="btn ghost" href="{% url 'clinic:patient_detail' patient.pk %}">Cancel</a>
+    </div>
+  </div></div>
+</form>
+{% endblock %}

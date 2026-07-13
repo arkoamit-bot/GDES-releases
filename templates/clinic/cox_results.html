@@ -1,0 +1,78 @@
+{% extends "base.html" %}
+{% block title %}Cox PH — GDES{% endblock %}
+{% block heading %}Cox proportional hazards{% endblock %}
+{% block content %}
+
+<!-- Page nav -->
+<div style="display:flex;gap:8px;margin-bottom:16px">
+  <a class="btn ghost sm" href="{% url 'clinic:analytics' %}"><i class="fas fa-arrow-left"></i> Analytics</a>
+</div>
+
+<style>
+  .selbar { display:flex; gap:10px; flex-wrap:wrap; align-items:flex-end; margin-bottom:6px; }
+  .selbar .f { display:flex; flex-direction:column; gap:4px; }
+  .selbar label { font-size:12px; color:var(--muted); }
+  .selbar select, .selbar input { padding:7px 9px; border:1px solid var(--line); border-radius:7px; font-size:13.5px; }
+  .forest { display:flex; flex-direction:column; gap:10px; margin-top:14px; }
+  .frow { display:grid; grid-template-columns:180px 1fr 80px 80px 80px; gap:12px; align-items:center; font-size:13.5px; }
+  .frow.header { font-weight:700; color:var(--muted); font-size:11px; text-transform:uppercase; letter-spacing:.4px; border-bottom:1px solid var(--line); padding-bottom:6px; }
+</style>
+
+<p style="color:var(--muted);font-size:13.5px;margin-top:0">
+  Multivariable Cox regression — hazard ratios with 95% CI and Wald p-values.
+  Covariates are mean-centred before fitting.</p>
+
+<form method="get" class="selbar">
+  <div class="f"><label>Endpoint</label>
+    <select name="endpoint">
+      {% for e in endpoint_options %}<option value="{{ e }}" {% if e == endpoint %}selected{% endif %}>{{ e }}</option>{% endfor %}
+    </select></div>
+  <div class="f"><label>Covariates (comma-separated)</label>
+    <input type="text" name="covariates" value="{{ covariates }}" style="width:280px" placeholder="age,diabetes,baseline_egfr"></div>
+  <button class="btn sm" type="submit"><i class="fas fa-rotate"></i> Run</button>
+</form>
+
+<div class="panel" style="margin-top:18px">
+  <div class="ph"><i class="fas fa-wave-square"></i> Cox model — {{ endpoint }}</div>
+  <div class="pb">
+    {% if error %}
+      <div class="empty">{{ error }}</div>
+    {% elif result %}
+      <div style="font-size:13px;color:var(--muted);margin-bottom:12px">
+        N = {{ result.n }} · Events = {{ result.n_events }} ·
+        Log-likelihood = {{ result.log_likelihood }} · Iterations = {{ result.iterations }} ·
+        {% if result.converged %}<span class="chip ok">converged</span>{% else %}<span class="chip warn">not converged</span>{% endif %}
+        {% if result.n_dropped_incomplete %}· Dropped (incomplete) = {{ result.n_dropped_incomplete }}{% endif %}
+      </div>
+      <div class="forest">
+        <div class="frow header">
+          <div>Covariate</div>
+          <div style="text-align:center">Hazard ratio (95% CI)</div>
+          <div style="text-align:right">HR</div>
+          <div style="text-align:right">SE</div>
+          <div style="text-align:right">p-value</div>
+        </div>
+        {% for c in result.covariates %}
+        <div class="frow">
+          <div><strong>{{ c.name }}</strong></div>
+          <div style="text-align:center;font-size:12.5px;color:#555">
+            {{ c.hr|floatformat:2 }} ({{ c.hr_ci_low|floatformat:2 }} – {{ c.hr_ci_high|floatformat:2 }})
+          </div>
+          <div style="text-align:right">{{ c.hr|floatformat:2 }}</div>
+          <div style="text-align:right">{{ c.se|floatformat:3 }}</div>
+          <div style="text-align:right">
+            {% if c.p_value < 0.001 %}&lt;0.001{% else %}{{ c.p_value|floatformat:4 }}{% endif %}
+          </div>
+        </div>
+        {% endfor %}
+      </div>
+      <p style="font-size:12px;color:var(--muted);margin-top:14px">
+        <i class="fas fa-circle-info"></i> HR &gt; 1 means higher hazard; HR &lt; 1 means lower hazard.
+      </p>
+    {% else %}
+      <div class="empty">No result.</div>
+    {% endif %}
+  </div>
+</div>
+
+{% endblock %}

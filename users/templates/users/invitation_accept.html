@@ -1,0 +1,37 @@
+{% extends "auth_base.html" %}
+{% block title %}Accept invitation — GDES{% endblock %}
+{% block auth_content %}
+<h2 class="text-base font-semibold text-slate-800 text-center mb-2">Accept invitation</h2>
+<p class="text-center text-sm text-slate-500 mb-5">
+  You have been invited to join the GDES registry.<br>
+  <strong class="text-slate-700">{{ invitation.email }}</strong> · Role: <strong class="text-slate-700">{{ invitation.get_role_display }}</strong>
+</p>
+
+<form method="post" autocomplete="off">
+  {% csrf_token %}
+  {% if form.non_field_errors %}<div class="msg error">{{ form.non_field_errors|striptags }}</div>{% endif %}
+
+  <div class="cols2">
+    <div class="frow">
+      <label for="id_first_name">First name</label>
+      <input type="text" name="first_name" id="id_first_name" placeholder="First name">
+    </div>
+    <div class="frow">
+      <label for="id_last_name">Last name</label>
+      <input type="text" name="last_name" id="id_last_name" placeholder="Last name">
+    </div>
+  </div>
+  <div class="frow">
+    <label for="{{ form.new_password1.id_for_label }}">Password</label>
+    {{ form.new_password1 }}
+    {% if form.new_password1.errors %}<div class="errs">{{ form.new_password1.errors|striptags }}</div>{% endif %}
+  </div>
+  <div class="frow">
+    <label for="{{ form.new_password2.id_for_label }}">Confirm password</label>
+    {{ form.new_password2 }}
+    {% if form.new_password2.errors %}<div class="errs">{{ form.new_password2.errors|striptags }}</div>{% endif %}
+  </div>
+
+  <button class="btn w-full justify-center mt-1" type="submit"><i class="fas fa-user-plus"></i> Create account</button>
+</form>
+{% endblock %}

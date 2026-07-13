@@ -1,0 +1,100 @@
+{% extends "base.html" %}
+{% block title %}Biopsy — {{ patient.patient_id }}{% endblock %}
+{% block heading %}Record biopsy · {{ patient.patient_id }}{% endblock %}
+{% block content %}
+
+<div class="crumbs"><a href="/patients/">Patients</a> ›
+  <a href="{% url 'clinic:patient_detail' patient.pk %}">{{ patient.patient_id }}</a> › Biopsy</div>
+
+<!-- Page nav: back + shortcuts -->
+<div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px;margin-bottom:16px">
+  <div style="display:flex;gap:8px">
+    <a class="btn ghost sm" href="{% url 'clinic:patient_detail' patient.pk %}"><i class="fas fa-arrow-left"></i> Back to patient</a>
+  </div>
+</div>
+
+{% include "clinic/_patient_context.html" %}
+
+<form method="post" autocomplete="off">
+  {% csrf_token %}
+  {% if bx.non_field_errors %}<div class="msg error">{{ bx.non_field_errors }}</div>{% endif %}
+  {% if dx.non_field_errors %}<div class="msg error">{{ dx.non_field_errors }}</div>{% endif %}
+
+  <div class="panel"><div class="pb">
+    <fieldset class="fieldset">
+      <legend><i class="fas fa-microscope"></i> Diagnosis</legend>
+      <div class="help" style="margin-bottom:10px">The diagnosis drives the disease-specific remission rules and cohort analytics. The matching score block below opens automatically.</div>
+      <div class="cols2">
+        {% for f in dx %}
+        <div class="frow">
+          <label for="{{ f.id_for_label }}">{{ f.label }}</label>
+          {{ f }}
+          {% if f.help_text %}<div class="help">{{ f.help_text }}</div>{% endif %}
+          {% if f.errors %}<div class="errs">{{ f.errors|striptags }}</div>{% endif %}
+        </div>
+        {% endfor %}
+      </div>
+    </fieldset>
+
+    <fieldset class="fieldset">
+      <legend><i class="fas fa-vial-circle-check"></i> Core biopsy &amp; lesions</legend>
+      <div class="cols2">
+        {% for f in bx %}
+        <div class="frow">
+          <label for="{{ f.id_for_label }}">{{ f.label }}</label>
+          {{ f }}
+          {% if f.help_text %}<div class="help">{{ f.help_text }}</div>{% endif %}
+          {% if f.errors %}<div class="errs">{{ f.errors|striptags }}</div>{% endif %}
+        </div>
+        {% endfor %}
+      </div>
+    </fieldset>
+
+    {% for key, form in scores.items %}
+    <details class="fieldset" data-score="{{ key }}" {% if form.errors %}open{% endif %} style="border:1px solid var(--line,#e2e8f0);border-radius:10px;padding:12px 14px;margin-top:12px">
+      <summary style="cursor:pointer;font-weight:600">
+        {% if key == "igan" %}Oxford MEST-C score (IgA nephropathy)
+        {% elif key == "lupus" %}Lupus nephritis — ISN/RPS class &amp; indices
+        {% elif key == "fsgs" %}FSGS — primary/secondary &amp; variant
+        {% elif key == "mn" %}Membranous — PLA2R/THSD7A &amp; stage{% endif %}
+        <span class="help" style="font-weight:400">— optional, fill only if relevant</span>
+      </summary>
+      <div class="cols2" style="margin-top:10px">
+        {% for f in form %}
+        <div class="frow">
+          <label for="{{ f.id_for_label }}">{{ f.label }}</label>
+          {{ f }}
+          {% if f.help_text %}<div class="help">{{ f.help_text }}</div>{% endif %}
+          {% if f.errors %}<div class="errs">{{ f.errors|striptags }}</div>{% endif %}
+        </div>
+        {% endfor %}
+      </div>
+    </details>
+    {% endfor %}
+
+    <div style="display:flex;gap:10px;margin-top:14px">
+      <button class="btn" type="submit"><i class="fas fa-floppy-disk"></i> Save biopsy</button>
+      <a class="btn ghost" href="{% url 'clinic:patient_detail' patient.pk %}">Cancel</a>
+    </div>
+  </div></div>
+</form>
+
+{{ score_hints|json_script:"score-hints" }}
+<script>
+  (function () {
+    var hints = JSON.parse(document.getElementById('score-hints').textContent);
+    var sel = document.getElementById('id_dx-diagnosis');
+    if (!sel) return;
+    function sync() {
+      var v = (sel.value || '').toLowerCase();
+      Object.keys(hints).forEach(function (key) {
+        var match = hints[key].some(function (s) { return v.indexOf(s) !== -1; });
+        var block = document.querySelector('details[data-score="' + key + '"]');
+        if (block && match) block.open = true;
+      });
+    }
+    sel.addEventListener('change', sync);
+    sync();
+  })();
+</script>
+{% endblock %}

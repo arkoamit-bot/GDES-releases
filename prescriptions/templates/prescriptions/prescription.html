@@ -1,0 +1,166 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Prescription — {{ patient.patient_id }}</title>
+<style>
+  {{ bn_font_face|safe }}
+  @page { size: A4; margin: 14mm 16mm; }
+  * { box-sizing: border-box; }
+  body { font-family: "Segoe UI", Arial, sans-serif; color: #1a1a1a; font-size: 12.5px;
+         line-height: 1.4; }
+  .bn { font-family: "Bn", "Segoe UI", Arial, sans-serif; }
+
+  .head { border-bottom: 2px solid #26215C; padding-bottom: 8px; margin-bottom: 6px; }
+  .head .en { font-size: 16px; font-weight: 700; color: #26215C; }
+  .head .bn { font-size: 14px; color: #26215C; }
+  .head .addr { font-size: 10px; color: #555; margin-top: 2px; }
+  .head .reg  { font-size: 10px; color: #555; font-style: italic; }
+
+  .meta { display: flex; justify-content: space-between; font-size: 11px;
+          border-bottom: 1px solid #ccc; padding: 6px 0; margin-bottom: 8px; }
+  .meta div { line-height: 1.5; }
+  .label { color: #777; }
+
+  .vitals { font-size: 11px; margin: 4px 0 10px; color: #333; }
+  .dx { margin: 6px 0 10px; }
+  .dx .label { font-weight: 600; color: #26215C; }
+
+  .rx-mark { font-size: 26px; font-weight: 700; color: #26215C; line-height: 1; }
+  table { width: 100%; border-collapse: collapse; margin-top: 4px; }
+  th { text-align: left; font-size: 10px; text-transform: uppercase; color: #777;
+       border-bottom: 2px solid #26215C; padding: 5px 8px; letter-spacing: .3px; }
+  td { padding: 8px; border-bottom: 1px solid #eee; vertical-align: top; }
+  /* Zebra striping makes long medication lists easier to read line-by-line. */
+  tbody tr:nth-child(even) td { background: #f7f7fc; }
+  .drug { font-weight: 700; font-size: 13.5px; color: #1a1a1a; }
+  .brand { color: #666; font-weight: 400; font-size: 11px; }
+  .instr { font-size: 11.5px; color: #2a2a2a; margin-top: 3px;
+           padding-left: 8px; border-left: 2px solid #d7d4ec; }
+
+  .advice { margin-top: 12px; font-size: 11px; }
+  .advice .label { font-weight: 600; color: #26215C; }
+
+  .foot { margin-top: 26px; display: flex; justify-content: space-between;
+          align-items: flex-end; }
+  .next { font-size: 12px; }
+  .next .callout { display: inline-block; background: #f0eff8; border: 1px solid #d7d4ec;
+                   border-radius: 6px; padding: 6px 12px; color: #26215C; }
+  .next .callout strong { color: #26215C; }
+  .sign { text-align: center; font-size: 11px; }
+  .sign .line { border-top: 1px solid #333; width: 180px; padding-top: 3px; }
+  .stamp { margin-top: 10px; font-size: 9px; color: #999; }
+  .draft-banner { color: #b00; font-weight: 700; font-size: 11px;
+                  border: 1px dashed #b00; padding: 3px 6px; display: inline-block; }
+  /* Big diagonal DRAFT watermark so an un-finalized copy can never be mistaken
+     for a signed prescription. */
+  .watermark { position: fixed; top: 42%; left: 50%;
+               transform: translate(-50%,-50%) rotate(-30deg);
+               font-size: 120px; font-weight: 800; color: rgba(176,0,32,.08);
+               letter-spacing: 8px; z-index: 0; pointer-events: none; }
+</style>
+</head>
+<body>
+
+  <div class="head">
+    <div class="en">{{ clinic.name_en }}</div>
+    <div class="bn">{{ clinic.name_bn }}</div>
+    <div class="addr">{{ clinic.address }}</div>
+    <div class="reg">{{ clinic.registry }}</div>
+  </div>
+
+  {% if not rx.is_final %}<div class="watermark">DRAFT</div>
+  <div class="draft-banner">DRAFT — not finalized · not valid for dispensing</div>{% endif %}
+
+  <div class="meta">
+    <div>
+      <span class="label">Patient:</span> <strong>{{ patient.name }}</strong><br>
+      <span class="label">ID:</span> {{ patient.patient_id }}
+      {% if patient.hospital_id %} &nbsp; <span class="label">Reg:</span> {{ patient.hospital_id }}{% endif %}<br>
+      <span class="label">Sex:</span> {{ patient.get_sex_display }}
+      {% if patient.diabetes_status != 'none' %} &nbsp; <span class="label">DM:</span> {{ patient.get_diabetes_status_display }}{% endif %}
+    </div>
+    <div style="text-align:right;">
+      <span class="label">Date:</span> {{ encounter.encounter_date }}<br>
+      <span class="label">Visit:</span> {{ encounter.get_encounter_type_display }}<br>
+      {% if patient.latest_egfr %}<span class="label">eGFR:</span> {{ patient.latest_egfr }} mL/min{% endif %}
+    </div>
+  </div>
+
+  {% if encounter.systolic_bp or encounter.weight_kg %}
+  <div class="vitals">
+    {% if encounter.systolic_bp %}BP {{ encounter.systolic_bp }}/{{ encounter.diastolic_bp }} mmHg &nbsp;·&nbsp;{% endif %}
+    {% if encounter.weight_kg %}Weight {{ encounter.weight_kg }} kg{% endif %}
+  </div>
+  {% endif %}
+
+  {% if rx.diagnosis_text %}
+  <div class="dx"><span class="label">Diagnosis:</span> {{ rx.diagnosis_text }}</div>
+  {% endif %}
+  {% if rx.comorbidities %}
+  <div class="dx"><span class="label">Comorbidities:</span> {{ rx.comorbidities }}</div>
+  {% endif %}
+
+  <div class="rx-mark">℞</div>
+  <table>
+    <thead>
+      <tr><th style="width:34%">Drug</th><th>Strength</th><th>Route</th>
+          <th>Frequency</th><th>Timing</th><th>Duration</th></tr>
+    </thead>
+    <tbody>
+      {% for it in items %}
+      <tr>
+        <td>
+          {% if it.brand %}
+            <span class="drug">{{ it.brand }}</span>
+            <br><span class="brand">{{ it.drug.generic_name }}</span>
+          {% else %}
+            <span class="drug">{{ it.drug.generic_name }}</span>
+          {% endif %}
+          {% if it.instruction_bn %}<div class="instr bn">{{ it.instruction_bn }}</div>{% endif %}
+        </td>
+        <td>{{ it.strength }}</td>
+        <td>{{ it.route_value }}</td>
+        <td>{{ it.frequency }}</td>
+        <td>{{ it.get_timing_display }}</td>
+        <td>{{ it.duration }}</td>
+      </tr>
+      {% empty %}
+      <tr><td colspan="6" style="color:#999">No medications.</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+
+  {% if rx.investigations_advised %}
+  <div class="advice"><span class="label">Investigations advised:</span><br>{{ rx.investigations_advised|linebreaksbr }}</div>
+  {% endif %}
+
+  {% if rx.advice %}
+  <div class="advice"><span class="label">Advice / পরামর্শ:</span><br><span class="bn">{{ rx.advice|linebreaksbr }}</span></div>
+  {% endif %}
+
+  {% if encounter.advice %}
+  <div class="advice"><span class="label">Visit note:</span><br><span class="bn">{{ encounter.advice|linebreaksbr }}</span></div>
+  {% endif %}
+
+  {% if rx.stop_notes %}
+  <div class="advice"><span class="label">Medications stopped this visit:</span><br>{{ rx.stop_notes|linebreaksbr }}</div>
+  {% endif %}
+
+  <div class="foot">
+    <div class="next">
+      {% if encounter.next_due_date %}<span class="callout"><strong>Next visit:</strong> {{ encounter.next_due_date }}</span>{% endif %}
+    </div>
+    <div class="sign">
+      <div class="line">{% if rx.printed_by %}Dr. {{ rx.printed_by.get_full_name|default:rx.printed_by.username }}{% else %}Signature{% endif %}</div>
+    </div>
+  </div>
+
+  <div class="stamp">
+    GDES Rx v{{ rx.version }} · {{ rx.get_status_display }}
+    {% if rx.printed_at %} · printed {{ rx.printed_at }}{% endif %}
+    {% if rx.content_hash %} · {{ rx.content_hash|slice:":12" }}{% endif %}
+  </div>
+
+</body>
+</html>

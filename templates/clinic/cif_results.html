@@ -1,0 +1,80 @@
+{% extends "base.html" %}
+{% block title %}Competing risks — GDES{% endblock %}
+{% block heading %}Competing-risks cumulative incidence{% endblock %}
+{% block content %}
+
+<!-- Page nav -->
+<div style="display:flex;gap:8px;margin-bottom:16px">
+  <a class="btn ghost sm" href="{% url 'clinic:analytics' %}"><i class="fas fa-arrow-left"></i> Analytics</a>
+</div>
+
+<style>
+  .selbar { display:flex; gap:10px; flex-wrap:wrap; align-items:flex-end; margin-bottom:6px; }
+  .selbar .f { display:flex; flex-direction:column; gap:4px; }
+  .selbar label { font-size:12px; color:var(--muted); }
+  .selbar select, .selbar input { padding:7px 9px; border:1px solid var(--line); border-radius:7px; font-size:13.5px; }
+</style>
+
+<p style="color:var(--muted);font-size:13.5px;margin-top:0">
+  Aalen-Johansen cumulative incidence function (CIF) for the kidney endpoint with death as a competing event.
+  In the absence of competing events this reduces to 1 − Kaplan–Meier.</p>
+
+<form method="get" class="selbar">
+  <div class="f"><label>Group by</label>
+    <select name="group_by">
+      {% for g in group_options %}<option value="{{ g }}" {% if g == group_by %}selected{% endif %}>{{ g }}</option>{% endfor %}
+    </select></div>
+  <div class="f"><label>At days</label>
+    <input type="number" name="at_days" value="{{ at_days }}" style="width:100px"></div>
+  <button class="btn sm" type="submit"><i class="fas fa-rotate"></i> Update</button>
+</form>
+
+<div class="panel" style="margin-top:18px">
+  <div class="ph"><i class="fas fa-code-branch"></i> CIF at {{ at_days }} days — by {{ group_by }}</div>
+  <div class="pb" style="padding:0">
+    {% if error %}
+      <div class="pb empty">{{ error }}</div>
+    {% elif data %}
+      {% if data.rows %}
+      <table class="grid">
+        <thead>
+          <tr>
+            <th>Group</th>
+            <th>N</th>
+            <th>Kidney events</th>
+            <th>Competing (death)</th>
+            <th>CIF @ {{ at_days }}d</th>
+            <th>Final CIF</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for row in data.rows %}
+          <tr>
+            <td><strong>{{ row.label }}</strong></td>
+            <td>{{ row.n }}</td>
+            <td>{{ row.n_kidney_events }}</td>
+            <td>{{ row.n_competing_deaths }}</td>
+            <td>{% if row.cif is not None %}{{ row.cif|floatformat:3 }}{% else %}—{% endif %}</td>
+            <td>{% if row.final_cif is not None %}{{ row.final_cif|floatformat:3 }}{% else %}—{% endif %}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+      {% if data.comparison %}
+      <div class="pb" style="font-size:13px;color:#333;margin-top:8px">
+        <strong>Two-group comparison:</strong>
+        difference = {{ data.comparison.difference|floatformat:3 }},
+        z = {{ data.comparison.z|floatformat:3 }},
+        p = {% if data.comparison.p_value < 0.001 %}&lt;0.001{% else %}{{ data.comparison.p_value|floatformat:4 }}{% endif %}
+      </div>
+      {% endif %}
+      {% else %}
+        <div class="pb empty">No groups with sufficient follow-up.</div>
+      {% endif %}
+    {% else %}
+      <div class="pb empty">No data.</div>
+    {% endif %}
+  </div>
+</div>
+
+{% endblock %}

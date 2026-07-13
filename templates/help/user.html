@@ -1,0 +1,83 @@
+{% extends "base.html" %}
+{% block title %}User Guide — GDES{% endblock %}
+{% block heading %}User Guide{% endblock %}
+{% block content %}
+
+<div class="page-nav">
+  <div class="page-nav-left"><a href="{% url 'clinic:help' %}" class="btn ghost sm"><i class="fas fa-arrow-left"></i> All guides</a></div>
+</div>
+<p class="page-desc">How to use GDES for day-to-day clinical work: entering data, reading the decision support, analysing the cohort, and exporting datasets.</p>
+
+<div class="card" style="margin-bottom:16px">
+  <div class="card-header"><i class="fas fa-list text-primary-500"></i> Contents</div>
+  <div class="card-body" style="font-size:13.5px">
+    <ol style="margin:0;padding-left:20px;line-height:1.9">
+      <li><a href="#nav">Finding your way around</a></li>
+      <li><a href="#register">Registering a patient</a></li>
+      <li><a href="#visit">Recording a visit: labs, biopsy, prescription, follow-up</a></li>
+      <li><a href="#cds">Clinical reasoning &amp; decision support</a></li>
+      <li><a href="#analysis">Analysis &amp; dashboards</a></li>
+      <li><a href="#export">Exporting data</a></li>
+    </ol>
+  </div>
+</div>
+
+<div class="section-title" id="nav"><i class="fas fa-compass mr-1"></i> 1. Finding your way around</div>
+<div class="card" style="margin-bottom:16px"><div class="card-body" style="font-size:13.5px;color:#334155;line-height:1.7">
+  <p>The left <strong>sidebar</strong> is your main menu. The top group is the clinical workflow — <strong>Dashboard</strong> and <strong>Patients</strong>; below that <strong>Clinical Intelligence</strong> (reasoning, follow-up, knowledge base) and <strong>Research</strong> (analytics, studies, safety, pathology, biomarkers, quality, export).</p>
+  <p>The <strong>“Jump to patient…”</strong> box in the top bar finds and opens any patient by ID, name or phone from any page. The <strong>Home</strong> button returns to the dashboard.</p>
+</div></div>
+
+<div class="section-title" id="register"><i class="fas fa-user-plus mr-1"></i> 2. Registering a patient</div>
+<div class="card" style="margin-bottom:16px"><div class="card-body" style="font-size:13.5px;color:#334155;line-height:1.7">
+  <ol style="padding-left:20px;line-height:1.8">
+    <li>Sidebar → <strong>Patients</strong> → <strong>Add Patient</strong> (or the “Register New Patient” card on the dashboard).</li>
+    <li>Complete the guided steps — <strong>demographics</strong> then <strong>clinical/enrolment</strong> details. A duplicate check warns if the hospital ID or name already exists.</li>
+    <li>On the patient page, work down the status strip: <strong>Registered → Baseline → Prescription → Follow-up → Outcomes</strong>. Add the <strong>baseline</strong> assessment and record <strong>consent</strong>.</li>
+  </ol>
+  <p style="margin-top:8px;color:#64748b">Tip: fields left blank show up later as <em>information gaps</em> and <em>care gaps</em> on the patient’s reasoning tab, so complete what you can.</p>
+</div></div>
+
+<div class="section-title" id="visit"><i class="fas fa-notes-medical mr-1"></i> 3. Recording a visit</div>
+<div class="card" style="margin-bottom:16px"><div class="card-body" style="font-size:13.5px;color:#334155;line-height:1.7">
+  <p>Open the patient and use the tabs / action buttons on the patient page:</p>
+  <ul style="padding-left:20px;line-height:1.8">
+    <li><strong>Labs</strong> — order a panel and enter results (creatinine/eGFR, UPCR/ACR, serology, etc.).</li>
+    <li><strong>Biopsies</strong> — record histology; disease-specific scoring forms are available (IgAN, membranous, lupus, FSGS).</li>
+    <li><strong>Prescription</strong> — build a prescription (up to 12 medication lines) and print/save the PDF.</li>
+    <li><strong>Follow-up (Visits)</strong> — record a follow-up visit, response, relapse or admission.</li>
+  </ul>
+  <p>Saving new data automatically recomputes the patient’s clinical profile, so the reasoning tab stays current.</p>
+</div></div>
+
+<div class="section-title" id="cds"><i class="fas fa-brain mr-1"></i> 4. Clinical reasoning &amp; decision support</div>
+<div class="card" style="margin-bottom:16px;border-left:4px solid #4f46e5"><div class="card-body" style="font-size:13.5px;color:#334155;line-height:1.7">
+  <p>The <strong>Clinical Reasoning</strong> and <strong>CDS Plans</strong> tabs on the patient page show the leading differential, care pathway, information/care gaps, risk assessment, and suggested management and monitoring.</p>
+  <p><strong>This is decision <em>support</em>, not a decision.</strong> Every suggestion is meant to be reviewed against the guideline reference shown and your own clinical judgement — you remain responsible for the plan.</p>
+</div></div>
+
+<div class="section-title" id="analysis"><i class="fas fa-chart-line mr-1"></i> 5. Analysis &amp; dashboards</div>
+<div class="card" style="margin-bottom:16px"><div class="card-body" style="font-size:13.5px;color:#334155;line-height:1.7">
+  <ul style="padding-left:20px;line-height:1.8">
+    <li><strong>Dashboard</strong> — Overview, plus <strong>Enrollment</strong>, <strong>Outcomes</strong> and <strong>Compliance</strong> views of the whole registry.</li>
+    <li><strong>Analytics</strong> — cohort analytics including survival (Cox), eGFR-slope, and cumulative-incidence (CIF) result pages.</li>
+    <li><strong>Quality</strong> — guideline-adherence and data-completeness measures for continuous improvement.</li>
+  </ul>
+</div></div>
+
+<div class="section-title" id="export"><i class="fas fa-file-export mr-1"></i> 6. Exporting data</div>
+<div class="card" style="margin-bottom:16px"><div class="card-body" style="font-size:13.5px;color:#334155;line-height:1.7">
+  <p>Sidebar → <strong>Export</strong>. Choose a format:</p>
+  <ul style="padding-left:20px;line-height:1.8">
+    <li><strong>CSV</strong> — plain tabular data.</li>
+    <li><strong>Excel</strong> — includes a second <em>data dictionary</em> (codebook) sheet.</li>
+    <li><strong>SPSS (.sav)</strong> — fully labelled (variable labels, measurement levels, value labels) so it opens analysis-ready.</li>
+  </ul>
+  <p>Exports are <strong>de-identified by default</strong>. An <strong>identified</strong> export (with names/IDs) requires the <code>data_manager</code> role — ask your administrator if you need it.</p>
+</div></div>
+
+<div class="card" style="border-left:4px solid var(--brand)"><div class="card-body" style="font-size:13px;color:#475569">
+  <i class="fas fa-circle-question text-primary-500"></i> Something not working, or need a backup/restore or a new account? See the <strong>Administrator Guide</strong> (staff) or ask your site administrator.
+</div></div>
+
+{% endblock %}

@@ -1,0 +1,18 @@
+{# Patient context strip for patient-scoped forms (BADAS-style). Expects `patient`. #}
+<div class="context-bar">
+  <div style="display:flex;align-items:center;gap:12px">
+    <span style="display:flex;align-items:center;justify-content:center;width:44px;height:44px;border-radius:50%;background:linear-gradient(135deg,#0ea5e9,#0c92d4);color:#fff;font-size:17px;font-weight:700">
+      {{ patient.name|slice:":1"|upper|default:"?" }}
+    </span>
+    <div class="leading-tight">
+      <div class="text-sm font-semibold text-slate-800">{{ patient.name }}</div>
+      <div class="text-xs text-slate-500">{{ patient.patient_id }}{% if patient.hospital_id %} · Reg {{ patient.hospital_id }}{% endif %}</div>
+    </div>
+  </div>
+  <div class="meta">
+    <span class="badge neutral">{{ patient.get_sex_display }}{% if patient.dob %} · {{ patient.dob }}{% endif %}</span>
+    {% if patient.diabetes_status and patient.diabetes_status != 'none' %}<span class="badge warn">{{ patient.get_diabetes_status_display }}</span>{% endif %}
+    {% if patient.primary_diagnosis %}<span class="badge info">{{ patient.get_primary_diagnosis_display }}</span>{% endif %}
+    {% if patient.latest_egfr %}<span><i class="fas fa-droplet"></i>eGFR {{ patient.latest_egfr }}</span>{% endif %}
+  </div>
+</div>

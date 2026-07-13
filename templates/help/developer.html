@@ -1,0 +1,111 @@
+{% extends "base.html" %}
+{% block title %}Developer Guide — GDES{% endblock %}
+{% block heading %}Developer Guide{% endblock %}
+{% block content %}
+
+<div class="page-nav">
+  <div class="page-nav-left"><a href="{% url 'clinic:help' %}" class="btn ghost sm"><i class="fas fa-arrow-left"></i> All guides</a></div>
+</div>
+<p class="page-desc">Technical reference for building, updating and maintaining GDES: a Django + SQLite app packaged as a single-user Windows desktop build with PyInstaller.</p>
+
+<div class="card" style="margin-bottom:16px">
+  <div class="card-header"><i class="fas fa-list text-primary-500"></i> Contents</div>
+  <div class="card-body" style="font-size:13.5px"><ol style="margin:0;padding-left:20px;line-height:1.9">
+    <li><a href="#arch">Project layout &amp; settings</a></li>
+    <li><a href="#source">Running from source</a></li>
+    <li><a href="#build">Building the .exe</a></li>
+    <li><a href="#publish">Publishing an update</a></li>
+    <li><a href="#css">CSS &amp; static assets</a></li>
+    <li><a href="#env">Config &amp; environment variables</a></li>
+    <li><a href="#db">Database, migrations &amp; WAL</a></li>
+    <li><a href="#postgres">Future: PostgreSQL</a></li>
+  </ol></div>
+</div>
+
+<div class="section-title" id="arch"><i class="fas fa-diagram-project mr-1"></i> 1. Project layout &amp; settings</div>
+<div class="card" style="margin-bottom:16px"><div class="card-body" style="font-size:13.5px;color:#334155;line-height:1.7">
+  <p>A standard multi-app Django project (patients, encounters, labs, prescriptions, clinical_reasoning, knowledge, followup, clinic UI, …) on SQLite. Three settings modules:</p>
+  <ul style="padding-left:20px;line-height:1.8">
+    <li><code>bgddr/settings.py</code> — base/dev (DEBUG on, insecure key). Used by <code>manage.py</code> by default.</li>
+    <li><code>bgddr/settings_desktop.py</code> — the packaged app: DEBUG off, persistent SECRET_KEY, localhost only, data under <code>BGDDR_DATA_DIR</code>. <strong>This is what the launcher uses.</strong></li>
+    <li><code>bgddr/settings_prod.py</code> — future multi-user/PostgreSQL deployment.</li>
+  </ul>
+  <p>App version lives in <code>bgddr/version.py</code> (<code>__version__</code>) and is surfaced in the UI via a context processor.</p>
+</div></div>
+
+<div class="section-title" id="source"><i class="fas fa-terminal mr-1"></i> 2. Running from source</div>
+<div class="card" style="margin-bottom:16px"><div class="card-body" style="font-size:13.5px;color:#334155;line-height:1.7">
+  <div style="background:#0f172a;color:#e2e8f0;border-radius:8px;padding:12px 14px;font-family:monospace;font-size:12.5px;overflow-x:auto;white-space:pre">python manage.py runserver              # dev server (base settings, DEBUG on)
+python desktop\launcher.py              # desktop stack (Waitress + settings_desktop)
+Start-BGDDR.bat                         # double-click launcher (uses the launcher)</div>
+  <p style="margin-top:10px">For anything user-facing, prefer <code>launcher.py</code> / <code>Start-BGDDR.bat</code>: it uses the hardened desktop settings, whereas bare <code>runserver</code> uses the dev settings.</p>
+</div></div>
+
+<div class="section-title" id="build"><i class="fas fa-box mr-1"></i> 3. Building the .exe</div>
+<div class="card" style="margin-bottom:16px"><div class="card-body" style="font-size:13.5px;color:#334155;line-height:1.7">
+  <div style="background:#0f172a;color:#e2e8f0;border-radius:8px;padding:12px 14px;font-family:monospace;font-size:12.5px;overflow-x:auto;white-space:pre">.\desktop\build_exe.ps1        # installs build deps, rebuilds CSS, runs PyInstaller, self-checks
+# manual equivalent:
+pyinstaller desktop\BGDDR.spec --noconfirm
+dist\BGDDR\BGDDR.exe --check   # headless smoke test</div>
+  <p style="margin-top:10px">Output is <code>dist\BGDDR\</code> (BGDDR.exe + <code>_internal\</code>) — the deployable package. The <code>--check</code> run migrates, seeds, collects static, binds the port and verifies the SPSS writer.</p>
+  <p style="background:#fffbeb;border:1px solid #fef3c7;border-radius:8px;padding:10px 12px;color:#92400e"><i class="fas fa-triangle-exclamation"></i> <strong>When adding a Django app,</strong> also add it to <code>LOCAL_APPS</code> in <code>desktop/BGDDR.spec</code>. Django imports apps dynamically, so PyInstaller won’t find one that’s missing from that list — the build can “succeed” and then crash or drop templates at runtime.</p>
+</div></div>
+
+<div class="section-title" id="publish"><i class="fas fa-cloud-arrow-up mr-1"></i> 4. Publishing an update</div>
+<div class="card" style="margin-bottom:16px;border-left:4px solid #7c3aed"><div class="card-body" style="font-size:13.5px;color:#334155;line-height:1.7">
+  <ol style="padding-left:20px;line-height:1.8">
+    <li>Bump <code>__version__</code> in <code>bgddr/version.py</code> (dotted numeric, e.g. <code>6.6.0</code>).</li>
+    <li>Build: <code>.\desktop\build_exe.ps1</code>.</li>
+    <li>Zip <code>dist\BGDDR</code> as <code>BGDDR-&lt;version&gt;.zip</code> (must contain <code>BGDDR.exe</code> + <code>_internal\</code>, top-level or one folder deep).</li>
+    <li>Checksum: <code>Get-FileHash BGDDR-&lt;version&gt;.zip -Algorithm SHA256</code>.</li>
+    <li>Copy the zip into the OneDrive update folder and write <code>latest.json</code>:</li>
+  </ol>
+  <div style="background:#0f172a;color:#e2e8f0;border-radius:8px;padding:12px 14px;font-family:monospace;font-size:12.5px;overflow-x:auto;white-space:pre;margin-top:8px">{
+  "version": "6.6.0",
+  "file": "BGDDR-6.6.0.zip",
+  "sha256": "&lt;hash from step 4&gt;",
+  "notes": "What changed in this release."
+}</div>
+  <p style="margin-top:10px">Once OneDrive syncs to the clinic PC, the next launch offers the update. The app refuses a package whose SHA-256 does not match — <strong>only a trusted maintainer should have write access to the update folder</strong> (it runs code on the clinical machine). Logic lives in <code>bgddr/updater.py</code>; the swap helper preserves data and keeps <code>*.old-&lt;version&gt;</code> for rollback.</p>
+  <p style="background:#fffbeb;border:1px solid #fef3c7;border-radius:8px;padding:10px 12px;color:#92400e;margin-top:10px"><i class="fas fa-pen-to-square"></i> <strong>Before you build:</strong> if this release changes a workflow, update the in-app Help guides (<code>templates/help/user.html</code>, <code>admin.html</code>, <code>developer.html</code>) in the same commit so the docs ship in sync with the version they describe.</p>
+</div></div>
+
+<div class="section-title" id="css"><i class="fas fa-palette mr-1"></i> 5. CSS &amp; static assets</div>
+<div class="card" style="margin-bottom:16px"><div class="card-body" style="font-size:13.5px;color:#334155;line-height:1.7">
+  <div style="background:#0f172a;color:#e2e8f0;border-radius:8px;padding:12px 14px;font-family:monospace;font-size:12.5px;overflow-x:auto;white-space:pre">npm run build:css      # static_src/input.css -> static/css/app.css (Tailwind)
+python manage.py collectstatic --noinput</div>
+  <ul style="padding-left:20px;line-height:1.8;margin-top:10px">
+    <li>Templates load app.css via the <code>{% templatetag openblock %} static_v 'css/app.css' {% templatetag closeblock %}</code> tag (in <code>clinic/templatetags/asset_tags.py</code>), which appends <code>?v=&lt;mtime&gt;</code> so browsers pick up rebuilds automatically — no hard refresh.</li>
+    <li><strong>Gotcha:</strong> several component styles (<code>.tab-list</code>, <code>.card</code>, …) are defined in <em>both</em> <code>app.css</code> and an inline <code>&lt;style&gt;</code> block in <code>templates/base.html</code>. The inline block loads later, so it <strong>wins</strong> — edit component styles there, not only in <code>input.css</code>.</li>
+  </ul>
+</div></div>
+
+<div class="section-title" id="env"><i class="fas fa-sliders mr-1"></i> 6. Config &amp; environment variables</div>
+<div class="card" style="margin-bottom:16px"><div class="card-body" style="font-size:13px;color:#334155">
+  <div style="overflow-x:auto"><table class="grid" style="width:100%"><thead><tr><th>Variable</th><th>Purpose</th></tr></thead><tbody>
+    <tr><td><code>BGDDR_DATA_DIR</code></td><td>app data root (db, Exports, Logs) — keep on local disk</td></tr>
+    <tr><td><code>BGDDR_BACKUP_DIR</code></td><td>backup-snapshot folder (OneDrive-syncable)</td></tr>
+    <tr><td><code>BGDDR_MEDIA_DIR</code></td><td>uploads/PDF folder (OneDrive-syncable)</td></tr>
+    <tr><td><code>BGDDR_UPDATE_DIR</code></td><td>published-updates folder; blank disables in-app updates</td></tr>
+    <tr><td><code>BGDDR_PORT</code></td><td>local server port (default 8000)</td></tr>
+    <tr><td><code>BGDDR_MAX_BACKUPS</code> / <code>BGDDR_BACKUP_INTERVAL_HOURS</code></td><td>retention / interval</td></tr>
+    <tr><td><code>DJANGO_DB_ENGINE</code> + <code>POSTGRES_*</code></td><td>switch to PostgreSQL (future)</td></tr>
+  </tbody></table></div>
+  <p style="margin-top:10px;color:#64748b">The launcher’s first-run wizard writes backup/media/update choices to <code>bgddr_paths.json</code> and exports them as the env vars above before Django loads; an explicit env var always wins.</p>
+</div></div>
+
+<div class="section-title" id="db"><i class="fas fa-hard-drive mr-1"></i> 7. Database, migrations &amp; WAL</div>
+<div class="card" style="margin-bottom:16px"><div class="card-body" style="font-size:13.5px;color:#334155;line-height:1.7">
+  <ul style="padding-left:20px;line-height:1.8">
+    <li>SQLite in <strong>WAL journal mode</strong> (set via <code>OPTIONS["init_command"]</code>) for crash resilience — creates <code>db.sqlite3-wal</code>/<code>-shm</code> sidecars that stay on local disk.</li>
+    <li>Migrations and reference-data seeds (<code>seed_roles</code>, <code>seed_labs</code>, <code>seed_drugs</code>, <code>seed_studies</code>) run automatically on launch; first run is guarded by a <code>.initialized</code> marker.</li>
+    <li>The schema is ORM-only and PostgreSQL-compatible (no SQLite-specific features, JSONField→jsonb).</li>
+  </ul>
+</div></div>
+
+<div class="section-title" id="postgres"><i class="fas fa-database mr-1"></i> 8. Future: PostgreSQL</div>
+<div class="card" style="margin-bottom:16px"><div class="card-body" style="font-size:13.5px;color:#334155;line-height:1.7">
+  <p>No code changes needed — the backend is env-selected. Dump ORM-native data, set <code>DJANGO_DB_ENGINE=postgres</code> + <code>POSTGRES_*</code>, then <code>migrate</code> and <code>loaddata</code>. Use <code>settings_prod.py</code> behind a real WSGI server for a networked, multi-user deployment. Full steps are in <code>DESKTOP_DEPLOYMENT.md §6</code>.</p>
+</div></div>
+
+{% endblock %}

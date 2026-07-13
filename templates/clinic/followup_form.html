@@ -1,0 +1,65 @@
+{% extends "base.html" %}
+{% block title %}Follow-up — {{ patient.patient_id }}{% endblock %}
+{% block heading %}Follow-up visit · {{ patient.patient_id }}{% endblock %}
+{% block content %}
+
+<div class="crumbs"><a href="/patients/">Patients</a> ›
+  <a href="{% url 'clinic:patient_detail' patient.pk %}">{{ patient.patient_id }}</a> › Follow-up</div>
+
+<!-- Page nav: back + shortcuts -->
+<div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px;margin-bottom:16px">
+  <div style="display:flex;gap:8px">
+    <a class="btn ghost sm" href="{% url 'clinic:patient_detail' patient.pk %}"><i class="fas fa-arrow-left"></i> Back to patient</a>
+  </div>
+  <div style="display:flex;gap:8px">
+    <a class="btn ghost sm" href="{% url 'clinic:prescription' patient.pk %}"><i class="fas fa-prescription"></i> Prescription</a>
+  </div>
+</div>
+
+{% include "clinic/_patient_context.html" %}
+
+{% if prev %}
+<div class="card" style="border-left:4px solid #3b82f6;margin-bottom:16px">
+  <div class="card-header" style="font-size:13px"><i class="fas fa-clock-rotate-left text-primary-500"></i>
+    Since last visit — {{ prev.encounter_date }}</div>
+  <div class="card-body" style="display:flex;flex-wrap:wrap;gap:18px;font-size:13px">
+    {% if prev.systolic_bp %}<div><span style="color:#94a3b8">BP</span> <b>{{ prev.systolic_bp }}/{{ prev.diastolic_bp }}</b></div>{% endif %}
+    {% if prev.weight_kg %}<div><span style="color:#94a3b8">Weight</span> <b>{{ prev.weight_kg }} kg</b></div>{% endif %}
+    {% if prev.get_edema_grade_display %}<div><span style="color:#94a3b8">Edema</span> <b>{{ prev.get_edema_grade_display }}</b></div>{% endif %}
+    {% for lbl, v in last_labs %}<div><span style="color:#94a3b8">{{ lbl }}</span> <b>{{ v }}</b></div>{% endfor %}
+    {% if prev.next_due_date %}<div><span style="color:#94a3b8">Was due</span> <b>{{ prev.next_due_date }}</b></div>{% endif %}
+  </div>
+</div>
+{% endif %}
+
+<form method="post" autocomplete="off">
+  {% csrf_token %}
+  {% if form.non_field_errors %}<div class="msg error">{{ form.non_field_errors }}</div>{% endif %}
+  <div class="panel"><div class="pb">
+    <fieldset class="fieldset">
+      <legend><i class="fas fa-notes-medical"></i> Visit details</legend>
+      <div class="cols2">
+        {% for f in form %}{% if f.name|slice:":4" != "lab_" %}
+        <div class="frow">
+          <label for="{{ f.id_for_label }}">{{ f.label }}</label>
+          {{ f }}
+          {% if f.help_text %}<div class="help">{{ f.help_text }}</div>{% endif %}
+          {% if f.errors %}<div class="errs">{{ f.errors|striptags }}</div>{% endif %}
+        </div>
+        {% endif %}{% endfor %}
+      </div>
+    </fieldset>
+
+    <div class="msg info" style="margin-bottom:14px">
+      <i class="fas fa-vial"></i> Enter this visit's lab results on the
+      <a href="{% url 'clinic:lab_results' patient.pk %}"><b>Enter results</b></a> page
+      (creatinine there auto-derives eGFR). Save the visit first, then add results.
+    </div>
+    <div style="display:flex;gap:10px">
+      <button class="btn" type="submit"><i class="fas fa-floppy-disk"></i> Save visit</button>
+      <a class="btn ghost" href="{% url 'clinic:patient_detail' patient.pk %}">Cancel</a>
+    </div>
+    <div class="help" style="margin-top:10px">After saving, create a prescription for this visit and recompute outcomes from the patient page.</div>
+  </div></div>
+</form>
+{% endblock %}

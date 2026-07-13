@@ -1,0 +1,68 @@
+{% extends "admin/base_site.html" %}
+{% block content %}
+<div style="max-width:900px">
+
+  <p style="color:#475569">Timestamped SQLite snapshots for this single-user
+  install. Backups live in <code>{{ backup_dir }}</code> (OneDrive-safe). The live
+  database is <code>{{ db_path }}</code>.</p>
+
+  <div style="display:flex;gap:24px;flex-wrap:wrap;margin:18px 0">
+    <form method="post" action="{% url 'admin:backups_create' %}">
+      {% csrf_token %}
+      <button type="submit" class="button" style="background:#16a34a;color:#fff;padding:8px 16px;border:0;border-radius:6px;cursor:pointer">
+        <i class="fas fa-download"></i> Create backup now
+      </button>
+    </form>
+
+    <form method="post" action="{% url 'admin:backups_upload' %}" enctype="multipart/form-data"
+          style="display:flex;gap:8px;align-items:center">
+      {% csrf_token %}
+      <input type="file" name="backup_file" accept=".sqlite3" required
+             style="font-size:13px">
+      <button type="submit" class="button" style="padding:8px 14px">Upload backup</button>
+    </form>
+  </div>
+
+  <div style="background:#fff7ed;border:1px solid #fed7aa;color:#9a3412;padding:10px 14px;border-radius:8px;font-size:13px;margin-bottom:16px">
+    <strong>Restoring overwrites the current database.</strong> A pre-restore
+    safety snapshot is taken automatically. After a restore, <strong>restart the
+    application</strong> so the restored data loads cleanly.
+  </div>
+
+  <table style="width:100%;border-collapse:collapse;font-size:13px">
+    <thead>
+      <tr style="background:#1d4ed8;color:#fff;text-align:left">
+        <th style="padding:8px 10px">Created</th>
+        <th style="padding:8px 10px">Reason</th>
+        <th style="padding:8px 10px">Size</th>
+        <th style="padding:8px 10px">File</th>
+        <th style="padding:8px 10px">Restore</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for b in backups %}
+      <tr style="border-bottom:1px solid #e2e8f0">
+        <td style="padding:8px 10px">{{ b.created|slice:":19" }}</td>
+        <td style="padding:8px 10px">{{ b.reason }}</td>
+        <td style="padding:8px 10px">{{ b.size_mb }} MB</td>
+        <td style="padding:8px 10px;font-family:monospace;font-size:12px">{{ b.name }}</td>
+        <td style="padding:8px 10px">
+          <form method="post" action="{% url 'admin:backups_restore' %}"
+                onsubmit="return confirm('Restore from {{ b.name }}?\n\nThis OVERWRITES the current database (a safety backup is taken first). You will need to restart the app afterwards.');">
+            {% csrf_token %}
+            <input type="hidden" name="name" value="{{ b.name }}">
+            <input type="hidden" name="confirm" value="RESTORE">
+            <button type="submit" class="button" style="background:#dc2626;color:#fff;padding:5px 12px;border:0;border-radius:5px;cursor:pointer">
+              Restore
+            </button>
+          </form>
+        </td>
+      </tr>
+      {% empty %}
+      <tr><td colspan="5" style="padding:16px;color:#94a3b8;text-align:center">No backups yet — click “Create backup now”.</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+
+</div>
+{% endblock %}

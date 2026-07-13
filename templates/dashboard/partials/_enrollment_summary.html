@@ -1,0 +1,30 @@
+{% load static %}
+{% if data %}
+<div class="grid2" style="display:grid;grid-template-columns:1fr 1fr;gap:16px">
+  <div>
+    <div style="font-size:36px;font-weight:700;color:#1e293b">{{ data.total }}</div>
+    <div style="font-size:12px;color:#64748b">Total patients enrolled</div>
+    <div style="margin-top:8px;font-size:13px;color:#15803d">
+      <i class="fas fa-plus-circle"></i> {{ data.new_this_month }} new this month
+    </div>
+  </div>
+  <div>
+    <table style="width:100%;font-size:13px">
+      <tbody>
+        {% for cohort, count in data.by_cohort.items %}
+        <tr>
+          <td style="color:#64748b;padding:2px 0">{{ cohort|default:"Unspecified" }}</td>
+          <td style="text-align:right;font-weight:600;padding:2px 0">{{ count }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% else %}
+<div class="empty-state">
+  <div class="icon"><i class="fas fa-users"></i></div>
+  <div class="title">No data</div>
+  <div class="desc">Enrollment data will appear here once patients are registered.</div>
+</div>
+{% endif %}

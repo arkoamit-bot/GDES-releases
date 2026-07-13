@@ -1,0 +1,72 @@
+{% extends "base.html" %}
+{% block title %}eGFR slope — GDES{% endblock %}
+{% block heading %}eGFR slope (linear mixed-effects){% endblock %}
+{% block content %}
+
+<!-- Page nav -->
+<div style="display:flex;gap:8px;margin-bottom:16px">
+  <a class="btn ghost sm" href="{% url 'clinic:analytics' %}"><i class="fas fa-arrow-left"></i> Analytics</a>
+</div>
+
+<style>
+  .selbar { display:flex; gap:10px; flex-wrap:wrap; align-items:flex-end; margin-bottom:6px; }
+  .selbar .f { display:flex; flex-direction:column; gap:4px; }
+  .selbar label { font-size:12px; color:var(--muted); }
+  .selbar select { padding:7px 9px; border:1px solid var(--line); border-radius:7px; font-size:13.5px; }
+</style>
+
+<p style="color:var(--muted);font-size:13.5px;margin-top:0">
+  Linear mixed-effects model (Laird-Ware EM) for eGFR slope per group — random intercept + slope.
+  Negative slope = declining kidney function.</p>
+
+<form method="get" class="selbar">
+  <div class="f"><label>Group by</label>
+    <select name="group_by">
+      {% for g in group_options %}<option value="{{ g }}" {% if g == group_by %}selected{% endif %}>{{ g }}</option>{% endfor %}
+    </select></div>
+  <button class="btn sm" type="submit"><i class="fas fa-rotate"></i> Update</button>
+</form>
+
+<div class="panel" style="margin-top:18px">
+  <div class="ph"><i class="fas fa-arrow-trend-down"></i> eGFR slope by {{ group_by }}</div>
+  <div class="pb" style="padding:0">
+    {% if error %}
+      <div class="pb empty">{{ error }}</div>
+    {% elif data %}
+      {% if data.rows %}
+      <table class="grid">
+        <thead>
+          <tr>
+            <th>Group</th>
+            <th>N patients</th>
+            <th>Slope (mL/min/1.73m² / year)</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for row in data.rows %}
+          <tr>
+            <td><strong>{{ row.label }}</strong></td>
+            <td>{{ row.n_patients }}</td>
+            <td>{% if row.slope is not None %}{{ row.slope|floatformat:2 }}{% else %}—{% endif %}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+      {% if data.slope_difference is not None %}
+      <div class="pb" style="font-size:13px;color:#333;margin-top:8px">
+        <strong>Between-group difference:</strong> {{ data.slope_difference|floatformat:2 }}
+        (SE {{ data.difference_se|floatformat:3 }}) ·
+        p = {% if data.p_value < 0.001 %}&lt;0.001{% else %}{{ data.p_value|floatformat:4 }}{% endif %}
+        {% if data.converged %}<span class="chip ok">converged</span>{% else %}<span class="chip warn">not converged</span>{% endif %}
+      </div>
+      {% endif %}
+      {% else %}
+        <div class="pb empty">No groups with sufficient eGFR measurements.</div>
+      {% endif %}
+    {% else %}
+      <div class="pb empty">No data.</div>
+    {% endif %}
+  </div>
+</div>
+
+{% endblock %}

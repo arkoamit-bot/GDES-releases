@@ -1,0 +1,53 @@
+{% extends "base.html" %}
+{% block title %}Prescriptions — GDES{% endblock %}
+{% block heading %}Prescriptions{% endblock %}
+{% block content %}
+
+<!-- Page nav -->
+<div class="page-nav">
+  <div class="page-nav-left">
+    <a class="btn ghost sm" href="/"><i class="fas fa-arrow-left"></i> Dashboard</a>
+  </div>
+</div>
+
+<div class="page-header" style="display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:12px">
+  <div>
+    <h2 class="page-title">Prescriptions</h2>
+    <p class="page-desc">Most recent 100 prescriptions across all patients.</p>
+  </div>
+  <a class="btn" href="{% url 'clinic:patients' %}"><i class="fas fa-plus"></i> New prescription</a>
+</div>
+
+<div class="card">
+  <div class="card-body" style="padding:0">
+    {% if prescriptions %}
+    <div class="overflow-x-auto">
+      <table class="grid">
+        <thead><tr><th>Date</th><th>Patient</th><th>Diagnosis</th><th>Ver</th><th>Status</th><th class="text-right">Actions</th></tr></thead>
+        <tbody>
+          {% for r in prescriptions %}
+          <tr>
+            <td>{{ r.created_at|date:"Y-m-d" }}</td>
+            <td><a href="{% url 'clinic:patient_detail' r.encounter.patient.pk %}" class="font-semibold text-primary-600">{{ r.encounter.patient.patient_id }}</a> {{ r.encounter.patient.name }}</td>
+            <td>{{ r.diagnosis_text|default:'—' }}</td>
+            <td>v{{ r.version }}</td>
+            <td>{% if r.is_final %}<span class="badge ok">Final</span>{% else %}<span class="badge warn">Draft</span>{% endif %}</td>
+            <td class="text-right">
+              <a class="btn ghost sm" href="{% url 'prescriptions:preview' r.pk %}">Preview</a>
+              <a class="btn ghost sm" href="{% url 'prescriptions:pdf' r.pk %}">PDF</a>
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% else %}
+    <div class="empty-state">
+      <div class="icon"><i class="fas fa-prescription"></i></div>
+      <div class="title">No prescriptions yet</div>
+      <div class="desc"><a href="{% url 'clinic:patients' %}">Choose a patient to create one</a></div>
+    </div>
+    {% endif %}
+  </div>
+</div>
+{% endblock %}

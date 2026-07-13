@@ -1,0 +1,34 @@
+{% load static %}<!DOCTYPE html>
+<html lang="en" class="h-full">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{% block title %}GDES{% endblock %}</title>
+<!-- Self-hosted FontAwesome (offline-capable). Inter falls back to Segoe UI. -->
+<link rel="stylesheet" href="{% static 'vendor/fontawesome/css/all.min.css' %}">
+<link rel="stylesheet" href="{% static 'css/app.css' %}">
+</head>
+<body class="h-full" style="background:#eef3f8">
+<div class="min-h-full flex flex-col items-center justify-center px-6 py-10">
+  <div class="w-full max-w-md">
+
+    <!-- Brand -->
+    <div class="flex flex-col items-center mb-6">
+      <span class="flex items-center justify-center w-14 h-14 rounded-2xl bg-primary-600 text-white text-lg font-bold mb-3 shadow-sm">GN</span>
+      <div class="text-xl font-bold text-slate-800">GDES</div>
+      <div class="text-sm text-slate-500">{% block auth_subtitle %}Glomerular Disease Expert System{% endblock %}</div>
+    </div>
+
+    <!-- Card -->
+    <div class="panel">
+      <div style="padding:26px 28px">
+        {% if messages %}{% for m in messages %}<div class="msg {{ m.tags }}">{{ m }}</div>{% endfor %}{% endif %}
+        {% block auth_content %}{% endblock %}
+      </div>
+    </div>
+
+    <div class="text-center text-xs text-slate-400 mt-5">BIRDEM Nephrology · GDES</div>
+  </div>
+</div>
+</body>
+</html>

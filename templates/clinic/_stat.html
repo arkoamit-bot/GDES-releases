@@ -1,0 +1,7 @@
+<div class="bg-white border border-slate-200 rounded-xl shadow-sm p-4">
+  <p class="text-xs font-medium text-slate-500">{{ label }}</p>
+  <p class="mt-1 text-2xl font-semibold text-slate-900">
+    {% if value is not None and value != "" %}{{ value }}{% if suffix %}/{{ suffix }}{% endif %}{% else %}<span class="text-slate-300">—</span>{% endif %}
+  </p>
+  <p class="text-[11px] text-slate-400">{{ unit }}{% if hint %} · {{ hint }}{% endif %}</p>
+</div>

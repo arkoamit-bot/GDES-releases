@@ -1,0 +1,192 @@
+{% extends "base.html" %}
+{% load static %}
+{% block title %}Dashboard — GDES{% endblock %}
+{% block heading %}Dashboard{% endblock %}
+{% block content %}
+
+<div class="tab-list" role="tablist" style="margin-bottom:16px">
+  <a href="{% url 'dashboard' %}" class="active"><i class="fas fa-gauge-high"></i> Overview</a>
+  <a href="{% url 'dashboard-enrollment' %}"><i class="fas fa-user-plus"></i> Enrollment</a>
+  <a href="{% url 'dashboard-outcomes' %}"><i class="fas fa-chart-pie"></i> Outcomes</a>
+  <a href="{% url 'dashboard-compliance' %}"><i class="fas fa-clipboard-check"></i> Compliance</a>
+</div>
+
+<!-- Context bar (BADAS-style top strip) -->
+<div class="context-bar">
+  <div class="leading-tight">
+    <div class="text-base font-semibold text-slate-800">
+      Welcome back, {{ request.user.first_name|default:request.user.username }}
+    </div>
+    <div class="text-[13px] text-slate-500">{{ clinic.registry|default:"GDES — Glomerular Disease Expert System" }}</div>
+  </div>
+  <div class="meta">
+    <span><i class="fas fa-hospital"></i>{{ clinic.site|default:"BIRDEM Nephrology" }}</span>
+    <span><i class="fas fa-calendar-day"></i>{{ today }}</span>
+    <span class="status-pill live">Live</span>
+  </div>
+</div>
+
+<!-- Primary task cards -->
+<div class="task-grid">
+  <a class="task-card" href="{% url 'clinic:patient_create' %}">
+    <span class="ic"><i class="fas fa-user-plus"></i></span>
+    <h3>Register New Patient</h3>
+    <p>Enrol a patient and capture demographics, baseline and consent in one guided flow.</p>
+    <span class="btn"><i class="fas fa-plus"></i> Add Patient</span>
+  </a>
+  <a class="task-card" href="{% url 'clinic:patients' %}">
+    <span class="ic"><i class="fas fa-magnifying-glass"></i></span>
+    <h3>Find &amp; Follow-up</h3>
+    <p>Search by ID, name or phone to open a record, then add a visit, labs or a prescription.</p>
+    <span class="btn"><i class="fas fa-user-injured"></i> Search Patients</span>
+  </a>
+  <a class="task-card" href="{% url 'clinic:analytics' %}">
+    <span class="ic"><i class="fas fa-chart-line"></i></span>
+    <h3>Research &amp; Analytics</h3>
+    <p>Survival, Cox and eGFR-slope cohort outcomes, plus the research dataset export.</p>
+    <span class="btn"><i class="fas fa-arrow-trend-up"></i> Open Analytics</span>
+  </a>
+</div>
+
+<!-- Registry at a glance -->
+<div class="section-title"><i class="fas fa-database mr-1"></i> Registry at a glance</div>
+<div class="stats-grid"
+     id="stats-grid"
+     hx-get="{% url 'dashboard-partial-overview-stats' %}"
+     hx-trigger="load, every 30s"
+     hx-swap="innerHTML">
+  {% include "dashboard/partials/_overview_stats.html" %}
+</div>
+
+<!-- Follow-up Engine stats -->
+{% if followup_tasks_pending is not None %}
+<div class="section-title"><i class="fas fa-robot mr-1"></i> Follow-up Engine</div>
+<div class="stats-grid" style="margin-bottom:20px" id="fu-engine">
+  <span class="stat-card">
+    <span class="icon blue"><i class="fas fa-tasks"></i></span>
+    <span>
+      <div class="value {% if followup_tasks_pending > 0 %}text-amber-600{% endif %}">{{ followup_tasks_pending }}</div>
+      <div class="label">Pending tasks</div>
+    </span>
+  </span>
+  <span class="stat-card">
+    <span class="icon red"><i class="fas fa-calendar-xmark"></i></span>
+    <span>
+      <div class="value {% if followup_tasks_overdue > 0 %}text-red-600{% endif %}">{{ followup_tasks_overdue }}</div>
+      <div class="label">Overdue</div>
+    </span>
+  </span>
+  <span class="stat-card">
+    <span class="icon amber"><i class="fas fa-exclamation-triangle"></i></span>
+    <span>
+      <div class="value {% if followup_high_risk > 0 %}text-red-700{% endif %}">{{ followup_high_risk }}</div>
+      <div class="label">High priority</div>
+    </span>
+  </span>
+  <a class="stat-card" href="{% url 'clinic:worklist' %}">
+    <span class="icon green"><i class="fas fa-arrow-right"></i></span>
+    <span>
+      <div class="value" style="font-size:14px">Worklist</div>
+      <div class="label">View all tasks</div>
+    </span>
+  </a>
+</div>
+{% endif %}
+
+<!-- Follow-up worklist -->
+<div class="section-title"><i class="fas fa-calendar-check mr-1"></i> Follow-up worklist</div>
+<div class="grid2" style="display:grid;grid-template-columns:1fr 1fr;gap:16px;align-items:start"
+     hx-get="{% url 'dashboard-partial-worklist' %}"
+     hx-trigger="every 60s"
+     hx-swap="outerHTML">
+  {% if due %}
+  <div class="card" style="border-left:4px solid #16a34a">
+    <div class="card-header" style="color:#15803d"><i class="fas fa-calendar-check"></i> Due now <span class="badge ok" style="margin-left:auto">{{ due|length }}</span></div>
+    <div class="card-body" style="padding:0">
+      <table class="grid"><thead><tr><th>Patient</th><th>Visit</th><th>Target</th></tr></thead><tbody>
+      {% for v in due %}<tr><td>{% if v.patient_pk %}<a href="{% url 'clinic:patient_detail' v.patient_pk %}" class="font-semibold text-primary-600">{{ v.patient }}</a>{% else %}<span class="font-semibold text-slate-700">{{ v.patient }}</span>{% endif %} {{ v.name }}</td><td>{{ v.label }}</td><td>{{ v.target_date }}</td></tr>{% endfor %}
+      </tbody></table>
+    </div>
+  </div>
+  {% endif %}
+  {% if overdue %}
+  <div class="card" style="border-left:4px solid #dc2626">
+    <div class="card-header" style="color:#dc2626"><i class="fas fa-calendar-xmark"></i> Overdue <span class="badge danger" style="margin-left:auto">{{ overdue|length }}</span></div>
+    <div class="card-body" style="padding:0">
+      <table class="grid"><thead><tr><th>Patient</th><th>Visit</th><th>Target</th></tr></thead><tbody>
+      {% for v in overdue %}<tr><td>{% if v.patient_pk %}<a href="{% url 'clinic:patient_detail' v.patient_pk %}" class="font-semibold text-primary-600">{{ v.patient }}</a>{% else %}<span class="font-semibold text-slate-700">{{ v.patient }}</span>{% endif %} {{ v.name }}</td><td>{{ v.label }}</td><td>{{ v.target_date }}</td></tr>{% endfor %}
+      </tbody></table>
+    </div>
+  </div>
+  {% endif %}
+  {% if not due and not overdue %}
+  <div class="card" style="grid-column:1/-1">
+    <div class="card-body">
+      <div class="empty-state">
+        <div class="icon"><i class="fas fa-calendar-check"></i></div>
+        <div class="title">No visits due</div>
+        <div class="desc">All patients are up to date. New reminders will appear here as follow-up dates approach.</div>
+      </div>
+    </div>
+  </div>
+  {% endif %}
+</div>
+
+<!-- "Live" indicator swapped out-of-band -->
+<span id="live-pill" hx-swap-oob="true" class="status-pill live">Live</span>
+
+<!-- Cohort trend chart -->
+<div class="section-title"><i class="fas fa-chart-area mr-1"></i> Cohort kidney trend</div>
+<div class="card">
+  <div class="card-header"><i class="fas fa-chart-line text-primary-500"></i> Mean eGFR &amp; proteinuria by month</div>
+  <div class="card-body">
+    {% if trend.has %}
+      <div style="position:relative;height:280px"><canvas id="cohortChart"></canvas></div>
+      {{ trend.labels|json_script:"co-labels" }}
+      {{ trend.egfr|json_script:"co-egfr" }}
+      {{ trend.prot|json_script:"co-prot" }}
+      <script src="{% static 'clinic/chart.umd.min.js' %}"></script>
+      <script>
+        (function () {
+          var labels = JSON.parse(document.getElementById('co-labels').textContent);
+          var egfr = JSON.parse(document.getElementById('co-egfr').textContent);
+          var prot = JSON.parse(document.getElementById('co-prot').textContent);
+          var el = document.getElementById('cohortChart');
+          if (!el || !window.Chart) return;
+          new Chart(el, {
+            type: 'line',
+            data: { labels: labels, datasets: [
+              { label: 'Mean eGFR (mL/min/1.73m²)', data: egfr, yAxisID: 'y',
+                borderColor: '#0c92d4', backgroundColor: 'rgba(12,146,212,.12)',
+                tension: .25, spanGaps: true, pointRadius: 3, fill: true },
+              { label: '{{ trend.plabel|escapejs }}', data: prot, yAxisID: 'y1',
+                borderColor: '#b06a00', backgroundColor: 'rgba(176,106,0,.10)',
+                tension: .25, spanGaps: true, pointRadius: 3, borderDash: [6,4] },
+            ]},
+            options: { responsive: true, maintainAspectRatio: false,
+              interaction: { mode: 'index', intersect: false },
+              scales: {
+                y:  { position: 'left',  title: { display: true, text: 'eGFR' }, beginAtZero: true },
+                y1: { position: 'right', title: { display: true, text: 'Proteinuria' },
+                      beginAtZero: true, grid: { drawOnChartArea: false } },
+              } }
+          });
+        })();
+      </script>
+    {% else %}
+      <div class="empty-state">
+        <div class="icon"><i class="fas fa-chart-area"></i></div>
+        <div class="title">No lab data yet</div>
+        <div class="desc">As creatinine and proteinuria results are entered at visits, the cohort trend will appear here.</div>
+      </div>
+    {% endif %}
+  </div>
+</div>
+
+<!-- Quick actions -->
+<div class="section-title"><i class="fas fa-bolt mr-1"></i> Quick actions</div>
+<div class="quick-links">
+  <a href="{% url 'clinic:patient_create' %}"><i class="fas fa-user-plus"></i> Register a patient</a>
+  {% for l in quick_links %}<a href="{{ l.url }}"><i class="fas {{ l.icon }}"></i> {{ l.name }}</a>{% endfor %}
+</div>
+{% endblock %}

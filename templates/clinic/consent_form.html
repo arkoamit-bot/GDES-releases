@@ -1,0 +1,103 @@
+{% extends "base.html" %}
+{% block title %}Consent — {{ patient.patient_id }}{% endblock %}
+{% block heading %}Consent · {{ patient.patient_id }}{% endblock %}
+{% block content %}
+
+<div class="crumbs"><a href="/patients/">Patients</a> ›
+  <a href="{% url 'clinic:patient_detail' patient.pk %}">{{ patient.patient_id }}</a> › Consent</div>
+
+<!-- Page nav: back + shortcuts -->
+<div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px;margin-bottom:16px">
+  <div style="display:flex;gap:8px">
+    <a class="btn ghost sm" href="{% url 'clinic:patient_detail' patient.pk %}"><i class="fas fa-arrow-left"></i> Back to patient</a>
+  </div>
+  <div style="display:flex;gap:8px">
+    <a class="btn ghost sm" href="{% url 'clinic:study_enroll' patient.pk %}"><i class="fas fa-flask"></i> Study</a>
+  </div>
+</div>
+
+{% include "clinic/_patient_context.html" %}
+
+<!-- Current consent status per type -->
+<div class="panel" style="margin-bottom:18px">
+  <div class="ph"><i class="fas fa-file-signature"></i> Current consent status</div>
+  <div class="pb" style="padding:0"><table class="grid">
+    <thead><tr><th>Type</th><th>Status</th><th>ICF version</th><th>Date</th><th></th></tr></thead>
+    <tbody>
+      {% for t in types %}
+      <tr>
+        <td>{{ t.label }}</td>
+        <td>
+          {% if t.current and t.current.is_active %}<span class="chip ok">Granted</span>
+          {% elif t.current %}<span class="chip warn">{{ t.current.get_status_display }}</span>
+          {% else %}<span class="chip">Not on file</span>{% endif %}
+        </td>
+        <td>{% if t.current %}{{ t.current.form_version }}{% else %}—{% endif %}</td>
+        <td>{% if t.current %}{{ t.current.consent_date }}{% else %}—{% endif %}</td>
+        <td style="text-align:right">
+          {% if t.current and t.current.is_active %}
+          <form method="post" style="display:inline" onsubmit="return confirm('Withdraw {{ t.label }} consent?');">
+            {% csrf_token %}
+            <input type="hidden" name="action" value="withdraw">
+            <input type="hidden" name="consent_type" value="{{ t.value }}">
+            <button class="btn ghost sm" type="submit">Withdraw</button>
+          </form>
+          {% endif %}
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table></div>
+</div>
+
+<!-- Grant / record consent -->
+<form method="post" autocomplete="off">
+  {% csrf_token %}
+  <input type="hidden" name="action" value="grant">
+  {% if form.non_field_errors %}<div class="msg error">{{ form.non_field_errors }}</div>{% endif %}
+  <div class="panel"><div class="pb">
+    <fieldset class="fieldset">
+      <legend><i class="fas fa-pen-to-square"></i> Record consent</legend>
+      <div class="help" style="margin-bottom:10px">Recording a consent of a type supersedes any current one of that type (a version chain is kept). <b>Trial</b> consent is required before enrolling in a registry-embedded trial.</div>
+      <div class="cols2">
+        {% for f in form %}
+        <div class="frow">
+          <label for="{{ f.id_for_label }}">{{ f.label }}</label>
+          {{ f }}
+          {% if f.help_text %}<div class="help">{{ f.help_text }}</div>{% endif %}
+          {% if f.errors %}<div class="errs">{{ f.errors|striptags }}</div>{% endif %}
+        </div>
+        {% endfor %}
+      </div>
+    </fieldset>
+    <div style="display:flex;gap:10px">
+      <button class="btn" type="submit"><i class="fas fa-floppy-disk"></i> Record consent</button>
+      <a class="btn ghost" href="{% url 'clinic:patient_detail' patient.pk %}">Cancel</a>
+    </div>
+  </div></div>
+</form>
+
+<!-- History -->
+<div class="panel" style="margin-top:18px">
+  <div class="ph"><i class="fas fa-clock-rotate-left"></i> Consent history</div>
+  <div class="pb" style="padding:0">
+    {% if history %}
+    <table class="grid">
+      <thead><tr><th>Type</th><th>Version</th><th>Status</th><th>Date</th><th>Withdrawn</th><th>Current</th></tr></thead>
+      <tbody>
+        {% for c in history %}
+        <tr>
+          <td>{{ c.get_consent_type_display }}</td>
+          <td>{{ c.form_version }}</td>
+          <td>{{ c.get_status_display }}</td>
+          <td>{{ c.consent_date }}</td>
+          <td>{{ c.withdrawn_date|default:"—" }}</td>
+          <td>{% if c.is_current %}<span class="chip ok">current</span>{% else %}—{% endif %}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    {% else %}<div class="pb empty" style="padding:14px">No consent records yet.</div>{% endif %}
+  </div>
+</div>
+{% endblock %}

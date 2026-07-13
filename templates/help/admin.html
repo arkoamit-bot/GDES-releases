@@ -1,0 +1,90 @@
+{% extends "base.html" %}
+{% block title %}Administrator Guide — GDES{% endblock %}
+{% block heading %}Administrator Guide{% endblock %}
+{% block content %}
+
+<div class="page-nav">
+  <div class="page-nav-left"><a href="{% url 'clinic:help' %}" class="btn ghost sm"><i class="fas fa-arrow-left"></i> All guides</a></div>
+</div>
+<p class="page-desc">Running the GDES desktop app safely: backups and restore, updates, accounts, the OneDrive layout, and troubleshooting. Commands are run from a shell in the app folder.</p>
+
+<div class="card" style="margin-bottom:16px;border-left:4px solid #b45309"><div class="card-body" style="font-size:13px;color:#475569">
+  <i class="fas fa-triangle-exclamation warn-600"></i> Command-line steps need the desktop settings. In the app folder run once per shell:
+  <code>set DJANGO_SETTINGS_MODULE=bgddr.settings_desktop</code> (PowerShell: <code>$env:DJANGO_SETTINGS_MODULE="bgddr.settings_desktop"</code>).
+</div></div>
+
+<div class="card" style="margin-bottom:16px">
+  <div class="card-header"><i class="fas fa-list text-primary-500"></i> Contents</div>
+  <div class="card-body" style="font-size:13.5px"><ol style="margin:0;padding-left:20px;line-height:1.9">
+    <li><a href="#firstrun">First-run folder setup</a></li>
+    <li><a href="#backups">Automatic backups</a></li>
+    <li><a href="#restore">Manual backup &amp; restore</a></li>
+    <li><a href="#update">Updating the app</a></li>
+    <li><a href="#accounts">User accounts &amp; roles</a></li>
+    <li><a href="#layout">OneDrive layout &amp; data safety</a></li>
+    <li><a href="#trouble">Troubleshooting</a></li>
+  </ol></div>
+</div>
+
+<div class="section-title" id="firstrun"><i class="fas fa-folder-tree mr-1"></i> 1. First-run folder setup</div>
+<div class="card" style="margin-bottom:16px"><div class="card-body" style="font-size:13.5px;color:#334155;line-height:1.7">
+  <p>On first launch a wizard asks where to keep <strong>Backups</strong>, <strong>Media</strong> and (optionally) <strong>Updates</strong>. It suggests <code>…\OneDrive\BGDDR-Backups</code>, <code>-Media</code> and <code>-Update</code>. The choice is saved in <code>bgddr_paths.json</code> next to the app and is not asked again.</p>
+  <p>To change it later, set the environment variables <code>BGDDR_BACKUP_DIR</code>, <code>BGDDR_MEDIA_DIR</code>, <code>BGDDR_UPDATE_DIR</code> (they override the saved choice), or edit <code>bgddr_paths.json</code>.</p>
+</div></div>
+
+<div class="section-title" id="backups"><i class="fas fa-database mr-1"></i> 2. Automatic backups</div>
+<div class="card" style="margin-bottom:16px"><div class="card-body" style="font-size:13.5px;color:#334155;line-height:1.7">
+  <ul style="padding-left:20px;line-height:1.8">
+    <li>A snapshot is taken <strong>on every startup</strong> and then <strong>every 6 hours</strong> while the app runs.</li>
+    <li>Files are named <code>bgddr_backup_&lt;timestamp&gt;_&lt;reason&gt;.sqlite3</code> in the backup folder; the newest <strong>60</strong> are kept.</li>
+    <li>Each file is a complete, self-contained database — safe to sync via OneDrive.</li>
+  </ul>
+</div></div>
+
+<div class="section-title" id="restore"><i class="fas fa-rotate-left mr-1"></i> 3. Manual backup &amp; restore</div>
+<div class="card" style="margin-bottom:16px"><div class="card-body" style="font-size:13.5px;color:#334155;line-height:1.7">
+  <div style="background:#0f172a;color:#e2e8f0;border-radius:8px;padding:12px 14px;font-family:monospace;font-size:12.5px;overflow-x:auto;white-space:pre">python manage.py backup_db                 # make a backup now
+python manage.py backup_db --list          # list backups
+python manage.py restore_db --list         # list restorable backups
+python manage.py restore_db &lt;name&gt; --yes   # restore a specific backup</div>
+  <p style="margin-top:10px"><strong>Restoring overwrites the live database — stop the app first.</strong> A <code>pre_restore</code> safety snapshot is always taken before the restore, so a restore is itself reversible.</p>
+</div></div>
+
+<div class="section-title" id="update"><i class="fas fa-cloud-arrow-down mr-1"></i> 4. Updating the app</div>
+<div class="card" style="margin-bottom:16px"><div class="card-body" style="font-size:13.5px;color:#334155;line-height:1.7">
+  <p>New versions are published to the <strong>update folder</strong> by the maintainer. On the clinic PC:</p>
+  <ul style="padding-left:20px;line-height:1.8">
+    <li>On each launch — and via <strong>Check for updates</strong> in the status window — the app looks for a newer version and, if found, shows the version and notes and asks to install. <strong>Updates are never silent.</strong></li>
+    <li>On <em>Yes</em>, it verifies the package checksum, takes a <code>pre_update</code> backup, closes, swaps in the new program files, and reopens. <strong>Your database and data are not touched.</strong></li>
+    <li>The previous program files are kept as <code>BGDDR.exe.old-&lt;version&gt;</code> / <code>_internal.old-&lt;version&gt;</code>; a failed swap rolls back automatically. See <code>Logs\update.log</code>.</li>
+  </ul>
+  <p>The running version is shown in the sidebar footer and the status window.</p>
+</div></div>
+
+<div class="section-title" id="accounts"><i class="fas fa-users-gear mr-1"></i> 5. User accounts &amp; roles</div>
+<div class="card" style="margin-bottom:16px"><div class="card-body" style="font-size:13.5px;color:#334155;line-height:1.7">
+  <ul style="padding-left:20px;line-height:1.8">
+    <li>Manage users in the <a href="/admin/">Django admin</a> → <em>Users</em>: add accounts, set staff/superuser, assign groups.</li>
+    <li>The <code>data_manager</code> role/group is required for <strong>identified</strong> data export (exports are de-identified for everyone else).</li>
+    <li>Reset a password from a shell: <code>python manage.py changepassword &lt;username&gt;</code>.</li>
+  </ul>
+</div></div>
+
+<div class="section-title" id="layout"><i class="fas fa-shield-halved mr-1"></i> 6. OneDrive layout &amp; data safety</div>
+<div class="card" style="margin-bottom:16px"><div class="card-body" style="font-size:13.5px;color:#334155;line-height:1.7">
+  <p>Keep the <strong>app and <code>db.sqlite3</code> on local disk</strong> (e.g. <code>C:\BGDDR\</code>) and point only <strong>Backups</strong>, <strong>Media</strong> and <strong>Update</strong> at OneDrive.</p>
+  <p><strong>Why:</strong> OneDrive continuously syncing a live, actively-written SQLite file can corrupt it. Backup snapshots are closed files and media are write-once, so syncing those is safe and gives off-machine copies. The <code>db.sqlite3-wal</code>/<code>-shm</code> sidecar files belong next to the database on local disk and must <strong>not</strong> be synced.</p>
+</div></div>
+
+<div class="section-title" id="trouble"><i class="fas fa-wrench mr-1"></i> 7. Troubleshooting</div>
+<div class="card" style="margin-bottom:16px"><div class="card-body" style="font-size:13.5px;color:#334155;line-height:1.7">
+  <ul style="padding-left:20px;line-height:1.8">
+    <li><strong>Nothing happens / error on launch</strong> — check <code>Logs\bgddr.log</code>.</li>
+    <li><strong>Port already in use</strong> — set <code>BGDDR_PORT</code> to a free port and relaunch.</li>
+    <li><strong>Forgot admin password</strong> — <code>python manage.py changepassword &lt;username&gt;</code>.</li>
+    <li><strong>An update broke something</strong> — close the app; rename <code>BGDDR.exe.old-&lt;version&gt;</code>→<code>BGDDR.exe</code> and <code>_internal.old-&lt;version&gt;</code>→<code>_internal</code>, relaunch, and restore the <code>pre_update</code> backup if needed. See <code>Logs\update.log</code>.</li>
+  </ul>
+  <p style="color:#64748b">The full reference is in <code>DESKTOP_DEPLOYMENT.md</code> shipped with the app.</p>
+</div></div>
+
+{% endblock %}

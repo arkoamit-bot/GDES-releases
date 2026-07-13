@@ -1,0 +1,143 @@
+{% extends "base.html" %}
+{% block title %}Quality &amp; insight — GDES{% endblock %}
+{% block heading %}Quality assessment &amp; clinical insight{% endblock %}
+{% block content %}
+
+<div class="page-desc">Biopsy yield, predictors of a positive biopsy, disease-phase distribution, relapse burden, and between-group comparison — the registry's quality loop (workflow steps 6–7).</div>
+
+<!-- Biopsy yield -->
+<div class="section-title"><i class="fas fa-microscope mr-1"></i> Biopsy yield</div>
+<div class="stats-grid" style="margin-bottom:8px">
+  <div class="stat-card"><span class="icon blue"><i class="fas fa-vials"></i></span><span><div class="value">{{ yield.scored }}</div><div class="label">Biopsies scored</div></span></div>
+  <div class="stat-card"><span class="icon green"><i class="fas fa-circle-check"></i></span><span><div class="value">{{ yield.positive }}</div><div class="label">Positive (specific GN)</div></span></div>
+  <div class="stat-card"><span class="icon amber"><i class="fas fa-circle-minus"></i></span><span><div class="value">{{ yield.negative }}</div><div class="label">Negative</div></span></div>
+  <div class="stat-card"><span class="icon red"><i class="fas fa-circle-question"></i></span><span><div class="value">{{ yield.inconclusive }}</div><div class="label">Inconclusive</div></span></div>
+  <div class="stat-card"><span class="icon purple"><i class="fas fa-percent"></i></span><span><div class="value">{{ yield.yield_pct }}%</div><div class="label">Diagnostic yield</div></span></div>
+</div>
+{% if yield.unscored %}<div class="help" style="margin-bottom:8px">{{ yield.unscored }} biopsy(ies) have no result category yet — set it on the biopsy to include them.</div>{% endif %}
+
+<!-- Predictors: yield by indication -->
+<div class="panel" style="margin-bottom:8px">
+  <div class="ph"><i class="fas fa-crosshairs text-primary-500"></i> Predictors — yield by clinical indication</div>
+  <div class="pb" style="padding:0">
+    {% if yield.indications %}
+    <table class="grid">
+      <thead><tr><th>Indication</th><th>Biopsies</th><th>Positive</th><th>Yield</th></tr></thead>
+      <tbody>
+        {% for r in yield.indications %}
+        <tr><td>{{ r.indication }}</td><td>{{ r.total }}</td><td>{{ r.positive }}</td>
+          <td><span class="badge {% if r.yield_pct >= 70 %}ok{% elif r.yield_pct >= 40 %}warn{% else %}neutral{% endif %}">{{ r.yield_pct }}%</span></td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    {% else %}<div class="pb empty">No scored biopsies with an indication yet.</div>{% endif %}
+  </div>
+</div>
+
+<!-- Phase + relapse snapshots -->
+<div class="grid2" style="display:grid;grid-template-columns:1fr 1fr;gap:16px;align-items:start;margin-top:6px">
+  <div class="panel">
+    <div class="ph"><i class="fas fa-diagram-project text-primary-500"></i> Current disease phase</div>
+    <div class="pb" style="padding:0">
+      {% if phases %}
+      <table class="grid"><thead><tr><th>Phase</th><th>Patients</th></tr></thead><tbody>
+        {% for r in phases %}<tr><td>{{ r.phase }}</td><td>{{ r.n }}</td></tr>{% endfor %}
+      </tbody></table>
+      {% else %}<div class="pb empty">No registered patients with a phase yet.</div>{% endif %}
+    </div>
+  </div>
+  <div class="panel">
+    <div class="ph"><i class="fas fa-rotate-left text-primary-500"></i> Relapse burden</div>
+    <div class="pb">
+      <div class="stats-grid" style="grid-template-columns:1fr 1fr">
+        <div class="stat-card"><span class="icon amber"><i class="fas fa-users"></i></span><span><div class="value">{{ relapse.with_relapse }}</div><div class="label">Patients with ≥1 relapse ({{ relapse.with_relapse_pct }}%)</div></span></div>
+        <div class="stat-card"><span class="icon red"><i class="fas fa-arrow-trend-up"></i></span><span><div class="value">{{ relapse.rate_per_100py }}</div><div class="label">Relapses / 100 patient-yrs</div></span></div>
+      </div>
+      <div class="help" style="margin-top:8px">{{ relapse.total_relapses }} relapse(s) over {{ relapse.person_years }} patient-years of follow-up.</div>
+    </div>
+  </div>
+</div>
+
+<!-- Clinical vs biochemical remission concordance -->
+<div class="section-title"><i class="fas fa-code-compare mr-1"></i> Clinical vs biochemical remission — concordance</div>
+<div class="panel" style="margin-bottom:8px">
+  <div class="ph"><i class="fas fa-code-compare text-primary-500"></i> Clinician response vs. lab-derived remission
+    {% if concordance.kappa is not None %}<span class="badge {% if concordance.kappa >= 0.6 %}ok{% elif concordance.kappa >= 0.4 %}warn{% else %}neutral{% endif %}" style="margin-left:auto">κ = {{ concordance.kappa }} ({{ concordance.kappa_strength }})</span>{% endif %}
+  </div>
+  <div class="pb">
+    {% if concordance.n %}
+    <div style="display:flex;gap:20px;flex-wrap:wrap;align-items:flex-start">
+      <div class="overflow-x-auto">
+        <table class="grid" style="min-width:420px">
+          <thead><tr><th style="background:#fff;border:0">Clinician ↓ / Lab →</th>{% for c in concordance.col_labels %}<th>{{ c }}</th>{% endfor %}<th>Total</th></tr></thead>
+          <tbody>
+            {% for r in concordance.rows %}
+            <tr>
+              <td class="font-medium">{{ r.label }}</td>
+              {% for cell in r.cells %}<td{% if forloop.counter0 == forloop.parentloop.counter0 %} style="background:#f0fdf4;font-weight:600"{% endif %}>{{ cell }}</td>{% endfor %}
+              <td class="font-medium">{{ r.total }}</td>
+            </tr>
+            {% endfor %}
+            <tr><td class="font-medium">Total</td>{% for t in concordance.col_totals %}<td class="font-medium">{{ t }}</td>{% endfor %}<td class="font-medium">{{ concordance.n }}</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <div style="min-width:180px">
+        <div class="stat-card" style="margin-bottom:10px"><span class="icon green"><i class="fas fa-equals"></i></span><span><div class="value">{{ concordance.agreement_pct }}%</div><div class="label">Raw agreement</div></span></div>
+        <div class="stat-card"><span class="icon blue"><i class="fas fa-handshake"></i></span><span><div class="value">{{ concordance.kappa|default:"—" }}</div><div class="label">Cohen's κ · {{ concordance.kappa_strength }}</div></span></div>
+        <div class="help" style="margin-top:8px">n = {{ concordance.n }} patients assessed both clinically and by labs. Diagonal (green) = agreement.</div>
+      </div>
+    </div>
+    {% else %}
+    <div class="empty-state">
+      <div class="icon"><i class="fas fa-code-compare"></i></div>
+      <div class="title">No paired assessments yet</div>
+      <div class="desc">Needs registered patients with both a clinician response recorded at a visit and a computed lab outcome. Record follow-up visits and run <a href="#">compute outcomes</a> to populate.</div>
+    </div>
+    {% endif %}
+  </div>
+</div>
+
+<!-- Between-group comparison -->
+<div class="section-title"><i class="fas fa-scale-balanced mr-1"></i> Between-group comparison</div>
+<form method="get" class="filter-bar" style="margin-bottom:10px">
+  <div class="field">
+    <label>Compare groups by</label>
+    <select name="group_by" onchange="this.form.submit()">
+      {% for val, lbl in groupers %}<option value="{{ val }}"{% if val == group_by %} selected{% endif %}>{{ lbl }}</option>{% endfor %}
+    </select>
+  </div>
+</form>
+<div class="panel">
+  <div class="ph"><i class="fas fa-table-list text-primary-500"></i> By {{ comparison.group_label }} — response · complications · remission · relapse</div>
+  <div class="pb" style="padding:0">
+    {% if comparison.rows %}
+    <div class="overflow-x-auto">
+    <table class="grid">
+      <thead><tr>
+        <th>{{ comparison.group_label }}</th><th>Patients</th><th>Any remission</th>
+        <th>Complete remission</th><th>With relapse</th><th>Relapse / 100py</th>
+        <th>AE / patient</th><th>SAEs</th><th>Follow-up (py)</th>
+      </tr></thead>
+      <tbody>
+        {% for r in comparison.rows %}
+        <tr>
+          <td class="font-medium">{{ r.group }}</td>
+          <td>{{ r.n }}</td>
+          <td><span class="badge {% if r.any_remission_pct >= 50 %}ok{% else %}neutral{% endif %}">{{ r.any_remission_pct }}%</span></td>
+          <td>{{ r.complete_remission_pct }}%</td>
+          <td>{{ r.with_relapse_pct }}%</td>
+          <td>{{ r.relapse_per_100py }}</td>
+          <td>{{ r.ae_per_patient }}</td>
+          <td>{% if r.sae %}<span class="badge danger">{{ r.sae }}</span>{% else %}0{% endif %}</td>
+          <td>{{ r.person_years }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    </div>
+    {% else %}<div class="pb empty">No registered patients to compare yet.</div>{% endif %}
+  </div>
+</div>
+<div class="help" style="margin-top:8px">Remission uses the lab-derived outcome engine; relapses are the documented relapse episodes. Register patients and record follow-up visits to populate this.</div>
+{% endblock %}

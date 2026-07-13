@@ -1,0 +1,85 @@
+{% extends "base.html" %}
+{% block title %}Prescription Preview — {{ rx.patient.patient_id }}{% endblock %}
+{% block heading %}Prescription Preview · {{ rx.patient.patient_id }}{% endblock %}
+{% block content %}
+
+<div class="crumbs">
+  <a href="{% url 'clinic:patients' %}">Patients</a> ›
+  <a href="{% url 'clinic:patient_detail' patient.pk %}">{{ patient.patient_id }}</a> ›
+  Prescription Preview
+</div>
+
+<!-- Status banner -->
+<div style="margin-bottom:16px">
+  {% if rx.is_final %}
+    <span style="display:inline-flex;align-items:center;gap:8px;background:#e8f5e9;color:#2e7d32;padding:10px 16px;border-radius:6px;font-size:14px;font-weight:600">
+      <i class="fas fa-check-circle"></i> Finalized — ready for printing
+    </span>
+  {% else %}
+    <span style="display:inline-flex;align-items:center;gap:8px;background:#fff3e0;color:#e65100;padding:10px 16px;border-radius:6px;font-size:14px;font-weight:600">
+      <i class="fas fa-exclamation-triangle"></i> Draft — review and finalize before printing
+    </span>
+  {% endif %}
+</div>
+
+<!-- Action buttons -->
+<div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:16px">
+  {% if not rx.is_final %}
+    <form method="post" action="{% url 'prescriptions:finalize' rx.pk %}" style="display:inline" id="finalize-form">
+      {% csrf_token %}
+      <button class="btn" type="submit" style="background:#2e7d32;color:#fff">
+        <i class="fas fa-lock"></i> Finalize prescription
+      </button>
+    </form>
+    <a class="btn ghost" href="{% url 'clinic:prescription' patient.pk %}">
+      <i class="fas fa-pen"></i> Edit draft
+    </a>
+  {% endif %}
+
+  <button class="btn" type="button" onclick="window.print()" style="background:#1d4ed8;color:#fff">
+    <i class="fas fa-print"></i> Print prescription
+  </button>
+  <a class="btn ghost" href="{% url 'prescriptions:pdf' rx.pk %}" target="_blank">
+    <i class="fas fa-file-pdf"></i> Save as PDF
+  </a>
+  <a class="btn ghost" href="{% url 'clinic:patient_detail' patient.pk %}">
+    <i class="fas fa-arrow-left"></i> Back to patient
+  </a>
+</div>
+
+<div class="help" style="margin-bottom:12px">
+  {% if rx.is_final %}
+    This prescription is finalized and immutable. The PDF is ready for printing.
+  {% else %}
+    <strong>Review the prescription below.</strong> Click <strong>Finalize</strong> to lock it, generate the PDF, and update the medication history. Once finalized, you cannot edit it.
+  {% endif %}
+</div>
+
+<!-- Prescription preview rendered inline -->
+<div style="border:1px solid #ddd;border-radius:8px;overflow:hidden;background:#fff;padding:16px">
+  <div id="rx-print-area" style="max-width:210mm;margin:0 auto">
+    {{ prescription_html|safe }}
+  </div>
+</div>
+
+<!-- Print only the prescription itself (no sidebar / header / buttons), so the
+     in-app Print button gives a fast, integrated printout — no external PDF app. -->
+<style>
+@media print {
+  body * { visibility: hidden !important; }
+  #rx-print-area, #rx-print-area * { visibility: visible !important; }
+  #rx-print-area { position: absolute; left: 0; top: 0; width: 100%; max-width: none; padding: 0; margin: 0; }
+  aside, header, .crumbs { display: none !important; }
+  @page { margin: 12mm; }
+}
+</style>
+
+<script>
+  document.getElementById('finalize-form')?.addEventListener('submit', function(e) {
+    if (!confirm('Once finalized, this prescription cannot be edited.\n\nProceed?')) {
+      e.preventDefault();
+    }
+  });
+</script>
+
+{% endblock %}

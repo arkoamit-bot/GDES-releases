@@ -1,0 +1,256 @@
+{% load static asset_tags %}<!DOCTYPE html>
+<html lang="en" class="h-full">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{% block title %}GDES{% endblock %}</title>
+<!-- Self-hosted FontAwesome (offline-capable; no render-blocking CDN). Inter is
+     served by the system font stack (falls back to Segoe UI) — see input.css. -->
+<link rel="stylesheet" href="{% static 'vendor/fontawesome/css/all.min.css' %}">
+
+<!-- Compiled Tailwind + Flowbite + component layer.  Rebuild after template/CSS
+     changes with:  npm run build:css   (source: static_src/input.css). -->
+<link rel="stylesheet" href="{% static_v 'css/app.css' %}">
+
+<!-- Extended component layer (until next CSS rebuild). -->
+<style>
+  /* ===== Layout utilities ===== */
+  .page-nav { display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:10px; margin-bottom:16px; }
+  .page-nav-left, .page-nav-right { display:flex; gap:8px; align-items:center; }
+  .page-desc { color:var(--muted); font-size:13.5px; margin-bottom:16px; margin-top:-8px; }
+  .page-title { font-size:1.25rem; font-weight:700; color:var(--ink); }
+  .page-title .icon { color:var(--brand); margin-right:8px; }
+
+  /* ===== Cards ===== */
+  .card { background:#fff; border:1px solid var(--line); border-radius:12px; box-shadow:0 1px 3px rgba(0,0,0,.04); transition:box-shadow .2s, transform .2s; }
+  .card:hover { box-shadow:0 4px 12px rgba(38,33,92,.08); }
+  .card-header { display:flex; align-items:center; gap:8px; padding:14px 18px; border-bottom:1px solid var(--line); font-weight:600; font-size:13.5px; color:var(--ink); }
+  .card-header .badge { margin-left:auto; }
+  .card-body { padding:16px 18px; }
+  .card-footer { padding:12px 18px; border-top:1px solid var(--line); font-size:12px; color:var(--muted); }
+
+  /* ===== Badges ===== */
+  .badge { display:inline-flex; align-items:center; gap:4px; font-size:11px; font-weight:600; padding:3px 10px; border-radius:999px; }
+  .badge.ok { background:#dcfce7; color:#15803d; }
+  .badge.warn { background:#fef3c7; color:#b45309; }
+  .badge.danger { background:#fee2e2; color:#dc2626; }
+  .badge.info { background:#dbeafe; color:#1d4ed8; }
+  .badge.neutral { background:#f1f5f9; color:#475569; }
+
+  /* ===== Form components ===== */
+  .form-card { background:#fff; border:1px solid var(--line); border-radius:12px; padding:20px; margin-bottom:16px; }
+  .form-actions { display:flex; gap:10px; align-items:center; flex-wrap:wrap; margin-top:16px; padding-top:16px; border-top:1px solid var(--line); }
+  .form-group { margin-bottom:16px; }
+  .form-group label { display:block; font-size:13px; font-weight:500; color:#334155; margin-bottom:5px; }
+  .form-group .help { font-size:12px; color:var(--muted); margin-top:4px; }
+  .form-group .errs { font-size:12px; color:#dc2626; margin-top:4px; }
+  .form-control { width:100%; padding:8px 12px; border:1px solid #cbd5e1; border-radius:8px; font-size:13.5px; background:#fff; color:#0f172a; transition:border-color .15s, box-shadow .15s; }
+  .form-control:focus { outline:none; border-color:#3b82f6; box-shadow:0 0 0 3px rgba(59,130,246,.15); }
+  textarea.form-control { min-height:80px; resize:vertical; }
+  select.form-control { cursor:pointer; }
+
+  /* ===== Empty states ===== */
+  .empty-state { display:flex; flex-direction:column; align-items:center; justify-content:center; padding:40px 20px; text-align:center; color:var(--muted); }
+  .empty-state .icon { font-size:40px; margin-bottom:12px; color:#cbd5e1; }
+  .empty-state .title { font-size:15px; font-weight:600; color:var(--ink); margin-bottom:4px; }
+  .empty-state .desc { font-size:13px; max-width:320px; }
+
+  /* ===== Status banners ===== */
+  .status-banner { display:inline-flex; align-items:center; gap:8px; padding:10px 16px; border-radius:8px; font-size:13.5px; font-weight:600; margin-bottom:16px; }
+  .status-banner.ok { background:#dcfce7; color:#15803d; }
+  .status-banner.warn { background:#fef3c7; color:#b45309; }
+  .status-banner.danger { background:#fee2e2; color:#dc2626; }
+  .status-banner.info { background:#dbeafe; color:#1d4ed8; }
+
+  /* ===== Section titles ===== */
+  .section-title { font-size:11px; font-weight:600; text-transform:uppercase; letter-spacing:0.05em; color:#64748b; margin:24px 0 12px; }
+  .section-title:first-child { margin-top:0; }
+
+  /* ===== Quick links ===== */
+  .quick-links { display:grid; grid-template-columns:repeat(auto-fill, minmax(180px, 1fr)); gap:10px; }
+  .quick-links a { display:flex; align-items:center; gap:10px; padding:12px 14px; border:1px solid var(--line); border-radius:10px; color:var(--ink); font-size:13.5px; font-weight:500; transition:border-color .15s, background .15s; }
+  .quick-links a:hover { border-color:var(--brand-2); background:#faf9ff; text-decoration:none; }
+  .quick-links a i { color:var(--brand); width:18px; text-align:center; font-size:14px; }
+
+  /* ===== Tabs ===== */
+  .tab-list { display:flex; gap:2px; padding:4px; background:#f1f5f9; border-radius:10px; margin-bottom:16px; overflow-x:auto; }
+  /* flex:0 0 auto (not flex:1) so each tab is as wide as its label; the row
+     scrolls (overflow-x:auto above) on narrow screens instead of squeezing long
+     labels below their text width, which made them overflow and overlap. */
+  .tab-list button, .tab-list a { flex:0 0 auto; padding:8px 14px; border-radius:8px; font-size:13px; font-weight:500; color:#64748b; border:none; background:transparent; cursor:pointer; transition:all .15s; white-space:nowrap; text-align:center; text-decoration:none; }
+  .tab-list button:hover, .tab-list a:hover { color:#334155; }
+  .tab-list button.active, .tab-list a.active { background:#fff; color:#1d4ed8; box-shadow:0 1px 3px rgba(0,0,0,.08); font-weight:600; }
+  .tab-content { display:none; }
+  .tab-content.active { display:block; animation:fadeIn .25s ease; }
+  @keyframes fadeIn { from { opacity:0; transform:translateY(4px); } to { opacity:1; transform:translateY(0); } }
+
+  /* ===== Stats ===== */
+  .stats-grid { display:grid; grid-template-columns:repeat(auto-fill, minmax(170px, 1fr)); gap:14px; }
+  .stat-card { display:flex; align-items:center; gap:14px; background:#fff; border:1px solid var(--line); border-radius:12px; padding:16px 18px; transition:box-shadow .2s, transform .15s; }
+  .stat-card:hover { box-shadow:0 6px 18px rgba(38,33,92,.10); transform:translateY(-1px); }
+  .stat-card .icon { width:44px; height:44px; border-radius:10px; flex-shrink:0; display:flex; align-items:center; justify-content:center; font-size:18px; }
+  .stat-card .icon.blue { background:#dbeefe; color:#0c92d4; }
+  .stat-card .icon.green { background:#dcfce7; color:#15803d; }
+  .stat-card .icon.amber { background:#fef3c7; color:#b45309; }
+  .stat-card .icon.red { background:#fee2e2; color:#dc2626; }
+  .stat-card .icon.purple { background:#ede9fe; color:#7c3aed; }
+  .stat-card .value { font-size:26px; font-weight:700; color:var(--ink); line-height:1; }
+  .stat-card .label { font-size:12px; color:var(--muted); margin-top:4px; }
+  .stat-card .trend { font-size:11px; font-weight:600; margin-top:2px; }
+  .stat-card .trend.up { color:#15803d; }
+  .stat-card .trend.down { color:#dc2626; }
+
+  /* ===== Filter bar ===== */
+  .filter-bar { display:flex; gap:12px; align-items:flex-end; flex-wrap:wrap; margin-bottom:16px; padding:14px 16px; background:#fff; border:1px solid var(--line); border-radius:10px; }
+  .filter-bar .field { display:flex; flex-direction:column; gap:4px; }
+  .filter-bar .field label { font-size:12px; font-weight:500; color:#64748b; }
+
+  /* ===== Animations ===== */
+  .fade-in { animation:fadeIn .3s ease; }
+  .slide-up { animation:slideUp .3s ease; }
+  @keyframes slideUp { from { opacity:0; transform:translateY(12px); } to { opacity:1; transform:translateY(0); } }
+
+  /* ===== HTMX quick-jump results ===== */
+  #quicksearch-results { position:absolute; top:100%; left:0; right:0; margin-top:4px; background:#fff; border:1px solid #e2e8f0; border-radius:10px; box-shadow:0 10px 30px rgba(0,0,0,.12); z-index:50; max-height:320px; overflow-y:auto; }
+  #quicksearch-results:empty { display:none; }
+  #quicksearch-results a { display:flex; align-items:center; gap:10px; padding:10px 14px; color:#334155; font-size:13px; border-bottom:1px solid #f1f5f9; text-decoration:none; transition:background .1s; }
+  #quicksearch-results a:last-child { border-bottom:none; }
+  #quicksearch-results a:hover { background:#f8fafc; text-decoration:none; }
+  #quicksearch-results .pid { font-weight:600; color:#1d4ed8; min-width:70px; }
+  #quicksearch-results .name { color:#64748b; }
+  #quicksearch-results .empty { padding:16px; text-align:center; color:#94a3b8; font-size:13px; }
+</style>
+
+<!-- HTMX (vendored) for partial swaps: live search, quick-jump, dup-check -->
+<script src="{% static 'js/htmx.min.js' %}"></script>
+
+<!-- Tab switching utility -->
+<script>
+function switchTab(tabId, contentId) {
+  document.querySelectorAll('.tab-list button, .tab-list a').forEach(function(t) { t.classList.remove('active'); });
+  document.querySelectorAll('.tab-content').forEach(function(c) { c.classList.remove('active'); });
+  var tab = document.querySelector('.tab-list [data-tab="' + tabId + '"]');
+  if(tab) tab.classList.add('active');
+  var content = document.getElementById(contentId);
+  if(content) content.classList.add('active');
+  // Store preference in URL hash
+  if(window.history.replaceState) window.history.replaceState(null, null, '#' + tabId);
+}
+// Auto-activate tab from URL hash
+document.addEventListener('DOMContentLoaded', function() {
+  var hash = window.location.hash.replace('#','');
+  if(hash) {
+    var tab = document.querySelector('.tab-list [data-tab="' + hash + '"]');
+    if(tab) tab.click();
+  }
+});
+</script>
+</head>
+<body class="h-full">
+<div class="flex h-full">
+
+  <!-- Sidebar -->
+  <aside id="sidebar"
+         class="fixed inset-y-0 left-0 z-40 w-64 -translate-x-full lg:translate-x-0 transition-transform bg-white border-r border-slate-200 flex flex-col"
+         aria-label="Sidebar">
+    <a href="/" title="Back to dashboard"
+       class="flex items-center gap-2.5 h-16 px-5 border-b border-slate-200 hover:bg-slate-50 no-underline">
+      <span class="flex items-center justify-center w-9 h-9 rounded-lg bg-primary-600 text-white font-bold">GD</span>
+      <div class="leading-tight">
+        <div class="text-sm font-semibold text-slate-800">GDES</div>
+        <div class="text-[11px] text-slate-500">Glomerular Disease Expert System</div>
+      </div>
+    </a>
+    <nav class="flex-1 overflow-y-auto px-3 py-4 space-y-0.5 text-sm">
+      {% with a=active %}
+      {% include "_navlink.html" with href="/" icon="fa-gauge-high" label="Dashboard" on=a|default:"" key="dashboard" %}
+      <div class="pl-9 text-[11px] space-y-0.5" style="margin-top:-2px">
+        <a href="{% url 'dashboard-enrollment' %}" class="block px-3 py-1 rounded text-slate-500 hover:text-primary-600 hover:bg-slate-50 no-underline {% if request.path == '/dashboard/enrollment/' %}text-primary-600 font-semibold{% endif %}"><i class="fas fa-user-plus w-4 text-center"></i> Enrollment</a>
+        <a href="{% url 'dashboard-outcomes' %}" class="block px-3 py-1 rounded text-slate-500 hover:text-primary-600 hover:bg-slate-50 no-underline {% if request.path == '/dashboard/outcomes/' %}text-primary-600 font-semibold{% endif %}"><i class="fas fa-chart-pie w-4 text-center"></i> Outcomes</a>
+        <a href="{% url 'dashboard-compliance' %}" class="block px-3 py-1 rounded text-slate-500 hover:text-primary-600 hover:bg-slate-50 no-underline {% if request.path == '/dashboard/compliance/' %}text-primary-600 font-semibold{% endif %}"><i class="fas fa-clipboard-check w-4 text-center"></i> Compliance</a>
+      </div>
+      {% include "_navlink.html" with url="clinic:patients" icon="fa-user-injured" label="Patients" on=a key="patients" %}
+      {% include "_navlink.html" with url="clinic:prescriptions" icon="fa-prescription" label="Prescriptions" on=a key="prescriptions" %}
+      <p class="px-3 pt-4 pb-1 text-[11px] font-semibold uppercase tracking-wide text-slate-400">Clinical Intelligence</p>
+      {% include "_navlink.html" with url="clinic:patients" icon="fa-brain" label="Clinical Reasoning" on=a key="reasoning" %}
+      {% include "_navlink.html" with url="clinic:worklist" icon="fa-calendar-check" label="Follow-up" on=a key="followup" %}
+      {% include "_navlink.html" with href="/admin/knowledge/" icon="fa-book-medical" label="Knowledge Base" on=a key="knowledge" %}
+      <a href="https://www.verahealth.ai/" target="_blank" rel="noopener noreferrer"
+         title="Open Vera Health evidence search in a new tab (external)"
+         class="flex items-center gap-3 px-3 py-2 rounded-lg font-medium no-underline text-slate-600 hover:bg-slate-100 hover:text-slate-900">
+        <i class="fas fa-magnifying-glass-chart w-4 text-center"></i>
+        <span>Evidence Search</span>
+        <i class="fas fa-arrow-up-right-from-square text-[10px] ml-auto text-slate-400"></i>
+      </a>
+      <p class="px-3 pt-4 pb-1 text-[11px] font-semibold uppercase tracking-wide text-slate-400">Research</p>
+      {% include "_navlink.html" with url="clinic:analytics" icon="fa-chart-line" label="Analytics" on=a key="analytics" %}
+      {% include "_navlink.html" with url="clinic:studies" icon="fa-flask-vial" label="Studies" on=a key="studies" %}
+      {% include "_navlink.html" with url="clinic:safety" icon="fa-triangle-exclamation" label="Safety" on=a key="safety" %}
+      {% include "_navlink.html" with url="clinic:pathology" icon="fa-microscope" label="Pathology" on=a key="pathology" %}
+      {% include "_navlink.html" with url="clinic:biomarkers" icon="fa-dna" label="Biomarkers" on=a key="biomarkers" %}
+      {% include "_navlink.html" with url="clinic:quality" icon="fa-scale-balanced" label="Quality" on=a key="quality" %}
+      {% include "_navlink.html" with url="clinic:export" icon="fa-file-export" label="Export" on=a key="export" %}
+      <p class="px-3 pt-4 pb-1 text-[11px] font-semibold uppercase tracking-wide text-slate-400">System</p>
+      {% include "_navlink.html" with url="clinic:help" icon="fa-circle-question" label="Help &amp; Guides" on=a key="help" %}
+      {% include "_navlink.html" with href="/admin/" icon="fa-gear" label="Admin" on=a key="admin" %}
+      {% endwith %}
+    </nav>
+    <div class="px-4 py-3 border-t border-slate-200 text-[11px] text-slate-400">
+      GDES &mdash; Glomerular Disease Expert System
+      {% if APP_VERSION %}<span class="block text-slate-400">v{{ APP_VERSION }}</span>{% endif %}
+    </div>
+  </aside>
+
+  <!-- Main column -->
+  <div class="flex-1 flex flex-col min-w-0 lg:ml-64">
+    <header class="sticky top-0 z-30 flex items-center justify-between gap-4 h-16 px-4 sm:px-6 bg-white/90 backdrop-blur border-b border-slate-200">
+      <div class="flex items-center gap-3 min-w-0">
+        <button data-drawer-target="sidebar" data-drawer-toggle="sidebar" aria-controls="sidebar"
+                class="lg:hidden inline-flex items-center justify-center w-9 h-9 rounded-lg text-slate-500 hover:bg-slate-100">
+          <i class="fas fa-bars"></i></button>
+        <a href="/" title="Back to dashboard"
+           class="inline-flex items-center gap-2 h-9 px-2.5 rounded-lg border border-slate-200 text-slate-600 hover:bg-slate-100 hover:text-primary-600 no-underline text-sm font-medium">
+          <i class="fas fa-house"></i><span class="hidden sm:inline">Home</span></a>
+        <h1 class="text-base font-semibold text-slate-800 truncate">{% block heading %}{% endblock %}</h1>
+      </div>
+      {% if request.user.is_authenticated %}
+      <!-- Global quick-jump: find & open any patient from any page -->
+      <div class="relative hidden md:block w-72">
+        <span class="absolute inset-y-0 left-3 flex items-center text-slate-400 z-10"><i class="fas fa-magnifying-glass text-xs"></i></span>
+        <input type="text" name="q" autocomplete="off" placeholder="Jump to patient…"
+               class="w-full rounded-lg border border-slate-300 bg-slate-50 pl-9 pr-3 py-1.5 text-sm text-slate-900 focus:outline-none focus:border-primary-500 focus:ring-2 focus:ring-primary-200"
+               hx-get="{% url 'clinic:quicksearch' %}" hx-target="#quicksearch-results"
+               hx-trigger="keyup changed delay:200ms" hx-swap="innerHTML"
+               onkeydown="if(event.key==='Escape'){document.getElementById('quicksearch-results').innerHTML='';this.value='';this.blur();}"
+               onblur="setTimeout(function(){var r=document.getElementById('quicksearch-results');if(r)r.innerHTML='';},200)">
+        <div id="quicksearch-results"></div>
+      </div>
+      {% endif %}
+      <div class="flex items-center gap-3">
+        {% if request.user.is_authenticated %}
+          <div class="hidden sm:flex items-center gap-2">
+            <span class="flex items-center justify-center w-8 h-8 rounded-full bg-primary-100 text-primary-700 text-xs font-semibold">
+              {{ request.user.first_name|first|default:request.user.username|first|upper }}{{ request.user.last_name|first|upper }}</span>
+            <span class="text-sm text-slate-700"><strong class="font-medium">{{ request.user.get_full_name|default:request.user.username }}</strong>{% if request.user.is_staff %}<span class="text-slate-400 text-xs ml-1">· Admin</span>{% endif %}</span>
+          </div>
+          <a href="{% url 'users:profile' %}" class="btn ghost sm">Profile</a>
+          <a href="{% url 'users:logout' %}" class="btn ghost sm">Log out</a>
+        {% else %}
+          <a href="{% url 'users:login' %}" class="btn sm">Sign in</a>
+        {% endif %}
+      </div>
+    </header>
+
+    <main class="flex-1 p-4 sm:p-6 max-w-[1200px] w-full mx-auto">
+      {% if messages %}{% for m in messages %}
+        <div class="msg {{ m.tags }}">{{ m }}</div>
+      {% endfor %}{% endif %}
+      {% block content %}{% endblock %}
+    </main>
+  </div>
+</div>
+<!-- Flowbite interactive JS (vendored): drawers, dropdowns, tooltips -->
+<script src="{% static 'js/flowbite.min.js' %}"></script>
+{% block scripts %}{% endblock %}
+</body>
+</html>

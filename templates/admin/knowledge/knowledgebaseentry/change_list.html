@@ -1,0 +1,10 @@
+{% extends "admin/change_list.html" %}
+{% block object-tools-items %}
+  <li>
+    <a href="update-from-file/" class="addlink">Update from file</a>
+  </li>
+  <li>
+    <a href="import-guideline-reference/" class="addlink">Import guideline (reference)</a>
+  </li>
+  {{ block.super }}
+{% endblock %}

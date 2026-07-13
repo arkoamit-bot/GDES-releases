@@ -1,0 +1,20 @@
+{% for p in patients %}
+<tr>
+  <td><a href="{% url 'clinic:patient_detail' p.pk %}" class="font-semibold text-primary-600">{{ p.patient_id }}</a></td>
+  <td>{{ p.name }}</td>
+  <td>{{ p.get_sex_display }}</td>
+  <td>{% if p.diabetes_status != 'none' %}<span class="chip warn">{{ p.get_diabetes_status_display }}</span>{% else %}<span class="text-slate-400">—</span>{% endif %}</td>
+  <td>{{ p.get_primary_diagnosis_display|default:'—' }}</td>
+  <td>{% if p.latest_egfr %}<span class="font-medium text-slate-800">{{ p.latest_egfr }}</span>{% else %}<span class="text-slate-400">—</span>{% endif %}</td>
+  <td class="text-right"><a class="btn ghost sm" href="{% url 'clinic:patient_detail' p.pk %}">Open</a></td>
+</tr>
+{% empty %}
+<tr><td colspan="7" class="px-6 py-10 text-center text-slate-400">
+  {% if q %}No patients match “{{ q }}”.{% else %}No patients yet.
+  <a class="text-primary-600 hover:underline" href="{% url 'clinic:patient_create' %}">Register the first one.</a>{% endif %}
+</td></tr>
+{% endfor %}
+<!-- Out-of-band: keep the result counter in sync after each live search -->
+<span id="result-count" hx-swap-oob="true" class="text-xs text-slate-500">
+  {{ total }} patient{{ total|pluralize }}{% if capped %} · showing first 200{% endif %}
+</span>

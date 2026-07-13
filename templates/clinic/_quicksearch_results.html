@@ -1,0 +1,16 @@
+{% if q %}
+<div class="absolute z-50 left-0 right-0 mt-1 bg-white border border-slate-200 rounded-lg shadow-lg overflow-hidden">
+  {% for p in results %}
+  <a href="{% url 'clinic:patient_detail' p.pk %}"
+     class="flex items-center justify-between gap-3 px-3 py-2 hover:bg-slate-50 no-underline border-b border-slate-50 last:border-0">
+    <span class="truncate">
+      <span class="font-medium text-slate-800">{{ p.name }}</span>
+      <span class="text-slate-400 text-xs ml-1">{{ p.patient_id }}</span>
+    </span>
+    {% if p.latest_egfr %}<span class="text-[11px] text-slate-400 shrink-0">eGFR {{ p.latest_egfr }}</span>{% endif %}
+  </a>
+  {% empty %}
+  <div class="px-3 py-3 text-sm text-slate-400">No patient matches “{{ q }}”.</div>
+  {% endfor %}
+</div>
+{% endif %}

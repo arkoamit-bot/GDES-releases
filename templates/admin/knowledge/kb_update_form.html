@@ -1,0 +1,42 @@
+{% extends "admin/base_site.html" %}
+{% block breadcrumbs %}
+<div class="breadcrumbs">
+  <a href="{% url 'admin:index' %}">Home</a>
+  &rsaquo; <a href="{% url 'admin:app_list' app_label='knowledge' %}">Knowledge</a>
+  &rsaquo; <a href="{% url 'admin:knowledge_knowledgebaseentry_changelist' %}">Knowledge base entries</a>
+  &rsaquo; Update from file
+</div>
+{% endblock %}
+{% block content %}
+<h1>Update knowledge base from file</h1>
+
+<p style="max-width:640px">
+  Provide a guideline export in <strong>JSON</strong> format (the same format
+  produced by <code>export_knowledge_base</code>) &mdash; either upload a
+  downloaded file <strong>or</strong> paste a direct web link to the raw JSON.
+  New and changed rules are imported as <strong>DRAFT</strong> so you can review
+  them before they go live &mdash; nothing becomes ACTIVE automatically.
+  Unchanged rules are left as they are.
+</p>
+
+<form method="post" enctype="multipart/form-data">
+  {% csrf_token %}
+  <fieldset class="module aligned" style="max-width:640px">
+    <div class="form-row">
+      <label style="font-weight:600">Upload a file</label>
+      <input type="file" name="file" accept=".json,application/json">
+    </div>
+    <div class="form-row">
+      <label style="font-weight:600">…or paste a web link</label>
+      <input type="url" name="url" placeholder="https://example.com/knowledge_export.json"
+             style="width:100%;max-width:600px">
+      <p class="help">Must be a direct http/https link to the raw JSON (e.g. a raw
+        GitHub link or a direct-download share link). Max 10&nbsp;MB.</p>
+    </div>
+  </fieldset>
+  <div class="submit-row" style="margin-top:16px">
+    <input type="submit" value="Update now" class="default">
+    <a href="{% url 'admin:knowledge_knowledgebaseentry_changelist' %}" class="button cancel-link">Cancel</a>
+  </div>
+</form>
+{% endblock %}

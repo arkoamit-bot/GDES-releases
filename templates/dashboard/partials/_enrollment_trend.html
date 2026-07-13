@@ -1,0 +1,44 @@
+{% load static %}
+{% if data.has %}
+<canvas id="trendChart" style="width:100%;max-height:260px"></canvas>
+{{ data.labels|json_script:"t-labels" }}
+{{ data.counts|json_script:"t-counts" }}
+<script>
+(function(){
+  var labels = JSON.parse(document.getElementById('t-labels').textContent);
+  var counts = JSON.parse(document.getElementById('t-counts').textContent);
+  var el = document.getElementById('trendChart');
+  if (!el || !window.Chart) return;
+  new Chart(el, {
+    type: 'bar',
+    data: {
+      labels: labels,
+      datasets: [{
+        label: 'New patients',
+        data: counts,
+        backgroundColor: 'rgba(12,146,212,.65)',
+        borderColor: '#0c92d4',
+        borderWidth: 1,
+        borderRadius: 4
+      }]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      scales: {
+        y: { beginAtZero: true, ticks: { stepSize: 1 } }
+      },
+      plugins: {
+        legend: { display: false }
+      }
+    }
+  });
+})();
+</script>
+{% else %}
+<div class="empty-state" style="padding:20px">
+  <div class="icon"><i class="fas fa-chart-bar"></i></div>
+  <div class="title">No enrollment trend yet</div>
+  <div class="desc">Monthly enrollment data will appear as patients are registered.</div>
+</div>
+{% endif %}

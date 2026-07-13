@@ -1,0 +1,37 @@
+{% extends "base.html" %}
+{% block title %}Invite user — GDES{% endblock %}
+{% block heading %}Invite user{% endblock %}
+{% block content %}
+
+<div class="crumbs"><a href="{% url 'users:user_list' %}">Users</a> › Invite</div>
+
+<div class="panel">
+  <div class="ph"><i class="fas fa-user-plus"></i> New invitation</div>
+  <div class="pb">
+    <form method="post">
+      {% csrf_token %}
+      {% if form.non_field_errors %}<div class="msg error">{{ form.non_field_errors }}</div>{% endif %}
+      <div class="frow">
+        <label for="{{ form.email.id_for_label }}">{{ form.email.label }}</label>
+        {{ form.email }}
+        {% if form.email.errors %}<div class="errs">{{ form.email.errors|striptags }}</div>{% endif %}
+      </div>
+      <div class="frow">
+        <label for="{{ form.role.id_for_label }}">{{ form.role.label }}</label>
+        {{ form.role }}
+      </div>
+      <div class="frow">
+        <label for="{{ form.first_name.id_for_label }}">{{ form.first_name.label }}</label>
+        {{ form.first_name }}
+      </div>
+      <div class="frow">
+        <label for="{{ form.last_name.id_for_label }}">{{ form.last_name.label }}</label>
+        {{ form.last_name }}
+      </div>
+      <button class="btn" type="submit"><i class="fas fa-paper-plane"></i> Create invitation</button>
+      <a href="{% url 'users:user_list' %}" class="btn ghost">Cancel</a>
+    </form>
+  </div>
+</div>
+
+{% endblock %}

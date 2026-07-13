@@ -1,0 +1,28 @@
+{% extends "base.html" %}
+{% load static %}
+{% block title %}Outcomes Dashboard — GDES{% endblock %}
+{% block heading %}Outcomes Dashboard{% endblock %}
+
+{% block content %}
+<div class="page-desc">
+  Computed kidney outcomes from the analytics engine. Auto-refreshes every 30 seconds.
+</div>
+
+<div class="tab-list" role="tablist">
+  <a href="{% url 'dashboard' %}"><i class="fas fa-gauge-high"></i> Overview</a>
+  <a href="{% url 'dashboard-enrollment' %}"><i class="fas fa-user-plus"></i> Enrollment</a>
+  <a href="{% url 'dashboard-outcomes' %}" class="active"><i class="fas fa-chart-pie"></i> Outcomes</a>
+  <a href="{% url 'dashboard-compliance' %}"><i class="fas fa-clipboard-check"></i> Compliance</a>
+</div>
+
+<div class="card" style="margin-bottom:16px"
+     hx-get="{% url 'dashboard-partial-outcomes-summary' %}"
+     hx-trigger="load, every 30s"
+     hx-swap="innerHTML">
+  <div class="htmx-indicator card-body"><i class="fas fa-spinner fa-spin"></i> Loading outcomes…</div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="{% static 'clinic/chart.umd.min.js' %}"></script>
+{% endblock %}

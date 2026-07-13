@@ -1,0 +1,92 @@
+{% extends "base.html" %}
+{% block title %}Export — GDES{% endblock %}
+{% block heading %}Export research dataset{% endblock %}
+{% block content %}
+
+<!-- Page nav -->
+<div class="page-nav">
+  <div class="page-nav-left">
+    <a class="btn ghost sm" href="/"><i class="fas fa-arrow-left"></i> Dashboard</a>
+  </div>
+</div>
+
+<p class="page-desc">
+  One row per patient — demographics, baseline, labs, pathology, drug-class flags,
+  computed outcomes, biomarkers and safety counts. <strong>De-identified by default</strong>
+  (Study ID only); the Excel file ships with a data-dictionary sheet.
+</p>
+
+<!-- Export cards -->
+<div class="grid" style="grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:16px">
+  <div class="card" style="padding:20px">
+    <div style="font-size:24px;color:var(--brand);margin-bottom:8px"><i class="fas fa-file-csv"></i></div>
+    <h3 style="margin:0 0 6px;font-size:16px;font-weight:700">CSV</h3>
+    <p style="margin:0 0 16px;font-size:13px;color:var(--muted)">Analysis-ready, de-identified.</p>
+    <a class="btn" href="/exports/research-dataset/?fmt=csv"><i class="fas fa-download"></i> Download CSV</a>
+  </div>
+  <div class="card" style="padding:20px">
+    <div style="font-size:24px;color:var(--brand);margin-bottom:8px"><i class="fas fa-file-excel"></i></div>
+    <h3 style="margin:0 0 6px;font-size:16px;font-weight:700">Excel (.xlsx)</h3>
+    <p style="margin:0 0 16px;font-size:13px;color:var(--muted)">With a self-documenting data-dictionary sheet.</p>
+    <a class="btn" href="/exports/research-dataset/?fmt=xlsx"><i class="fas fa-download"></i> Download Excel</a>
+  </div>
+  <div class="card" style="padding:20px">
+    <div style="font-size:24px;color:var(--brand);margin-bottom:8px"><i class="fas fa-chart-column"></i></div>
+    <h3 style="margin:0 0 6px;font-size:16px;font-weight:700">SPSS (.sav)</h3>
+    <p style="margin:0 0 16px;font-size:13px;color:var(--muted)">With variable labels, value labels and measure levels.</p>
+    <a class="btn" href="/exports/research-dataset/?fmt=sav"><i class="fas fa-download"></i> Download SPSS</a>
+  </div>
+  <div class="card" style="padding:20px">
+    <div style="font-size:24px;color:var(--brand);margin-bottom:8px"><i class="fas fa-book"></i></div>
+    <h3 style="margin:0 0 6px;font-size:16px;font-weight:700">Data dictionary</h3>
+    <p style="margin:0 0 16px;font-size:13px;color:var(--muted)">Codebook (type, units, description) as JSON.</p>
+    <a class="btn ghost" href="/exports/data-dictionary/"><i class="fas fa-eye"></i> View dictionary</a>
+  </div>
+</div>
+
+<!-- Study-specific export (per-arm, for analysing one embedded study) -->
+<div class="card" style="margin-top:20px">
+  <div class="card-body">
+    <strong style="font-size:14px"><i class="fas fa-flask-vial mr-1"></i> Study-specific dataset (by arm)</strong>
+    <p style="margin:6px 0 10px;font-size:13px;color:var(--muted)">
+      Restrict the dataset to one embedded study's enrolled patients and add the
+      <code>arm</code>, <code>stratum</code> and <code>enrolled_date</code> columns — so you can run a
+      per-study, arm-vs-arm analysis (survival, eGFR slope, remission) directly in SPSS/Excel.
+    </p>
+    <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">
+      <select id="study-pick" style="min-width:260px">
+        <option value="">— choose a study —</option>
+        {% for code, title in studies %}<option value="{{ code }}">{{ code }} — {{ title }}</option>{% endfor %}
+      </select>
+      <button type="button" class="btn" id="study-csv" disabled><i class="fas fa-download"></i> CSV</button>
+      <button type="button" class="btn" id="study-xlsx" disabled><i class="fas fa-download"></i> Excel</button>
+      <button type="button" class="btn" id="study-sav" disabled><i class="fas fa-download"></i> SPSS</button>
+    </div>
+  </div>
+</div>
+<script>
+(function(){
+  var sel=document.getElementById('study-pick');
+  var btns={csv:document.getElementById('study-csv'),xlsx:document.getElementById('study-xlsx'),sav:document.getElementById('study-sav')};
+  function refresh(){
+    var code=sel.value;
+    Object.keys(btns).forEach(function(fmt){
+      btns[fmt].disabled=!code;
+      btns[fmt].onclick=code?function(){window.location='/exports/research-dataset/?fmt='+fmt+'&study='+encodeURIComponent(code);}:null;
+    });
+  }
+  sel.addEventListener('change',refresh); refresh();
+})();
+</script>
+
+<!-- Identified export note -->
+<div class="card" style="margin-top:20px">
+  <div class="card-body">
+    <strong style="font-size:14px"><i class="fas fa-lock mr-1"></i> Identified export</strong>
+    <p style="margin:6px 0 0;font-size:13px;color:var(--muted)">An identified export (with name/phone/registration) is restricted to the
+    <code>data_manager</code> role and available at
+    <code>/exports/research-dataset/?fmt=xlsx&amp;identified=1</code>.</p>
+  </div>
+</div>
+
+{% endblock %}

@@ -1,0 +1,141 @@
+{% extends "base.html" %}
+{% block title %}Baseline — {{ patient.patient_id }}{% endblock %}
+{% block heading %}Baseline · {{ patient.patient_id }}{% endblock %}
+{% block content %}
+
+<div class="crumbs"><a href="/patients/">Patients</a> ›
+  <a href="{% url 'clinic:patient_detail' patient.pk %}">{{ patient.patient_id }}</a> › Baseline</div>
+
+<!-- Page nav: back + shortcuts -->
+<div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px;margin-bottom:16px">
+  <div style="display:flex;gap:8px">
+    <a class="btn ghost sm" href="{% url 'clinic:patient_detail' patient.pk %}"><i class="fas fa-arrow-left"></i> Back to patient</a>
+  </div>
+  <div style="display:flex;gap:8px">
+    <a class="btn ghost sm" href="{% url 'clinic:followup' patient.pk %}"><i class="fas fa-notes-medical"></i> Follow-up</a>
+  </div>
+</div>
+
+{% include "clinic/_patient_context.html" %}
+
+<form method="post" autocomplete="off">
+  {% csrf_token %}
+  {% if form.non_field_errors %}<div class="msg error">{{ form.non_field_errors }}</div>{% endif %}
+  <div class="panel"><div class="pb">
+    <!-- A. Demographic & social -->
+    <fieldset class="fieldset">
+      <legend><i class="fas fa-id-card"></i> A. Demographic &amp; social</legend>
+      <div class="cols2">
+        {% include "clinic/_field.html" with f=form.assessment_date %}
+        {% include "clinic/_field.html" with f=form.division_residence %}
+        {% include "clinic/_field.html" with f=form.socioeconomic_status %}
+        {% include "clinic/_field.html" with f=form.monthly_income_bdt %}
+        {% include "clinic/_field.html" with f=form.education %}
+        {% include "clinic/_field.html" with f=form.occupation %}
+        {% include "clinic/_field.html" with f=form.smoking %}
+        {% include "clinic/_field.html" with f=form.alcohol_use %}
+      </div>
+    </fieldset>
+
+    <!-- B. Medical history -->
+    <fieldset class="fieldset">
+      <legend><i class="fas fa-notes-medical"></i> B. Medical history</legend>
+      <div class="cols2">
+        {% include "clinic/_field.html" with f=form.dm_duration_years %}
+        {% include "clinic/_field.html" with f=form.hba1c %}
+      </div>
+      <label style="font-size:12px;color:#64748b;margin:8px 0 4px;display:block">Comorbidities &amp; complications</label>
+      <div style="display:flex;flex-wrap:wrap;gap:14px 20px">
+        {% for f in form.comorbidity_fields %}
+        <label style="display:flex;gap:6px;align-items:center;font-size:13px;font-weight:500;color:#334155">{{ f }} {{ f.label }}</label>
+        {% endfor %}
+      </div>
+      <div style="margin-top:10px">{% include "clinic/_field.html" with f=form.drug_history %}</div>
+    </fieldset>
+
+    <!-- C. Clinical presentation -->
+    <fieldset class="fieldset">
+      <legend><i class="fas fa-stethoscope"></i> C. Clinical presentation</legend>
+      <div class="frow">
+        <label>{{ form.presentation_syndromes.label }}</label>
+        <div style="columns:2;gap:20px">{{ form.presentation_syndromes }}</div>
+      </div>
+      <div class="frow">
+        <label>{{ form.presenting_symptoms.label }}</label>
+        <div style="columns:2;gap:20px">{{ form.presenting_symptoms }}</div>
+      </div>
+      <div class="cols2">
+        {% include "clinic/_field.html" with f=form.oedema_grade %}
+      </div>
+      <div style="display:flex;flex-wrap:wrap;gap:14px 20px;margin-top:6px">
+        <label style="display:flex;gap:6px;align-items:center;font-size:13px;font-weight:500;color:#334155">{{ form.active_urinary_sediment }} {{ form.active_urinary_sediment.label }}</label>
+        <label style="display:flex;gap:6px;align-items:center;font-size:13px;font-weight:500;color:#334155">{{ form.rbc_casts }} {{ form.rbc_casts.label }}</label>
+      </div>
+    </fieldset>
+
+    <!-- D. Clinical examination -->
+    <fieldset class="fieldset">
+      <legend><i class="fas fa-heart-pulse"></i> D. Clinical examination</legend>
+      <p class="help" style="margin-top:0">BMI and its Asian category are calculated automatically from height and weight.</p>
+      <div class="cols2">
+        {% include "clinic/_field.html" with f=form.height_cm %}
+        {% include "clinic/_field.html" with f=form.weight_kg %}
+        {% include "clinic/_field.html" with f=form.systolic_bp %}
+        {% include "clinic/_field.html" with f=form.diastolic_bp %}
+        {% include "clinic/_field.html" with f=form.pulse_bpm %}
+        {% include "clinic/_field.html" with f=form.temperature_c %}
+        {% include "clinic/_field.html" with f=form.respiratory_rate %}
+        {% include "clinic/_field.html" with f=form.volume_status %}
+        {% include "clinic/_field.html" with f=form.skin_findings %}
+        {% include "clinic/_field.html" with f=form.joint_findings %}
+        {% include "clinic/_field.html" with f=form.fundoscopy %}
+      </div>
+    </fieldset>
+
+    <fieldset class="fieldset">
+      <legend><i class="fas fa-vial"></i> E. Baseline labs (optional)</legend>
+      <div class="help" style="margin-bottom:10px">Enter <b>creatinine</b> to auto-calculate the baseline eGFR. These are stored as the first point in the patient's longitudinal lab trend.</div>
+      <div class="cols2">
+        <div class="frow">
+          <label for="{{ form.lab_creatinine.id_for_label }}">{{ form.lab_creatinine.label }}</label>
+          <div style="display:flex;gap:6px;align-items:center">
+            <div style="flex:1">{{ form.lab_creatinine }}</div>
+            <div style="width:105px;flex-shrink:0">{{ form.lab_creatinine_unit }}</div>
+          </div>
+          {% if form.lab_creatinine.errors %}<div class="errs">{{ form.lab_creatinine.errors|striptags }}</div>{% endif %}
+        </div>
+        {% for f in form %}{% if f.name|slice:":4" == "lab_" and f.name != "lab_creatinine" and f.name != "lab_creatinine_unit" %}
+        <div class="frow">
+          <label for="{{ f.id_for_label }}">{{ f.label }}</label>
+          {{ f }}
+          {% if f.errors %}<div class="errs">{{ f.errors|striptags }}</div>{% endif %}
+        </div>
+        {% endif %}{% endfor %}
+      </div>
+
+      <h2 class="sec" style="margin-top:18px">Serology — value and/or read</h2>
+      <div class="help" style="margin-bottom:8px">Enter a level and/or a qualitative read. Complement C3/C4 read <b>Low/Normal</b>; antibodies read <b>Negative/Positive</b>.</div>
+      <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:12px 18px">
+        {% for s in form.serology_fields %}
+        <div class="frow" style="margin:0">
+          <label>{{ s.label }}</label>
+          <div style="display:flex;gap:6px;align-items:center">
+            <div style="flex:1">{{ s.value }}</div>
+            <div style="width:120px;flex-shrink:0">{{ s.qual }}</div>
+          </div>
+        </div>
+        {% endfor %}
+      </div>
+    </fieldset>
+
+    <fieldset class="fieldset">
+      <legend><i class="fas fa-pen"></i> Notes</legend>
+      {{ form.notes }}
+    </fieldset>
+    <div style="display:flex;gap:10px">
+      <button class="btn" type="submit"><i class="fas fa-floppy-disk"></i> Save baseline</button>
+      <a class="btn ghost" href="{% url 'clinic:patient_detail' patient.pk %}">Cancel</a>
+    </div>
+  </div></div>
+</form>
+{% endblock %}

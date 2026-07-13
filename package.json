@@ -1,0 +1,15 @@
+{
+  "name": "bgddr-frontend",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Front-end build (Tailwind + Flowbite) for the BGDDR registry.",
+  "scripts": {
+    "build:css": "tailwindcss -i ./static_src/input.css -o ./static/css/app.css --minify",
+    "watch:css": "tailwindcss -i ./static_src/input.css -o ./static/css/app.css --watch"
+  },
+  "devDependencies": {
+    "tailwindcss": "^3.4.0",
+    "flowbite": "^2.3.0",
+    "htmx.org": "^1.9.12"
+  }
+}

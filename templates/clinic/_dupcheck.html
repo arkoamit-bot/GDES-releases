@@ -1,0 +1,16 @@
+{% if matches %}
+<div class="msg warning items-start">
+  <i class="fas fa-triangle-exclamation mt-0.5"></i>
+  <div>
+    <strong>Possible existing patient{{ matches|pluralize }}</strong> — check before creating a duplicate:
+    <ul class="mt-1 space-y-0.5">
+      {% for p in matches %}
+      <li>
+        <a href="{% url 'clinic:patient_detail' p.pk %}" target="_blank" class="font-medium underline">{{ p.name }} ({{ p.patient_id }})</a>
+        <span class="text-amber-700/80">{% if p.phone %} · {{ p.phone }}{% endif %}{% if p.hospital_id %} · Reg {{ p.hospital_id }}{% endif %}</span>
+      </li>
+      {% endfor %}
+    </ul>
+  </div>
+</div>
+{% endif %}

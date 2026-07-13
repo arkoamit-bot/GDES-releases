@@ -1,0 +1,117 @@
+{% extends "base.html" %}
+{% block title %}Safety — GDES{% endblock %}
+{% block heading %}Safety &amp; adverse events{% endblock %}
+{% block content %}
+
+<!-- Page nav -->
+<div class="page-nav">
+  <div class="page-nav-left">
+    <a class="btn ghost sm" href="/"><i class="fas fa-arrow-left"></i> Dashboard</a>
+  </div>
+  <div class="page-nav-right">
+    <a class="btn ghost sm" href="{% url 'clinic:analytics' %}"><i class="fas fa-chart-area"></i> Analytics</a>
+  </div>
+</div>
+
+<!-- Page header -->
+<div class="page-header">
+  <h2 class="page-title">Safety &amp; adverse events</h2>
+  <p class="page-desc">Summary of adverse events, serious adverse events (SAE), hospitalizations, and infections across the cohort.</p>
+</div>
+
+{% if summary_error %}
+  <div class="msg error"><i class="fas fa-circle-exclamation"></i> Couldn't compute summary: {{ summary_error }}</div>
+{% elif summary %}
+  <div class="grid" style="grid-template-columns:repeat(auto-fit,minmax(150px,1fr)); gap:12px; margin-bottom:18px;">
+    <div class="card">
+      <div class="card-body" style="text-align:center">
+        <div style="font-size:24px;font-weight:700">{{ summary.n_events }}</div>
+        <div style="font-size:12px;color:var(--muted);margin-top:3px;">Adverse events</div>
+      </div>
+    </div>
+    <div class="card">
+      <div class="card-body" style="text-align:center">
+        <div style="font-size:24px;font-weight:700;color:var(--danger)">{{ summary.n_serious }}</div>
+        <div style="font-size:12px;color:var(--muted);margin-top:3px;">Serious (SAE)</div>
+      </div>
+    </div>
+    <div class="card">
+      <div class="card-body" style="text-align:center">
+        <div style="font-size:24px;font-weight:700">{{ summary.n_hospitalizations }}</div>
+        <div style="font-size:12px;color:var(--muted);margin-top:3px;">Hospitalizations</div>
+      </div>
+    </div>
+    <div class="card">
+      <div class="card-body" style="text-align:center">
+        <div style="font-size:24px;font-weight:700">{{ summary.n_infections }}</div>
+        <div style="font-size:12px;color:var(--muted);margin-top:3px;">Infections</div>
+      </div>
+    </div>
+    <div class="card">
+      <div class="card-body" style="text-align:center">
+        <div style="font-size:24px;font-weight:700">{{ summary.n_patients }}</div>
+        <div style="font-size:12px;color:var(--muted);margin-top:3px;">Patients</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="grid" style="grid-template-columns:1fr 1fr; gap:18px;">
+    <div class="card">
+      <div class="card-header"><i class="fas fa-tags"></i> By category</div>
+      <div class="card-body" style="padding:0">
+        <div class="overflow-x-auto">
+          <table class="data-table"><tbody>
+            {% for k, v in summary.by_category.items %}<tr><td>{{ k }}</td><td><strong>{{ v }}</strong></td></tr>{% empty %}<tr><td class="empty-state" colspan="2" style="padding:12px"><i class="fas fa-inbox"></i> None recorded</td></tr>{% endfor %}
+          </tbody></table>
+        </div>
+      </div>
+    </div>
+    <div class="card">
+      <div class="card-header"><i class="fas fa-triangle-exclamation"></i> By severity</div>
+      <div class="card-body" style="padding:0">
+        <div class="overflow-x-auto">
+          <table class="data-table"><tbody>
+            {% for k, v in summary.by_severity.items %}<tr><td>{{ k }}</td><td><strong>{{ v }}</strong></td></tr>{% empty %}<tr><td class="empty-state" colspan="2" style="padding:12px"><i class="fas fa-inbox"></i> None recorded</td></tr>{% endfor %}
+          </tbody></table>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="card" style="margin-top:18px">
+    <div class="card-header"><i class="fas fa-virus"></i> By infection type</div>
+    <div class="card-body" style="padding:0">
+      <div class="overflow-x-auto">
+        <table class="data-table"><tbody>
+          {% for k, v in summary.by_infection_type.items %}<tr><td>{{ k }}</td><td><strong>{{ v }}</strong></td></tr>{% empty %}<tr><td class="empty-state" colspan="2" style="padding:12px"><i class="fas fa-inbox"></i> No infections recorded</td></tr>{% endfor %}
+        </tbody></table>
+      </div>
+    </div>
+  </div>
+{% endif %}
+
+<!-- Infection incidence by group -->
+<div class="card" style="margin-top:18px">
+  <div class="card-header">
+    <i class="fas fa-virus"></i> Infection incidence
+    <form method="get" style="margin-left:auto;display:flex;gap:6px;align-items:center;">
+      <select name="group_by" style="padding:5px 8px;border:1px solid var(--line);border-radius:6px;font-size:12.5px;">
+        {% for g in group_options %}<option value="{{ g }}" {% if g == group_by %}selected{% endif %}>{{ g }}</option>{% endfor %}
+      </select>
+      <button class="btn sm" type="submit">Update</button>
+    </form>
+  </div>
+  <div class="card-body" style="padding:0">
+    {% if inc_error %}<div class="msg error" style="margin:12px">{{ inc_error }}</div>
+    {% elif inc_rows %}
+    <div class="overflow-x-auto">
+      <table class="data-table">
+        <thead><tr>{% for c in inc_cols %}<th style="text-transform:capitalize">{{ c }}</th>{% endfor %}</tr></thead>
+        <tbody>{% for row in inc_rows %}<tr>{% for cell in row %}<td>{% if cell == None %}—{% else %}{{ cell }}{% endif %}</td>{% endfor %}</tr>{% endfor %}</tbody>
+      </table>
+    </div>
+    {% else %}<div class="empty-state"><i class="fas fa-inbox"></i> No data.</div>{% endif %}
+  </div>
+</div>
+
+{% endblock %}

@@ -1,0 +1,84 @@
+{% extends "base.html" %}
+{% block title %}Biomarkers — GDES{% endblock %}
+{% block heading %}Biomarker kinetics{% endblock %}
+{% block content %}
+
+<!-- Page nav -->
+<div class="page-nav">
+  <div class="page-nav-left">
+    <a class="btn ghost sm" href="/"><i class="fas fa-arrow-left"></i> Dashboard</a>
+  </div>
+  <div class="page-nav-right">
+    <a class="btn ghost sm" href="{% url 'clinic:analytics' %}"><i class="fas fa-chart-area"></i> Analytics</a>
+  </div>
+</div>
+
+<div class="page-header">
+  <h2 class="page-title">Biomarker kinetics</h2>
+  <p class="page-desc"><strong>Study 6 — anti-PLA2R predictor:</strong> does an early ≥50% anti-PLA2R decline predict complete remission? Per-patient kinetics are shown on each patient's page; this is the cohort analysis.</p>
+</div>
+
+<!-- Filter -->
+<div class="filter-bar">
+  <form method="get" style="display:flex;gap:12px;align-items:flex-end;flex-wrap:wrap">
+    <div class="field">
+      <label>Early-response window (days)</label>
+      <input type="number" name="within_days" value="{{ within_days }}" class="form-control" style="width:140px">
+    </div>
+    <button class="btn sm" type="submit"><i class="fas fa-rotate"></i> Recompute</button>
+  </form>
+</div>
+
+{% if pred_error %}
+  <div class="card"><div class="card-body">
+    <div class="empty-state"><div class="icon"><i class="fas fa-circle-exclamation"></i></div><div class="title">Couldn't compute</div><div class="desc">{{ pred_error }}</div></div>
+  </div></div>
+{% elif pred %}
+
+  <!-- Predictor info -->
+  <div class="card" style="margin-bottom:16px">
+    <div class="card-body">
+      <div style="font-size:13.5px;margin-bottom:6px"><strong>Predictor:</strong> {{ pred.predictor }}</div>
+      <div style="font-size:13.5px"><strong>Outcome:</strong> {{ pred.outcome }}</div>
+      <div class="help" style="margin-top:6px">N with anti-PLA2R data: {{ pred.n_with_pla2r }}</div>
+    </div>
+  </div>
+
+  <!-- 2x2 table -->
+  <div class="card" style="margin-bottom:16px">
+    <div class="card-header"><i class="fas fa-table text-primary-500"></i> 2×2 table</div>
+    <div class="card-body" style="padding:0">
+      <table class="grid">
+        <thead><tr><th></th><th>Remission +</th><th>Remission −</th></tr></thead>
+        <tbody>
+          <tr><td class="font-medium">≥50% decline +</td><td>{{ pred.table.TP }} (TP)</td><td>{{ pred.table.FP }} (FP)</td></tr>
+          <tr><td class="font-medium">≥50% decline −</td><td>{{ pred.table.FN }} (FN)</td><td>{{ pred.table.TN }} (TN)</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- Predictive performance -->
+  <div class="card">
+    <div class="card-header"><i class="fas fa-chart-line text-primary-500"></i> Predictive performance</div>
+    <div class="card-body" style="padding:0">
+      <table class="grid"><tbody>
+        <tr><td>Sensitivity</td><td class="font-semibold">{{ pred.sensitivity|default:"—" }}</td></tr>
+        <tr><td>Specificity</td><td class="font-semibold">{{ pred.specificity|default:"—" }}</td></tr>
+        <tr><td>PPV</td><td class="font-semibold">{{ pred.ppv|default:"—" }}</td></tr>
+        <tr><td>NPV</td><td class="font-semibold">{{ pred.npv|default:"—" }}</td></tr>
+      </tbody></table>
+    </div>
+  </div>
+
+{% else %}
+  <div class="card"><div class="card-body">
+    <div class="empty-state">
+      <div class="icon"><i class="fas fa-dna"></i></div>
+      <div class="title">No biomarker data</div>
+      <div class="desc">Enter anti-PLA2R results at follow-up visits to see the predictor analysis.</div>
+    </div>
+  </div></div>
+{% endif %}
+
+{% endblock %}

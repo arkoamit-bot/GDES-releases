@@ -1,0 +1,63 @@
+{% extends "base.html" %}
+{% load static %}
+{% block title %}Enrollment Dashboard — GDES{% endblock %}
+{% block heading %}Enrollment Dashboard{% endblock %}
+
+{% block content %}
+<div class="page-desc">
+  Real-time enrollment overview. Figures refresh automatically every 30 seconds.
+</div>
+
+<div class="tab-list" role="tablist">
+  <a href="{% url 'dashboard' %}"><i class="fas fa-gauge-high"></i> Overview</a>
+  <a href="{% url 'dashboard-enrollment' %}" class="active"><i class="fas fa-user-plus"></i> Enrollment</a>
+  <a href="{% url 'dashboard-outcomes' %}"><i class="fas fa-chart-pie"></i> Outcomes</a>
+  <a href="{% url 'dashboard-compliance' %}"><i class="fas fa-clipboard-check"></i> Compliance</a>
+</div>
+
+<div class="grid2" style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:16px">
+  <div class="card" id="enrollment-summary">
+    <div class="card-header"><i class="fas fa-database text-primary-500"></i> Enrollment Summary</div>
+    <div class="card-body"
+         hx-get="{% url 'dashboard-partial-enrollment-summary' %}"
+         hx-trigger="load, every 30s"
+         hx-swap="innerHTML">
+      <div class="htmx-indicator"><i class="fas fa-spinner fa-spin"></i> Loading…</div>
+    </div>
+  </div>
+
+  <div class="card" id="cohort-breakdown">
+    <div class="card-header"><i class="fas fa-chart-pie text-amber-500"></i> Cohort Breakdown</div>
+    <div class="card-body"
+         hx-get="{% url 'dashboard-partial-cohort-breakdown' %}"
+         hx-trigger="load, every 30s"
+         hx-swap="innerHTML">
+      <div class="htmx-indicator"><i class="fas fa-spinner fa-spin"></i> Loading…</div>
+    </div>
+  </div>
+</div>
+
+<div class="card" style="margin-bottom:16px">
+  <div class="card-header"><i class="fas fa-chart-line text-primary-500"></i> Monthly Enrollment Trend</div>
+  <div class="card-body"
+       hx-get="{% url 'dashboard-partial-enrollment-trend' %}"
+       hx-trigger="load, every 60s"
+       hx-swap="innerHTML">
+    <div class="htmx-indicator"><i class="fas fa-spinner fa-spin"></i> Loading…</div>
+  </div>
+</div>
+
+<div class="card">
+  <div class="card-header"><i class="fas fa-venus-mars text-slate-500"></i> Demographics</div>
+  <div class="card-body"
+       hx-get="{% url 'dashboard-partial-demographics' %}"
+       hx-trigger="load, every 30s"
+       hx-swap="innerHTML">
+    <div class="htmx-indicator"><i class="fas fa-spinner fa-spin"></i> Loading…</div>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="{% static 'clinic/chart.umd.min.js' %}"></script>
+{% endblock %}

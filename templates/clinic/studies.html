@@ -1,0 +1,82 @@
+{% extends "base.html" %}
+{% block title %}Studies — GDES{% endblock %}
+{% block heading %}Registry-embedded trials{% endblock %}
+{% block content %}
+
+<!-- Page nav -->
+<div class="page-nav">
+  <div class="page-nav-left">
+    <a class="btn ghost sm" href="/"><i class="fas fa-arrow-left"></i> Dashboard</a>
+  </div>
+</div>
+
+<div class="page-header">
+  <h2 class="page-title">Registry-embedded trials</h2>
+  <p class="page-desc">Study dashboards, enrollment funnel, and arm allocation.</p>
+</div>
+
+{% if not studies %}
+  <div class="empty-state">
+    <div class="icon"><i class="fas fa-flask"></i></div>
+    <div class="title">No studies defined</div>
+    <div class="desc">Create one in the <a href="/admin/studies/study/add/">admin</a>.</div>
+  </div>
+{% else %}
+
+<!-- Study selector -->
+<div class="filter-bar">
+  <form method="get" style="display:flex;gap:12px;align-items:flex-end;flex-wrap:wrap">
+    <div class="field">
+      <label>Study</label>
+      <select name="code" class="form-control">
+        {% for s in studies %}<option value="{{ s.code }}" {% if s.code == code %}selected{% endif %}>{{ s.code }} — {{ s.title }}</option>{% endfor %}
+      </select>
+    </div>
+    <button class="btn sm" type="submit"><i class="fas fa-rotate"></i> View</button>
+  </form>
+</div>
+
+{% if dash_error %}
+  <div class="card"><div class="card-body">
+    <div class="empty-state"><div class="icon"><i class="fas fa-circle-exclamation"></i></div><div class="title">Couldn't load dashboard</div><div class="desc">{{ dash_error }}</div></div>
+  </div></div>
+{% elif dash %}
+
+  <!-- Study info -->
+  <div class="card" style="margin-bottom:16px">
+    <div class="card-body">
+      <div style="display:grid;grid-template-columns:auto 1fr;gap:6px 16px;font-size:13.5px">
+        <div style="color:#64748b">Title</div><div class="font-semibold">{{ dash.title }}</div>
+        <div style="color:#64748b">Randomization</div><div>{{ dash.scheme }}</div>
+        <div style="color:#64748b">Target enrolment</div><div>{{ dash.target_enrollment }}</div>
+        <div style="color:#64748b">Screened</div><div>{{ dash.screened }}</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Screening funnel -->
+  <div class="card" style="margin-bottom:16px">
+    <div class="card-header"><i class="fas fa-filter text-primary-500"></i> Screening funnel</div>
+    <div class="card-body" style="padding:0">
+      <table class="grid"><tbody>
+        {% for k, v in dash.by_status.items %}
+        <tr><td style="text-transform:capitalize">{{ k }}</td><td class="font-semibold">{{ v }}</td></tr>
+        {% endfor %}
+      </tbody></table>
+    </div>
+  </div>
+
+  <!-- Enrolled by arm -->
+  <div class="card" style="margin-bottom:16px">
+    <div class="card-header"><i class="fas fa-scale-balanced text-primary-500"></i> Enrolled by arm</div>
+    <div class="card-body" style="padding:0">
+      <table class="grid"><tbody>
+        {% for arm, n in dash.enrolled_by_arm.items %}<tr><td>{{ arm }}</td><td class="font-semibold">{{ n }}</td></tr>{% endfor %}
+      </tbody></table>
+    </div>
+  </div>
+
+{% endif %}
+{% endif %}
+
+{% endblock %}

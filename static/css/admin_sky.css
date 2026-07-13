@@ -1,0 +1,50 @@
+/* BGDDR admin retint — map AdminLTE/jazzmin "primary" (default #007bff) to the
+   BADAS sky accent (#0c92d4) so the admin matches the re-skinned app.
+   Loaded via JAZZMIN_SETTINGS["custom_css"]. */
+
+:root { --primary: #0c92d4; }
+
+/* Links */
+a { color: #0a76ab; }
+a:hover { color: #0c92d4; }
+
+/* Primary buttons */
+.btn-primary {
+  background-color: #0c92d4 !important;
+  border-color: #0c92d4 !important;
+}
+.btn-primary:hover, .btn-primary:focus, .btn-primary:active, .btn-primary.active {
+  background-color: #0a76ab !important;
+  border-color: #0a76ab !important;
+}
+.btn-outline-primary { color: #0c92d4 !important; border-color: #0c92d4 !important; }
+.btn-outline-primary:hover { background-color: #0c92d4 !important; border-color: #0c92d4 !important; color: #fff !important; }
+
+/* Top navbar (navbar-primary) */
+.navbar-primary, .bg-primary { background-color: #0c92d4 !important; }
+
+/* Dark sidebar with primary accent — brand + active item */
+.sidebar-dark-primary { background-color: #0f2233; }
+.sidebar-dark-primary .nav-sidebar > .nav-item > .nav-link.active,
+.nav-sidebar .nav-link.active {
+  background-color: #0c92d4 !important;
+  color: #fff !important;
+  box-shadow: none;
+}
+.brand-link { border-bottom-color: rgba(255,255,255,.08); }
+
+/* Accent surfaces */
+.text-primary { color: #0c92d4 !important; }
+.card-primary:not(.card-outline) > .card-header { background-color: #0c92d4; border-color: #0c92d4; }
+.card-primary.card-outline { border-top-color: #0c92d4; }
+.badge-primary { background-color: #0c92d4; }
+
+/* Form focus + active states pick up sky instead of default blue */
+.form-control:focus { border-color: #36aef9; box-shadow: 0 0 0 .2rem rgba(12,146,212,.20); }
+.custom-control-input:checked ~ .custom-control-label::before { background-color: #0c92d4; border-color: #0c92d4; }
+.page-item.active .page-link { background-color: #0c92d4; border-color: #0c92d4; }
+.dropdown-item.active, .dropdown-item:active { background-color: #0c92d4; }
+
+/* Selected rows / links in change lists */
+table.table a { color: #0a76ab; }
+.module h2, .module caption, .inline-group .tabular caption { background: #0c92d4; }

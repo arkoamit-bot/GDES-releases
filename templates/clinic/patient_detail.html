@@ -1,0 +1,1266 @@
+{% extends "base.html" %}
+{% load static %}
+{% block title %}{{ patient.patient_id }} — GDES{% endblock %}
+{% block heading %}{{ patient.patient_id }} · {{ patient.name }}{% endblock %}
+{% block content %}
+
+{% with last_visit=encounters.0 %}
+
+<!-- Breadcrumb -->
+<nav class="crumbs">
+  <a href="{% url 'clinic:patients' %}">Patients</a> › {{ patient.patient_id }}
+</nav>
+
+{% if cds_errors %}
+<!-- CDS error banner: one or more clinical decision support modules failed -->
+<div class="card" style="margin-bottom:16px;border-left:4px solid #dc2626;background:#fef2f2">
+  <div class="card-body" style="display:flex;flex-wrap:wrap;gap:8px;align-items:center">
+    <span style="font-size:16px;color:#dc2626"><i class="fas fa-triangle-exclamation"></i></span>
+    <div style="font-size:12px;color:#991b1b">
+      <strong>CDS unavailable:</strong>
+      {% for err in cds_errors %}<span class="badge neutral" style="font-size:10px;margin:0 2px">{{ err }}</span>{% endfor %}
+      — contact system administrator
+    </div>
+  </div>
+</div>
+{% endif %}
+
+{% if suggest_register %}
+<!-- Auto-suggest registration: positive biopsy on file, still suspected -->
+<div class="card" style="margin-bottom:16px;border-left:4px solid #15803d;background:#f0fdf4">
+  <div class="card-body" style="display:flex;flex-wrap:wrap;gap:12px;align-items:center;justify-content:space-between">
+    <div style="display:flex;align-items:center;gap:12px">
+      <span style="font-size:20px;color:#15803d"><i class="fas fa-circle-check"></i></span>
+      <div>
+        <div style="font-weight:600;color:#15803d">Positive biopsy on file — register this patient?</div>
+        <div style="font-size:13px;color:#3f6d52">A specific GN diagnosis was confirmed. Register into the GN clinic to start structured follow-up (opens the Active disease phase).</div>
+      </div>
+    </div>
+    <form method="post" action="{% url 'clinic:register' patient.pk %}" style="margin:0">{% csrf_token %}
+      <button class="btn" type="submit" style="background:#15803d"><i class="fas fa-user-check"></i> Register in GN clinic</button>
+    </form>
+  </div>
+</div>
+{% endif %}
+
+<!-- Staged clinical pathway: actions grouped by the workflow step they belong to -->
+<style>
+  .stagebar{display:flex;flex-wrap:wrap;gap:12px;margin-bottom:18px}
+  .stage{border:1px solid var(--line);border-radius:12px;background:#fff;padding:10px 12px;flex:1 1 auto;min-width:150px}
+  .stage-lbl{font-size:10px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:#94a3b8;margin-bottom:8px;display:flex;align-items:center;gap:6px}
+  .stage-lbl .n{display:inline-flex;align-items:center;justify-content:center;width:18px;height:18px;border-radius:50%;background:#eef2ff;color:#4f46e5;font-size:10px}
+  .stage-actions{display:flex;flex-wrap:wrap;gap:6px}
+  .stage .btn.sm{padding:6px 10px;font-size:12.5px}
+</style>
+<div class="stagebar">
+  <div class="stage">
+    <div class="stage-lbl"><span class="n">1</span> Enrolment &amp; consent</div>
+    <div class="stage-actions">
+      <a class="btn ghost sm" href="{% url 'clinic:consent' patient.pk %}"><i class="fas fa-handshake"></i> Consent</a>
+      <a class="btn ghost sm" href="{% url 'clinic:baseline' patient.pk %}"><i class="fas fa-clipboard-list"></i> Baseline</a>
+      <a class="btn ghost sm" href="{% url 'clinic:study_enroll' patient.pk %}"><i class="fas fa-flask"></i> Study</a>
+    </div>
+  </div>
+  <div class="stage">
+    <div class="stage-lbl"><span class="n">2</span> Diagnosis</div>
+    <div class="stage-actions">
+      <a class="btn ghost sm" href="{% url 'clinic:biopsy' patient.pk %}"><i class="fas fa-microscope"></i> Biopsy</a>
+      {% if patient.registration_status == 'suspected' %}
+      <form method="post" action="{% url 'clinic:register' patient.pk %}" style="display:inline">{% csrf_token %}
+        <button class="btn sm" type="submit" style="background:#15803d"><i class="fas fa-user-check"></i> Register GN</button>
+      </form>
+      {% endif %}
+    </div>
+  </div>
+  <div class="stage">
+    <div class="stage-lbl"><span class="n">3</span> Treatment</div>
+    <div class="stage-actions">
+      <a class="btn sm" href="{% url 'clinic:prescription' patient.pk %}"><i class="fas fa-prescription"></i> Prescription</a>
+      <a class="btn ghost sm" href="{% url 'clinic:treatment' patient.pk %}"><i class="fas fa-pills"></i> Prior meds</a>
+    </div>
+  </div>
+  <div class="stage">
+    <div class="stage-lbl"><span class="n">4</span> Follow-up</div>
+    <div class="stage-actions">
+      <a class="btn sm" href="{% url 'clinic:followup' patient.pk %}"><i class="fas fa-notes-medical"></i> Follow-up visit</a>
+      <a class="btn ghost sm" href="{% url 'clinic:lab_results' patient.pk %}"><i class="fas fa-flask-vial"></i> Enter results</a>
+    </div>
+  </div>
+  <div class="stage">
+    <div class="stage-lbl"><span class="n">5</span> Events &amp; safety</div>
+    <div class="stage-actions">
+      {% if patient.registration_status == 'registered' %}
+      <a class="btn ghost sm" href="{% url 'clinic:relapse' patient.pk %}"><i class="fas fa-rotate-left"></i> Relapse</a>
+      {% endif %}
+      <a class="btn ghost sm" href="{% url 'clinic:admission' patient.pk %}"><i class="fas fa-hospital"></i> Admission</a>
+      <a class="btn ghost sm" href="{% url 'clinic:adverse_event' patient.pk %}"><i class="fas fa-exclamation-triangle"></i> Adverse event</a>
+    </div>
+  </div>
+</div>
+
+<!-- Patient header card -->
+<div class="card" style="margin-bottom:20px">
+  <div class="card-body" style="display:flex;flex-wrap:wrap;gap:16px;align-items:center;justify-content:space-between">
+    <div style="display:flex;align-items:center;gap:14px">
+      <span style="display:flex;align-items:center;justify-content:center;width:56px;height:56px;border-radius:50%;background:linear-gradient(135deg,#0ea5e9,#0c92d4);color:#fff;font-size:22px;font-weight:700">
+        {{ patient.name|slice:":1"|upper|default:"?" }}
+      </span>
+      <div>
+        <div style="font-size:18px;font-weight:700;color:var(--ink)">{{ patient.name }}</div>
+        <div style="font-size:13px;color:var(--muted)">{{ patient.patient_id }}{% if patient.hospital_id %} · Reg {{ patient.hospital_id }}{% endif %}</div>
+        <div style="display:flex;gap:6px;margin-top:6px;flex-wrap:wrap">
+          <span class="badge neutral">{{ patient.get_sex_display }}{% if patient.dob %} · {{ patient.dob }}{% endif %}</span>
+          {% if patient.diabetes_status != 'none' %}<span class="badge warn">{{ patient.get_diabetes_status_display }}</span>{% endif %}
+          {% if patient.primary_diagnosis %}<span class="badge info">{{ patient.get_primary_diagnosis_display }}</span>{% endif %}
+          {% if patient.registration_status == 'registered' %}
+            <span class="badge ok"><i class="fas fa-user-check"></i> Registered{% if patient.registration_date %} · {{ patient.registration_date }}{% endif %}</span>
+          {% elif patient.registration_status == 'suspected' %}
+            <span class="badge warn"><i class="fas fa-clock"></i> Suspected — not registered</span>
+          {% else %}
+            <span class="badge neutral">{{ patient.get_registration_status_display }}</span>
+          {% endif %}
+          {% if patient.current_phase %}
+            <span class="badge {% if patient.current_phase == 'remission' or patient.current_phase == 'post_remission' %}ok{% elif patient.current_phase == 'relapse' %}danger{% else %}info{% endif %}"><i class="fas fa-diagram-project"></i> {{ patient.get_current_phase_display }}</span>
+          {% endif %}
+        </div>
+      </div>
+    </div>
+    <a href="{% url 'clinic:patient_edit' patient.pk %}" class="btn ghost sm"><i class="fas fa-pen"></i> Edit</a>
+    {% if request.user.is_superuser %}
+    <a href="{% url 'clinic:patient_delete' patient.pk %}" class="btn ghost sm" style="color:#dc2626" title="Delete this patient (superuser)"><i class="fas fa-trash"></i> Delete</a>
+    {% endif %}
+  </div>
+</div>
+
+<!-- Workflow progress strip -->
+<div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:20px">
+  {% for s in steps %}
+  <a {% if s.url %}href="{{ s.url }}"{% endif %} style="flex:1;min-width:120px;display:block;background:#fff;border:1px solid {% if s.done %}#bbf7d0{% else %}var(--line){% endif %};border-radius:10px;padding:12px;text-align:center;text-decoration:none;transition:box-shadow .15s" class="fade-in">
+    <span style="display:flex;align-items:center;justify-content:center;width:36px;height:36px;border-radius:50%;margin:0 auto 6px;font-size:14px;{% if s.done %}background:#dcfce7;color:#15803d{% else %}background:#f1f5f9;color:#94a3b8{% endif %}">
+      <i class="fas {{ s.icon }}"></i>
+    </span>
+    <div style="font-size:13px;font-weight:600;color:var(--ink)">{{ s.label }}</div>
+    <div style="font-size:11px;{% if s.done %}color:#15803d{% else %}color:#94a3b8{% endif %}">{% if s.done %}✓ done{% else %}pending{% endif %}</div>
+  </a>
+  {% endfor %}
+</div>
+
+<!-- Tabs -->
+<div class="tab-list">
+  <button type="button" data-tab="overview" class="active" onclick="switchTab('overview','tab-overview')">Overview</button>
+  <button type="button" data-tab="reasoning" onclick="switchTab('reasoning','tab-reasoning')">Clinical Reasoning</button>
+  <button type="button" data-tab="cds" onclick="switchTab('cds','tab-cds')">CDS Plans</button>
+  <button type="button" data-tab="traceability" onclick="switchTab('traceability','tab-traceability')">Traceability <span class="badge neutral" style="margin-left:4px">{{ audit_records|length }}</span></button>
+  <button type="button" data-tab="visits" onclick="switchTab('visits','tab-visits')">Visits <span class="badge {% if encounters %}neutral{% else %}neutral{% endif %}" style="margin-left:4px">{{ encounters|length }}</span></button>
+  <button type="button" data-tab="prescriptions" onclick="switchTab('prescriptions','tab-prescriptions')">Prescriptions <span class="badge neutral" style="margin-left:4px">{{ prescriptions|length }}</span></button>
+  <button type="button" data-tab="labs" onclick="switchTab('labs','tab-labs')">Labs</button>
+  <button type="button" data-tab="safety" onclick="switchTab('safety','tab-safety')">Safety</button>
+  <button type="button" data-tab="pathology" onclick="switchTab('pathology','tab-pathology')">Biopsies</button>
+  <button type="button" data-tab="research" onclick="switchTab('research','tab-research')">Research</button>
+  <button type="button" data-tab="consent" onclick="switchTab('consent','tab-consent')">Consent</button>
+  <button type="button" data-tab="audit" onclick="switchTab('audit','tab-audit')">Audit Log</button>
+</div>
+
+<!-- ===== TAB: Overview ===== -->
+<div id="tab-overview" class="tab-content active">
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:16px">
+    <!-- Vitals -->
+    <div class="card" style="grid-column:span 2">
+      <div class="card-header"><i class="fas fa-heart-pulse text-primary-500"></i> Key vitals &amp; labs</div>
+      <div class="card-body">
+        <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:12px">
+          <div style="background:#fff;border:1px solid var(--line);border-radius:14px;padding:16px;text-align:center">
+            <div style="font-size:11px;font-weight:600;color:#64748b;text-transform:uppercase">eGFR</div>
+            <div style="font-size:24px;font-weight:700;color:var(--ink);margin-top:4px">{% if patient.latest_egfr %}{{ patient.latest_egfr }}{% else %}—{% endif %}</div>
+            <div style="font-size:11px;color:#94a3b8">mL/min/1.73m²</div>
+            {% if patient.latest_egfr %}<span class="badge {% if patient.latest_egfr < 30 %}danger{% elif patient.latest_egfr < 60 %}warn{% else %}ok{% endif %}" style="margin-top:6px">{% if patient.latest_egfr < 30 %}CKD G4-5{% elif patient.latest_egfr < 60 %}CKD G3{% else %}Preserved{% endif %}</span>{% endif %}
+          </div>
+          <div style="background:#fff;border:1px solid var(--line);border-radius:14px;padding:16px;text-align:center">
+            <div style="font-size:11px;font-weight:600;color:#64748b;text-transform:uppercase">BP</div>
+            <div style="font-size:24px;font-weight:700;color:var(--ink);margin-top:4px">{% if last_visit.systolic_bp %}{{ last_visit.systolic_bp }}/{{ last_visit.diastolic_bp }}{% else %}—{% endif %}</div>
+            <div style="font-size:11px;color:#94a3b8">mmHg</div>
+          </div>
+          <div style="background:#fff;border:1px solid var(--line);border-radius:14px;padding:16px;text-align:center">
+            <div style="font-size:11px;font-weight:600;color:#64748b;text-transform:uppercase">Proteinuria</div>
+            <div style="font-size:24px;font-weight:700;color:var(--ink);margin-top:4px">{% if chart_prot|last %}{{ chart_prot|last }}{% else %}—{% endif %}</div>
+            <div style="font-size:11px;color:#94a3b8">{{ prot_label }}</div>
+          </div>
+          <div style="background:#fff;border:1px solid var(--line);border-radius:14px;padding:16px;text-align:center">
+            <div style="font-size:11px;font-weight:600;color:#64748b;text-transform:uppercase">Weight</div>
+            <div style="font-size:24px;font-weight:700;color:var(--ink);margin-top:4px">{% if last_visit.weight_kg %}{{ last_visit.weight_kg }}{% else %}—{% endif %}</div>
+            <div style="font-size:11px;color:#94a3b8">kg</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Demographics -->
+    <div class="card">
+      <div class="card-header"><i class="fas fa-id-card text-primary-500"></i> Demographics</div>
+      <div class="card-body" style="padding:0">
+        <table class="grid" style="border:none">
+          <tbody>
+            <tr><td style="color:#64748b;border:none;padding:10px 16px">Study ID</td><td style="font-weight:600;border:none;padding:10px 16px">{{ patient.patient_id }}</td></tr>
+            <tr><td style="color:#64748b;border:none;padding:10px 16px">Hospital no.</td><td style="border:none;padding:10px 16px">{{ patient.hospital_id|default:"—" }}</td></tr>
+            <tr><td style="color:#64748b;border:none;padding:10px 16px">Phone</td><td style="border:none;padding:10px 16px">{{ patient.phone|default:"—" }}</td></tr>
+            <tr><td style="color:#64748b;border:none;padding:10px 16px">Enrolled</td><td style="border:none;padding:10px 16px">{{ patient.enrollment_date|default:"—" }}</td></tr>
+            <tr><td style="color:#64748b;border:none;padding:10px 16px">Cohort</td><td style="border:none;padding:10px 16px">{{ patient.cohort|default:"—" }}</td></tr>
+            <tr><td style="color:#64748b;border:none;padding:10px 16px">Diabetes</td><td style="border:none;padding:10px 16px">{{ patient.get_diabetes_status_display }}</td></tr>
+            <tr><td style="color:#64748b;border:none;padding:10px 16px">Diagnosis</td><td style="border:none;padding:10px 16px">{{ patient.get_primary_diagnosis_display|default:"—" }}</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- Baseline & Outcomes -->
+    <div style="display:flex;flex-direction:column;gap:16px">
+      <div class="card">
+        <div class="card-header"><i class="fas fa-clipboard-list text-primary-500"></i> Baseline <span class="badge {% if baseline %}ok{% else %}neutral{% endif %}" style="margin-left:auto">{% if baseline %}recorded{% else %}pending{% endif %}</span></div>
+        <div class="card-body">
+          {% if baseline %}
+          <table class="grid" style="border:none">
+            <tbody>
+              <tr><td style="color:#64748b;border:none;padding:6px 0">Date</td><td style="border:none;padding:6px 0;font-weight:500">{{ baseline.assessment_date }}</td></tr>
+              <tr><td style="color:#64748b;border:none;padding:6px 0">BP</td><td style="border:none;padding:6px 0">{{ baseline.systolic_bp|default:"—" }}</td></tr>
+              <tr><td style="color:#64748b;border:none;padding:6px 0">Syndrome</td><td style="border:none;padding:6px 0">{{ baseline.get_presentation_syndrome_display|default:"—" }}</td></tr>
+              <tr><td style="color:#64748b;border:none;padding:6px 0">HbA1c</td><td style="border:none;padding:6px 0">{{ baseline.hba1c|default:"—" }}</td></tr>
+            </tbody>
+          </table>
+          {% else %}
+          <div class="empty-state" style="padding:24px">
+            <div class="icon" style="font-size:28px"><i class="fas fa-clipboard-list"></i></div>
+            <div class="desc">No baseline assessment. <a href="{% url 'clinic:baseline' patient.pk %}">Add baseline</a></div>
+          </div>
+          {% endif %}
+        </div>
+      </div>
+      <div class="card">
+        <div class="card-header"><i class="fas fa-chart-line text-primary-500"></i> Outcomes <span class="badge {% if outcome %}ok{% else %}neutral{% endif %}" style="margin-left:auto">{% if outcome %}computed{% else %}not computed{% endif %}</span></div>
+        <div class="card-body">
+          {% if outcome %}
+          <table class="grid" style="border:none">
+            <tbody>
+              <tr><td style="color:#64748b;border:none;padding:6px 0">Follow-up</td><td style="border:none;padding:6px 0;font-weight:500">{{ outcome.followup_days }} days</td></tr>
+              <tr><td style="color:#64748b;border:none;padding:6px 0">eGFR slope</td><td style="border:none;padding:6px 0">{{ outcome.egfr_slope|default:"—" }}</td></tr>
+              <tr><td style="color:#64748b;border:none;padding:6px 0">Remission</td><td style="border:none;padding:6px 0">{{ outcome.get_remission_status_display|default:"—" }}</td></tr>
+              <tr><td style="color:#64748b;border:none;padding:6px 0">ESKD</td><td style="border:none;padding:6px 0">{% if outcome.eskd %}<span class="badge danger">Yes</span>{% else %}<span class="badge ok">No</span>{% endif %}</td></tr>
+            </tbody>
+          </table>
+          <a href="{% url 'clinic:outcome_recompute' patient.pk %}" class="btn ghost sm" style="margin-top:8px"><i class="fas fa-rotate"></i> Recompute</a>
+          {% else %}
+          <div class="empty-state" style="padding:24px">
+            <div class="icon" style="font-size:28px"><i class="fas fa-chart-line"></i></div>
+            <div class="desc">Outcomes are computed from labs, events and exposures. <a href="{% url 'clinic:outcome_recompute' patient.pk %}">Compute now</a></div>
+          </div>
+          {% endif %}
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Clinical Reasoning summary card (full detail in dedicated tab) -->
+  <div style="display:flex;gap:12px;flex-wrap:wrap;margin-bottom:16px">
+    <div style="flex:1;min-width:200px;background:#fff;border:1px solid var(--line);border-radius:12px;padding:14px 16px;display:flex;align-items:center;gap:12px">
+      <span style="display:flex;align-items:center;justify-content:center;width:40px;height:40px;border-radius:10px;background:#eef2ff;color:#4f46e5;font-size:18px"><i class="fas fa-brain"></i></span>
+      <div>
+        <div style="font-size:11px;font-weight:600;color:#64748b;text-transform:uppercase">Clinical Reasoning</div>
+        <div style="font-size:14px;font-weight:600;color:var(--ink)">
+          {% if profile %}{{ profile.differential|length }} differentials
+          {% if profile.risk_assessment %} · Risk profiled{% endif %}
+          {% else %}Not computed{% endif %}
+        </div>
+      </div>
+    </div>
+    <div style="flex:1;min-width:200px;background:#fff;border:1px solid var(--line);border-radius:12px;padding:14px 16px;display:flex;align-items:center;gap:12px">
+      <span style="display:flex;align-items:center;justify-content:center;width:40px;height:40px;border-radius:10px;background:#ecfeff;color:#0891b2;font-size:18px"><i class="fas fa-calendar-check"></i></span>
+      <div>
+        <div style="font-size:11px;font-weight:600;color:#64748b;text-transform:uppercase">Follow-up Tasks</div>
+        <div style="font-size:14px;font-weight:600;color:var(--ink)">{{ patient.followup_tasks.count }} pending tasks</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Follow-up Plan -->
+  <div class="card" style="margin-bottom:16px;border-left:4px solid #0891b2">
+    <div class="card-header"><i class="fas fa-calendar-check text-cyan-600"></i> Follow-up Plan
+      {% if patient.followup_tasks.exists %}
+      <span class="badge" style="margin-left:auto;background:#0891b2;color:#fff">{{ patient.followup_tasks.all|length }} tasks</span>
+      {% endif %}
+    </div>
+    <div class="card-body">
+      {% with tasks=patient.followup_tasks.all %}
+      {% if tasks %}
+      <table class="grid" style="border:none;font-size:13px">
+        <thead>
+          <tr style="color:#64748b;font-size:11px;text-transform:uppercase">
+            <th style="border:none;padding:6px 8px;text-align:left">Task</th>
+            <th style="border:none;padding:6px 8px;text-align:left">Priority</th>
+            <th style="border:none;padding:6px 8px;text-align:left">Due</th>
+            <th style="border:none;padding:6px 8px;text-align:left">Status</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for task in tasks|dictsort:"due_date" %}
+          <tr>
+            <td style="border:none;padding:6px 8px;font-weight:500">{{ task.get_task_type_display }}</td>
+            <td style="border:none;padding:6px 8px">
+              {% if task.priority == "emergent" %}<span class="badge danger">{{ task.priority }}</span>
+              {% elif task.priority == "urgent" %}<span class="badge warn">{{ task.priority }}</span>
+              {% else %}<span class="badge neutral">{{ task.priority }}</span>{% endif %}
+            </td>
+            <td style="border:none;padding:6px 8px">
+              {{ task.due_date }}
+              {% if task.status == "overdue" %}<span class="badge danger">overdue</span>{% endif %}
+            </td>
+            <td style="border:none;padding:6px 8px">
+              {% if task.status == "pending" %}<span class="badge info">pending</span>
+              {% elif task.status == "completed" %}<span class="badge ok">done</span>
+              {% elif task.status == "cancelled" %}<span style="color:#94a3b8">cancelled</span>
+              {% elif task.status == "overdue" %}<span class="badge danger">⚠ overdue</span>{% endif %}
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+      {% else %}
+      <div class="empty-state" style="padding:12px">
+        <div class="icon" style="font-size:18px"><i class="fas fa-calendar-check"></i></div>
+        <div class="desc" style="font-size:13px">No follow-up tasks yet. Tasks are generated automatically on registration and data entry.</div>
+      </div>
+      {% endif %}
+      {% endwith %}
+      <div style="margin-top:8px;font-size:11px;color:#94a3b8;text-align:right">
+        Powered by Follow-up Engine · Tasks auto-generated from patient data
+      </div>
+    </div>
+  </div>
+
+  <!-- Lab trend chart -->
+  <div class="card" style="margin-bottom:16px">
+    <div class="card-header"><i class="fas fa-chart-area text-primary-500"></i> Kidney trend — eGFR &amp; proteinuria</div>
+    <div class="card-body">
+      {% if has_chart %}
+        <div style="position:relative;height:280px"><canvas id="labChart"></canvas></div>
+        {{ chart_dates|json_script:"lab-dates" }}
+        {{ chart_egfr|json_script:"lab-egfr" }}
+        {{ chart_prot|json_script:"lab-prot" }}
+        <script src="{% static 'clinic/chart.umd.min.js' %}"></script>
+        <script>
+          (function () {
+            var dates = JSON.parse(document.getElementById('lab-dates').textContent);
+            var egfr  = JSON.parse(document.getElementById('lab-egfr').textContent);
+            var prot  = JSON.parse(document.getElementById('lab-prot').textContent);
+            var el = document.getElementById('labChart');
+            if (!el || !window.Chart) return;
+            new Chart(el, { type: 'line',
+              data: { labels: dates, datasets: [
+                { label: 'eGFR (mL/min/1.73m²)', data: egfr, yAxisID: 'y',
+                  borderColor: '#0c92d4', backgroundColor: 'rgba(12,146,212,.12)',
+                  tension: .25, spanGaps: true, pointRadius: 4, fill: true },
+                { label: '{{ prot_label|escapejs }}', data: prot, yAxisID: 'y1',
+                  borderColor: '#b06a00', backgroundColor: 'rgba(176,106,0,.10)',
+                  tension: .25, spanGaps: true, pointRadius: 4, borderDash: [6,4] } ]},
+              options: { responsive: true, maintainAspectRatio: false,
+                interaction: { mode: 'index', intersect: false },
+                scales: { y:{position:'left',title:{display:true,text:'eGFR'},beginAtZero:true},
+                          y1:{position:'right',title:{display:true,text:'Proteinuria'},beginAtZero:true,grid:{drawOnChartArea:false}} } }
+            });
+          })();
+        </script>
+      {% else %}
+        <div class="empty-state">
+          <div class="icon"><i class="fas fa-chart-area"></i></div>
+          <div class="title">No lab results yet</div>
+          <div class="desc">Add creatinine at a <a href="{% url 'clinic:baseline' patient.pk %}">Baseline</a> or <a href="{% url 'clinic:followup' patient.pk %}">Follow-up</a> visit and the eGFR &amp; proteinuria trend will appear here.</div>
+        </div>
+      {% endif %}
+    </div>
+  </div>
+</div>
+
+<!-- ===== TAB: Clinical Reasoning ===== -->
+<div id="tab-reasoning" class="tab-content">
+  <div style="display:flex;justify-content:flex-end;margin-bottom:12px">
+    <a href="https://www.verahealth.ai/" target="_blank" rel="noopener noreferrer" class="btn ghost sm"
+       title="Open Vera Health evidence search in a new tab (external site — no patient data is sent)">
+      <i class="fas fa-magnifying-glass-chart"></i> Search evidence (Vera Health)
+      <i class="fas fa-arrow-up-right-from-square" style="font-size:9px"></i>
+    </a>
+  </div>
+  {% if profile and profile.differential %}
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:16px">
+    <div class="card">
+      <div class="card-header" style="color:#4f46e5"><i class="fas fa-list"></i> Differential Diagnosis</div>
+      <div class="card-body" style="padding:0">
+        {% for dx in profile.differential %}
+        <div style="display:flex;align-items:center;gap:8px;padding:10px 14px;{% if not forloop.last %}border-bottom:1px solid var(--line){% endif %}">
+          <div style="flex:1"><span style="font-weight:600;font-size:13px">{{ dx.disease_name|default:dx.disease_id }}</span>
+            {% if dx.source %}<span class="badge neutral" style="font-size:10px">{{ dx.source }}</span>{% endif %}
+          </div>
+          <div style="text-align:right">
+            <span style="font-weight:700;font-size:15px">{{ dx.score|floatformat:1 }}</span>
+            <span style="display:block;font-size:10px;color:#94a3b8">score</span>
+          </div>
+          {% if dx.confidence %}
+          <div style="text-align:right;min-width:40px">
+            <span style="font-weight:600;font-size:13px;{% if dx.confidence > 70 %}color:#15803d{% elif dx.confidence > 40 %}color:#b45309{% else %}color:#dc2626{% endif %}">{{ dx.confidence }}%</span>
+            <span style="display:block;font-size:10px;color:#94a3b8">conf</span>
+          </div>
+          {% endif %}
+        </div>
+        {% empty %}
+        <div class="empty-state" style="padding:24px">
+          <div class="icon" style="font-size:24px"><i class="fas fa-list"></i></div>
+          <div class="desc">No differential computed yet.</div>
+        </div>
+        {% endfor %}
+      </div>
+    </div>
+    <div>
+      {% if profile.risk_assessment or profile.care_pathway or profile.information_gaps %}
+      <div class="card" style="margin-bottom:16px">
+        <div class="card-header" style="color:#dc2626"><i class="fas fa-chart-simple"></i> Risk Assessment <span class="badge info" style="margin-left:auto">v{{ profile.version }}</span></div>
+        <div class="card-body">
+          {% if profile.risk_assessment %}
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:12px">
+            {% if profile.risk_assessment.progression_risk %}
+            <div style="background:#fef2f2;border:1px solid #fecaca;border-radius:8px;padding:14px;text-align:center">
+              <div style="font-size:11px;color:#991b1b">Progression</div>
+              <div style="font-size:22px;font-weight:700;color:#dc2626">{{ profile.risk_assessment.progression_risk }}%</div>
+            </div>
+            {% endif %}
+            {% if profile.risk_assessment.relapse_risk %}
+            <div style="background:#fffbeb;border:1px solid #fde68a;border-radius:8px;padding:14px;text-align:center">
+              <div style="font-size:11px;color:#92400e">Relapse</div>
+              <div style="font-size:22px;font-weight:700;color:#d97706">{{ profile.risk_assessment.relapse_risk }}%</div>
+            </div>
+            {% endif %}
+            {% if profile.risk_assessment.kidney_survival %}
+            <div style="background:#f0fdf4;border:1px solid #bbf7d0;border-radius:8px;padding:14px;text-align:center;grid-column:span 2">
+              <div style="font-size:11px;color:#166534">Kidney Survival Estimate</div>
+              <div style="font-size:16px;font-weight:600;color:#15803d">{{ profile.risk_assessment.kidney_survival }}</div>
+            </div>
+            {% endif %}
+          </div>
+          {% endif %}
+        </div>
+      </div>
+      {% endif %}
+      {% if profile.information_gaps %}
+      <div class="card" style="margin-bottom:16px;border-left:4px solid #b45309">
+        <div class="card-header"><i class="fas fa-circle-exclamation warn-600"></i> Information Gaps</div>
+        <div class="card-body" style="padding:0">
+          {% for gap in profile.information_gaps %}
+          <div style="display:flex;align-items:flex-start;gap:10px;padding:10px 14px;background:#fffbeb;border-bottom:1px solid #fef3c7;font-size:13px">
+            <span style="color:#d97706;margin-top:2px"><i class="fas fa-circle-exclamation"></i></span>
+            <div style="flex:1">
+              <div style="font-weight:500">{{ gap.message|default:gap }}</div>
+              <div style="display:flex;flex-wrap:wrap;gap:6px;margin-top:4px">
+                {% if gap.field %}<span class="badge neutral" style="font-size:11px;padding:2px 8px;text-transform:capitalize">{{ gap.field }}</span>{% endif %}
+                {% if gap.importance %}<span class="badge {% if gap.importance == 'high' %}danger{% elif gap.importance == 'medium' %}warn{% else %}neutral{% endif %}" style="font-size:11px;padding:2px 8px;text-transform:capitalize">{{ gap.importance }} priority</span>{% endif %}
+              </div>
+            </div>
+          </div>
+          {% endfor %}
+        </div>
+      </div>
+      {% endif %}
+    </div>
+  </div>
+  <div class="card" style="margin-bottom:16px;border-left:4px solid #4f46e5;background:#f8faff">
+    <div class="card-body">
+      <div style="display:flex;flex-wrap:wrap;gap:12px;align-items:center">
+        {% if profile.care_pathway.current_stage %}
+        <span class="badge info" style="font-size:13px;padding:6px 12px">Care Stage: {{ profile.care_pathway.current_stage }}</span>
+        {% endif %}
+        {% if profile.care_pathway.treatment_recommendations %}
+        <span class="badge ok" style="font-size:13px;padding:6px 12px"><i class="fas fa-prescription"></i> {{ profile.care_pathway.treatment_recommendations|length }} recommendations</span>
+        {% endif %}
+        {% if profile.care_pathway.care_gaps %}
+        <span class="badge {% if profile.care_pathway.care_gaps|length > 2 %}danger{% else %}warn{% endif %}" style="font-size:13px;padding:6px 12px"><i class="fas fa-exclamation-triangle"></i> {{ profile.care_pathway.care_gaps|length }} care gaps</span>
+        {% endif %}
+        {% if profile.disease_trajectory.trend %}
+        <span class="badge {% if profile.disease_trajectory.trend == 'improving' %}ok{% elif profile.disease_trajectory.trend == 'declining' %}danger{% else %}neutral{% endif %}" style="font-size:13px;padding:6px 12px">Trend: {{ profile.disease_trajectory.trend }}</span>
+        {% endif %}
+        <div style="font-size:11px;color:#94a3b8;margin-left:auto">Updated {{ profile.last_updated|timesince }} ago</div>
+      </div>
+    </div>
+  </div>
+  {% if profile.care_pathway.treatment_recommendations %}
+  <div class="card" style="margin-bottom:16px">
+    <div class="card-header"><i class="fas fa-list-check text-primary-500"></i> Treatment Recommendations</div>
+    <div class="card-body" style="padding:0">
+      {% for rec in profile.care_pathway.treatment_recommendations %}
+      <div style="display:flex;align-items:flex-start;gap:10px;padding:12px 14px;{% if not forloop.last %}border-bottom:1px solid var(--line){% endif %}">
+        <span style="color:#4f46e5;margin-top:2px"><i class="fas fa-chevron-circle-right"></i></span>
+        <div>
+          <div style="font-weight:600;font-size:13px">{{ rec.title|default:rec }}</div>
+          {% if rec.details %}<div style="font-size:12px;color:#64748b;margin-top:2px">{{ rec.details }}</div>{% endif %}
+        </div>
+      </div>
+      {% endfor %}
+    </div>
+  </div>
+  {% endif %}
+  {% if profile.care_pathway.care_gaps %}
+  <div class="card" style="margin-bottom:16px;border-left:4px solid #b45309">
+    <div class="card-header"><i class="fas fa-clipboard-list warn-600"></i> Care Gaps</div>
+    <div class="card-body" style="padding:0">
+      {% for gap in profile.care_pathway.care_gaps %}
+      <div style="display:flex;align-items:flex-start;gap:10px;padding:10px 14px;background:#fffbeb;border-bottom:1px solid #fef3c7;font-size:13px">
+        <span style="color:#d97706;margin-top:2px"><i class="fas fa-triangle-exclamation"></i></span>
+        <div style="flex:1">
+          <div style="font-weight:500">{{ gap.message|default:gap }}</div>
+          {% if gap.recommendation %}<div style="font-size:12px;color:#64748b;margin-top:2px"><i class="fas fa-arrow-right" style="font-size:10px"></i> {{ gap.recommendation }}</div>{% endif %}
+          <div style="display:flex;flex-wrap:wrap;gap:6px;margin-top:6px">
+            {% if gap.field %}<span class="badge neutral" style="font-size:11px;padding:2px 8px;text-transform:capitalize">{{ gap.field }}</span>{% endif %}
+            {% if gap.category %}<span class="badge info" style="font-size:11px;padding:2px 8px;text-transform:capitalize">{{ gap.category }}</span>{% endif %}
+            {% if gap.importance %}<span class="badge {% if gap.importance == 'high' %}danger{% elif gap.importance == 'medium' %}warn{% else %}neutral{% endif %}" style="font-size:11px;padding:2px 8px;text-transform:capitalize">{{ gap.importance }}</span>{% endif %}
+          </div>
+        </div>
+      </div>
+      {% endfor %}
+    </div>
+  </div>
+  {% endif %}
+  {% elif patient.registration_status == 'registered' and not profile %}
+  <div class="card" style="border-left:4px solid #94a3b8;background:#f8fafc">
+    <div class="card-header"><i class="fas fa-brain text-primary-500"></i> Clinical Reasoning</div>
+    <div class="card-body">
+      <div class="empty-state" style="padding:24px">
+        <div class="icon" style="font-size:28px"><i class="fas fa-rotate"></i></div>
+        <div class="desc">Clinical profile not yet computed. Profile will be generated automatically on next data entry (lab result, follow-up visit, etc.).</div>
+      </div>
+    </div>
+  </div>
+  {% else %}
+  <div class="card" style="border-left:4px solid #94a3b8;background:#f8fafc">
+    <div class="card-header"><i class="fas fa-brain text-primary-500"></i> Clinical Reasoning</div>
+    <div class="card-body">
+      <div class="empty-state" style="padding:24px">
+        <div class="icon" style="font-size:28px"><i class="fas fa-user-slash"></i></div>
+        <div class="desc">Register the patient to enable clinical reasoning and decision support.</div>
+      </div>
+    </div>
+  </div>
+  {% endif %}
+</div>
+
+<!-- ===== TAB: CDS Plans (Management, Monitoring, Follow-up) ===== -->
+<div id="tab-cds" class="tab-content">
+  {% if profile and profile.disease_trajectory %}
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:16px">
+    <!-- Management Plan Card -->
+    <div class="card" style="grid-column:span 2">
+      <div class="card-header" style="color:#4f46e5"><i class="fas fa-clipboard-list"></i> Personalized Management Plan
+        <span class="badge info" style="margin-left:auto">Auto-generated</span>
+      </div>
+      <div class="card-body">
+        {% if management_plan %}
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px">
+          <!-- First-line therapy -->
+          <div>
+            <div style="font-size:11px;font-weight:700;color:#15803d;text-transform:uppercase;margin-bottom:8px"><i class="fas fa-check-circle"></i> First-line Therapy</div>
+            {% for tx in management_plan.first_line %}
+            <div style="background:#f0fdf4;border:1px solid #bbf7d0;border-radius:8px;padding:10px 12px;margin-bottom:8px">
+              <div style="font-weight:600;font-size:13px">{{ tx.drug }}</div>
+              <div style="font-size:12px;color:#64748b;margin-top:2px">{{ tx.dose }} · {{ tx.duration }}</div>
+              {% if tx.target %}<div style="font-size:11px;color:#15803d;margin-top:2px">Target: {{ tx.target }}</div>{% endif %}
+              {% if tx.rationale %}<div style="font-size:11px;color:#94a3b8;margin-top:4px;font-style:italic">{{ tx.rationale }}</div>{% endif %}
+              {% if tx.evidence_grade %}<span class="badge ok" style="font-size:10px;margin-top:4px">Grade {{ tx.evidence_grade }}</span>{% endif %}
+            </div>
+            {% endfor %}
+          </div>
+          <!-- Second-line therapy -->
+          <div>
+            <div style="font-size:11px;font-weight:700;color:#b45309;text-transform:uppercase;margin-bottom:8px"><i class="fas fa-arrow-right"></i> Second-line / Rescue</div>
+            {% for tx in management_plan.second_line %}
+            <div style="background:#fffbeb;border:1px solid #fde68a;border-radius:8px;padding:10px 12px;margin-bottom:8px">
+              <div style="font-weight:600;font-size:13px">{{ tx.drug }}</div>
+              <div style="font-size:12px;color:#64748b;margin-top:2px">{{ tx.dose }} · {{ tx.duration }}</div>
+              {% if tx.target %}<div style="font-size:11px;color:#b45309;margin-top:2px">Target: {{ tx.target }}</div>{% endif %}
+              {% if tx.conditions %}<div style="font-size:11px;color:#dc2626;margin-top:2px">When: {{ tx.conditions }}</div>{% endif %}
+              {% if tx.evidence_grade %}<span class="badge {% if tx.evidence_grade == '1' %}ok{% else %}warn{% endif %}" style="font-size:10px;margin-top:4px">Grade {{ tx.evidence_grade }}</span>{% endif %}
+            </div>
+            {% endfor %}
+            {% for tx in management_plan.rescue_therapy %}
+            <div style="background:#fef2f2;border:1px solid #fecaca;border-radius:8px;padding:10px 12px;margin-bottom:8px">
+              <div style="font-weight:600;font-size:13px"><i class="fas fa-triangle-exclamation" style="color:#dc2626"></i> {{ tx.drug }}</div>
+              <div style="font-size:12px;color:#64748b;margin-top:2px">{{ tx.dose }} · {{ tx.duration }}</div>
+              {% if tx.rationale %}<div style="font-size:11px;color:#94a3b8;margin-top:4px;font-style:italic">{{ tx.rationale }}</div>{% endif %}
+            </div>
+            {% endfor %}
+          </div>
+        </div>
+        <!-- Contraindications -->
+        {% if management_plan.contraindicated %}
+        <div style="margin-top:12px;padding:10px 14px;background:#fef2f2;border:1px solid #fecaca;border-radius:8px">
+          <div style="font-size:11px;font-weight:700;color:#dc2626;text-transform:uppercase"><i class="fas fa-ban"></i> Contraindicated Medications</div>
+          <div style="font-size:13px;color:#991b1b;margin-top:4px">{{ management_plan.contraindicated|join:", " }}</div>
+        </div>
+        {% endif %}
+        <!-- Safety checks -->
+        {% if management_plan.safety_checks %}
+        <div style="margin-top:12px;display:flex;flex-wrap:wrap;gap:8px">
+          {% for check in management_plan.safety_checks %}
+          <div style="padding:8px 12px;border-radius:8px;font-size:12px;{% if check.level == 'critical' %}background:#fef2f2;border:1px solid #fecaca;color:#dc2626{% elif check.level == 'high' %}background:#fffbeb;border:1px solid #fde68a;color:#b45309{% else %}background:#f0f9ff;border:1px solid #bae6fd;color:#0369a1{% endif %}">
+            <i class="fas {% if check.level == 'critical' %}fa-circle-exclamation{% elif check.level == 'high' %}fa-triangle-exclamation{% else %}fa-info-circle{% endif %}"></i> {{ check.message }}
+          </div>
+          {% endfor %}
+        </div>
+        {% endif %}
+        {% else %}
+        <div class="empty-state" style="padding:24px">
+          <div class="icon" style="font-size:28px"><i class="fas fa-clipboard-list"></i></div>
+          <div class="desc">Management plan not yet generated. Will be computed automatically based on disease profile and clinical reasoning.</div>
+        </div>
+        {% endif %}
+      </div>
+    </div>
+
+    <!-- Monitoring Plan Card -->
+    <div class="card" style="grid-column:span 2">
+      <div class="card-header" style="color:#0891b2"><i class="fas fa-vial-circle-check"></i> Monitoring Protocol
+        <span class="badge info" style="margin-left:auto">Risk-adjusted</span>
+      </div>
+      <div class="card-body" style="padding:0">
+        {% if monitoring_plan %}
+        <div class="overflow-x-auto">
+          <table class="grid" style="border:none;font-size:13px">
+            <thead>
+              <tr style="color:#64748b;font-size:11px;text-transform:uppercase">
+                <th style="border:none;padding:8px 12px;text-align:left">Parameter</th>
+                <th style="border:none;padding:8px 12px;text-align:left">Interval</th>
+                <th style="border:none;padding:8px 12px;text-align:left">Target</th>
+                <th style="border:none;padding:8px 12px;text-align:left">Alert Threshold</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for param in monitoring_plan.parameters %}
+              <tr>
+                <td style="border:none;padding:8px 12px;font-weight:500">{{ param.name }}</td>
+                <td style="border:none;padding:8px 12px">{{ param.interval_days }} days</td>
+                <td style="border:none;padding:8px 12px;color:#15803d">{{ param.target }}</td>
+                <td style="border:none;padding:8px 12px;color:#dc2626">
+                  {% if param.alert_above %}>{{ param.alert_above }} {{ param.unit|default:"" }}
+                  {% elif param.alert_below %}<{{ param.alert_below }} {{ param.unit|default:"" }}
+                  {% elif param.alert_pct_decline %}>{{ param.alert_pct_decline }}% decline
+                  {% else %}—{% endif %}
+                </td>
+              </tr>
+              {% endfor %}
+              {% for param in monitoring_plan.treatment_monitoring %}
+              <tr style="background:#f8faff">
+                <td style="border:none;padding:8px 12px;font-weight:500"><i class="fas fa-pills" style="color:#4f46e5;margin-right:4px"></i> {{ param.name }} <span class="badge info" style="font-size:10px">{{ param.for_treatment }}</span></td>
+                <td style="border:none;padding:8px 12px">{{ param.interval_days }} days</td>
+                <td style="border:none;padding:8px 12px;color:#15803d">{{ param.target }}</td>
+                <td style="border:none;padding:8px 12px;color:#dc2626">
+                  {% if param.alert_above %}>{{ param.alert_above }}
+                  {% elif param.alert_below %}<{{ param.alert_below }}
+                  {% else %}—{% endif %}
+                </td>
+              </tr>
+              {% endfor %}
+              {% for param in monitoring_plan.ckd_monitoring %}
+              <tr style="background:#fefce8">
+                <td style="border:none;padding:8px 12px;font-weight:500"><i class="fas fa-kidney" style="color:#b45309;margin-right:4px"></i> {{ param.name }}</td>
+                <td style="border:none;padding:8px 12px">{{ param.interval_days }} days</td>
+                <td style="border:none;padding:8px 12px;color:#15803d">{{ param.target }}</td>
+                <td style="border:none;padding:8px 12px;color:#dc2626">—</td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+        {% if monitoring_plan.risk_adjustments %}
+        <div style="padding:10px 14px;background:#fef2f2;border-top:1px solid #fecaca">
+          <div style="font-size:11px;font-weight:700;color:#dc2626"><i class="fas fa-exclamation-triangle"></i> Risk-Based Adjustments Applied</div>
+          {% for adj in monitoring_plan.risk_adjustments %}
+          <div style="font-size:12px;color:#991b1b;margin-top:2px">{{ adj }}</div>
+          {% endfor %}
+        </div>
+        {% endif %}
+        {% else %}
+        <div class="empty-state" style="padding:24px">
+          <div class="icon" style="font-size:28px"><i class="fas fa-vial-circle-check"></i></div>
+          <div class="desc">Monitoring plan not yet generated.</div>
+        </div>
+        {% endif %}
+      </div>
+    </div>
+
+    <!-- Follow-up Schedule Card -->
+    <div class="card" style="grid-column:span 2">
+      <div class="card-header" style="color:#7c3aed"><i class="fas fa-calendar-days"></i> Follow-up Schedule
+        <span class="badge info" style="margin-left:auto">Auto-scheduled</span>
+      </div>
+      <div class="card-body" style="padding:0">
+        {% if followup_schedule %}
+        <div class="overflow-x-auto">
+          <table class="grid" style="border:none;font-size:13px">
+            <thead>
+              <tr style="color:#64748b;font-size:11px;text-transform:uppercase">
+                <th style="border:none;padding:8px 12px;text-align:left">Visit</th>
+                <th style="border:none;padding:8px 12px;text-align:left">Type</th>
+                <th style="border:none;padding:8px 12px;text-align:left">Target Date</th>
+                <th style="border:none;padding:8px 12px;text-align:left">Window</th>
+                <th style="border:none;padding:8px 12px;text-align:left">Status</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for visit in followup_schedule %}
+              <tr>
+                <td style="border:none;padding:8px 12px;font-weight:500">{{ visit.label }}</td>
+                <td style="border:none;padding:8px 12px">
+                  {% if visit.kind == 'early_safety' %}<span class="badge danger">Early Safety</span>
+                  {% else %}<span class="badge neutral">Routine</span>{% endif %}
+                </td>
+                <td style="border:none;padding:8px 12px">{{ visit.target_date }}</td>
+                <td style="border:none;padding:8px 12px;color:#64748b">{{ visit.window }}</td>
+                <td style="border:none;padding:8px 12px"><span class="badge info">Scheduled</span></td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+        {% else %}
+        <div class="empty-state" style="padding:24px">
+          <div class="icon" style="font-size:28px"><i class="fas fa-calendar-days"></i></div>
+          <div class="desc">Follow-up schedule not yet generated. Will be auto-created when the patient is registered and treatment begins.</div>
+        </div>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+  {% elif patient.registration_status == 'registered' %}
+  <div class="card" style="border-left:4px solid #94a3b8;background:#f8fafc">
+    <div class="card-header"><i class="fas fa-clipboard-list text-primary-500"></i> Clinical Decision Support</div>
+    <div class="card-body">
+      <div class="empty-state" style="padding:24px">
+        <div class="icon" style="font-size:28px"><i class="fas fa-rotate"></i></div>
+        <div class="desc">CDS plans will be generated once clinical reasoning is computed and disease profile is established.</div>
+      </div>
+    </div>
+  </div>
+  {% else %}
+  <div class="card" style="border-left:4px solid #94a3b8;background:#f8fafc">
+    <div class="card-header"><i class="fas fa-clipboard-list text-primary-500"></i> Clinical Decision Support</div>
+    <div class="card-body">
+      <div class="empty-state" style="padding:24px">
+        <div class="icon" style="font-size:28px"><i class="fas fa-user-slash"></i></div>
+        <div class="desc">Register the patient to enable clinical decision support (management plans, monitoring protocols, and automated scheduling).</div>
+      </div>
+    </div>
+  </div>
+  {% endif %}
+</div>
+
+<!-- ===== TAB: Recommendation Traceability ===== -->
+<div id="tab-traceability" class="tab-content">
+  {% if audit_records %}
+  <div class="card" style="margin-bottom:16px">
+    <div class="card-header" style="color:#4f46e5"><i class="fas fa-fingerprint"></i> Recommendation Traceability</div>
+    <div class="card-body" style="padding:0">
+      {% for rec in audit_records %}
+      <div style="padding:14px 16px;{% if not forloop.last %}border-bottom:1px solid var(--line){% endif %}">
+        <div style="display:flex;align-items:flex-start;gap:10px;margin-bottom:8px">
+          <span style="color:#4f46e5;margin-top:2px"><i class="fas fa-chevron-circle-right"></i></span>
+          <div style="flex:1">
+            <div style="font-weight:600;font-size:13px">{{ rec.recommendation_text }}</div>
+            <div style="font-size:12px;color:#64748b;margin-top:2px">{{ rec.clinical_rationale }}</div>
+          </div>
+          <div style="text-align:right;min-width:80px">
+            <span class="badge {% if rec.approval_status == 'approved' %}ok{% elif rec.approval_status == 'rejected' %}danger{% elif rec.approval_status == 'overridden' %}warn{% else %}neutral{% endif %}" style="font-size:10px">{{ rec.get_approval_status_display }}</span>
+          </div>
+        </div>
+        <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:6px;font-size:11px;color:#64748b;margin-left:22px">
+          {% if rec.guideline %}
+          <div><span style="font-weight:600;color:#475569">Guideline:</span> {{ rec.guideline }}{% if rec.guideline_version %} ({{ rec.guideline_version }}){% endif %}</div>
+          {% endif %}
+          {% if rec.guideline_section %}
+          <div><span style="font-weight:600;color:#475569">Section:</span> {{ rec.guideline_section }}</div>
+          {% endif %}
+          {% if rec.guideline_recommendation_id %}
+          <div><span style="font-weight:600;color:#475569">Rec ID:</span> {{ rec.guideline_recommendation_id }}</div>
+          {% endif %}
+          {% if rec.evidence_grade %}
+          <div><span style="font-weight:600;color:#475569">Evidence:</span>
+            <span class="badge {% if rec.evidence_grade == '1' %}ok{% elif rec.evidence_grade == '2' %}warn{% else %}neutral{% endif %}" style="font-size:10px">Grade {{ rec.get_evidence_grade_display }}</span>
+          </div>
+          {% endif %}
+          {% if rec.confidence_score and rec.confidence_score > 0 %}
+          <div><span style="font-weight:600;color:#475569">Confidence:</span>
+            <span style="font-weight:600;{% if rec.confidence_score > 70 %}color:#15803d{% elif rec.confidence_score > 40 %}color:#b45309{% else %}color:#dc2626{% endif %}">{{ rec.confidence_score }}%</span>
+          </div>
+          {% endif %}
+          {% if rec.kb_rule_id %}
+          <div><span style="font-weight:600;color:#475569">KB Rule:</span> {{ rec.kb_rule_id }}</div>
+          {% endif %}
+          {% if rec.knowledge_version %}
+          <div><span style="font-weight:600;color:#475569">KB Version:</span> {{ rec.knowledge_version }}</div>
+          {% endif %}
+          {% if rec.validation_date %}
+          <div><span style="font-weight:600;color:#475569">Validated:</span> {{ rec.validation_date }}</div>
+          {% endif %}
+          {% if rec.next_review_date %}
+          <div><span style="font-weight:600;color:#475569">Next Review:</span> {{ rec.next_review_date }}</div>
+          {% endif %}
+          {% if rec.expert_reviewer %}
+          <div><span style="font-weight:600;color:#475569">Reviewer:</span> {{ rec.expert_reviewer.get_full_name|default:rec.expert_reviewer.username }}</div>
+          {% endif %}
+          {% if rec.evidence_source %}
+          <div><span style="font-weight:600;color:#475569">Source:</span> <a href="{{ rec.evidence_source }}" target="_blank" style="color:#4f46e5">View evidence</a></div>
+          {% endif %}
+        </div>
+        {% if rec.explanation %}
+        <div style="margin-top:8px;margin-left:22px;padding:8px 10px;background:#f8fafc;border-radius:6px;font-size:12px;color:#475569;border-left:3px solid #4f46e5">
+          <span style="font-weight:600">Reasoning:</span> {{ rec.explanation }}
+        </div>
+        {% endif %}
+        {% if rec.override_allowed %}
+        <div style="margin-top:6px;margin-left:22px">
+          <button class="btn ghost sm" style="font-size:11px;color:#b45309" onclick="if(confirm('Override this recommendation?')){document.getElementById('override-form-{{ rec.pk }}').style.display='block'}">
+            <i class="fas fa-pen"></i> Override
+          </button>
+          <form id="override-form-{{ rec.pk }}" method="post" action="{% url 'clinic:patients' %}" style="display:none;margin-top:8px;margin-left:22px">
+            {% csrf_token %}
+            <input type="hidden" name="override_audit_id" value="{{ rec.pk }}">
+            <textarea name="override_reason" placeholder="Reason for override..." style="width:100%;max-width:400px;padding:6px;border:1px solid #d1d5db;border-radius:4px;font-size:12px" rows="2"></textarea>
+            <button type="submit" class="btn sm" style="background:#b45309;margin-top:4px"><i class="fas fa-check"></i> Confirm Override</button>
+          </form>
+        </div>
+        {% endif %}
+      </div>
+      {% endfor %}
+    </div>
+  </div>
+  {% else %}
+  <div class="card" style="border-left:4px solid #94a3b8;background:#f8fafc">
+    <div class="card-header"><i class="fas fa-fingerprint text-primary-500"></i> Recommendation Traceability</div>
+    <div class="card-body">
+      <div class="empty-state" style="padding:24px">
+        <div class="icon" style="font-size:28px"><i class="fas fa-fingerprint"></i></div>
+        <div class="desc">No recommendation audit records yet. Audit records are generated when clinical reasoning, management plans, monitoring plans, or investigation recommendations are produced.</div>
+      </div>
+    </div>
+  </div>
+  {% endif %}
+</div>
+
+<!-- ===== TAB: Visits ===== -->
+<div id="tab-visits" class="tab-content">
+  <div class="card">
+    <div class="card-header"><i class="fas fa-notes-medical text-primary-500"></i> Follow-up visits
+      <a href="{% url 'clinic:followup' patient.pk %}" class="btn ghost sm" style="margin-left:auto"><i class="fas fa-plus"></i> New visit</a>
+    </div>
+    <div class="card-body" style="padding:0">
+      {% if visits %}
+      <div class="overflow-x-auto">
+        <table class="grid" style="table-layout:fixed;width:100%;min-width:760px">
+          <colgroup>
+            <col style="width:11%"><col style="width:16%"><col style="width:9%">
+            <col style="width:8%"><col style="width:8%"><col style="width:14%">
+            <col style="width:12%"><col style="width:11%"><col style="width:11%">
+          </colgroup>
+          <thead><tr>
+            <th>Date</th><th>Type</th><th style="text-align:right">BP</th>
+            <th style="text-align:center">Oedema</th><th style="text-align:right">eGFR</th>
+            <th>Proteinuria</th><th>Response</th><th>Phase</th><th>Next due</th>
+          </tr></thead>
+          <tbody>
+            {% for v in visits %}
+            <tr>
+              <td class="font-medium" style="white-space:nowrap">{{ v.e.encounter_date }}</td>
+              <td>{{ v.e.get_encounter_type_display }}</td>
+              <td style="text-align:right;white-space:nowrap">{% if v.e.systolic_bp %}{{ v.e.systolic_bp }}/{{ v.e.diastolic_bp }}{% else %}—{% endif %}</td>
+              <td style="text-align:center">{% if v.e.edema_grade is not None %}{{ v.e.edema_grade }}{% else %}—{% endif %}</td>
+              <td style="text-align:right">{% if v.egfr is not None %}{{ v.egfr|floatformat:0 }}{% else %}—{% endif %}</td>
+              <td style="white-space:nowrap">{% if v.prot is not None %}{{ v.prot|floatformat:2 }} {{ v.prot_label }}{% else %}—{% endif %}</td>
+              <td>{% if v.e.clinician_response %}<span class="badge {% if v.e.clinician_response == 'complete' %}ok{% elif v.e.clinician_response == 'partial' or v.e.clinician_response == 'stable' %}info{% elif v.e.clinician_response == 'none' %}danger{% else %}neutral{% endif %}">{{ v.e.get_clinician_response_display }}</span>{% else %}—{% endif %}</td>
+              <td>{% if v.e.disease_phase %}{{ v.e.get_disease_phase_display }}{% else %}—{% endif %}</td>
+              <td style="white-space:nowrap">{{ v.e.next_due_date|default:"—" }}</td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+      {% else %}
+      <div class="empty-state">
+        <div class="icon"><i class="fas fa-notes-medical"></i></div>
+        <div class="title">No visits recorded</div>
+        <div class="desc"><a href="{% url 'clinic:followup' patient.pk %}">Add the first visit</a></div>
+      </div>
+      {% endif %}
+    </div>
+  </div>
+
+  <!-- Relapses -->
+  <div class="card" style="margin-top:16px">
+    <div class="card-header"><i class="fas fa-rotate-left text-primary-500"></i> Relapses
+      {% if patient.registration_status == 'registered' %}<a href="{% url 'clinic:relapse' patient.pk %}" class="btn ghost sm" style="margin-left:auto"><i class="fas fa-plus"></i> Document relapse</a>{% endif %}
+    </div>
+    <div class="card-body" style="padding:0">
+      {% if relapses %}
+      <div class="overflow-x-auto">
+        <table class="grid">
+          <thead><tr><th>Date</th><th>Type</th><th>Criteria</th><th>Action taken</th></tr></thead>
+          <tbody>
+            {% for r in relapses %}
+            <tr><td class="font-medium">{{ r.relapse_date }}</td><td><span class="badge warn">{{ r.get_relapse_type_display }}</span></td>
+              <td>{{ r.criteria|default:"—" }}</td><td>{{ r.action_taken|default:"—" }}</td></tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+      {% else %}<div class="pb empty">No relapses documented.</div>{% endif %}
+    </div>
+  </div>
+
+  <!-- Admissions -->
+  <div class="card" style="margin-top:16px">
+    <div class="card-header"><i class="fas fa-hospital text-primary-500"></i> Admissions
+      <a href="{% url 'clinic:admission' patient.pk %}" class="btn ghost sm" style="margin-left:auto"><i class="fas fa-plus"></i> Record admission</a>
+    </div>
+    <div class="card-body" style="padding:0">
+      {% if admissions %}
+      <div class="overflow-x-auto">
+        <table class="grid">
+          <thead><tr><th>Admitted</th><th>Discharged</th><th>Ward</th><th>Reason</th><th>Biopsy</th><th>Baseline form</th></tr></thead>
+          <tbody>
+            {% for a in admissions %}
+            <tr><td class="font-medium">{{ a.admit_date }}</td><td>{{ a.discharge_date|default:"inpatient" }}</td>
+              <td>{{ a.ward|default:"—" }}</td><td>{{ a.reason|default:"—" }}</td>
+              <td>{% if a.biopsy %}{{ a.biopsy.biopsy_date }}{% else %}—{% endif %}</td>
+              <td>{% if a.baseline_captured %}<span class="badge ok">done</span>{% else %}<span class="badge neutral">pending</span>{% endif %}</td></tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+      {% else %}<div class="pb empty">No admissions recorded.</div>{% endif %}
+    </div>
+  </div>
+</div>
+
+<!-- ===== TAB: Prescriptions ===== -->
+<div id="tab-prescriptions" class="tab-content">
+  <div class="card">
+    <div class="card-header"><i class="fas fa-prescription text-primary-500"></i> Prescription history
+      <a href="{% url 'clinic:prescription' patient.pk %}" class="btn ghost sm" style="margin-left:auto"><i class="fas fa-plus"></i> New prescription</a>
+    </div>
+    <div class="card-body" style="padding:0">
+      {% if prescriptions %}
+      <div class="overflow-x-auto">
+        <table class="grid">
+          <thead><tr><th>Date</th><th>Version</th><th>Items</th><th>Status</th><th class="text-right">Actions</th></tr></thead>
+          <tbody>
+            {% for r in prescriptions %}
+            <tr>
+              <td class="font-medium">{{ r.created_at|date:"Y-m-d" }}</td>
+              <td>v{{ r.version }}</td>
+              <td>{{ r.items.count }}</td>
+              <td>{% if r.is_final %}<span class="badge ok">Finalized</span>{% else %}<span class="badge warn">Draft</span>{% endif %}</td>
+              <td class="text-right">
+                <a href="{% url 'prescriptions:preview' r.pk %}" target="_blank">Preview</a>
+                <span class="text-slate-300 mx-1">·</span>
+                <a href="{% url 'prescriptions:pdf' r.pk %}" target="_blank">PDF</a>
+              </td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+      {% else %}
+      <div class="empty-state">
+        <div class="icon"><i class="fas fa-prescription"></i></div>
+        <div class="title">No prescriptions</div>
+        <div class="desc"><a href="{% url 'clinic:prescription' patient.pk %}">Create the first prescription</a></div>
+      </div>
+      {% endif %}
+    </div>
+  </div>
+</div>
+
+<!-- ===== TAB: Labs ===== -->
+<div id="tab-labs" class="tab-content">
+  <!-- Recorded results: the actual values entered at baseline/follow-up visits -->
+  <div class="card" style="margin-bottom:16px">
+    <div class="card-header"><i class="fas fa-flask-vial text-primary-500"></i> Recorded results
+      <a href="{% url 'clinic:followup' patient.pk %}" class="btn ghost sm" style="margin-left:auto"><i class="fas fa-plus"></i> Record at a visit</a>
+    </div>
+    <div class="card-body" style="padding:0">
+      {% if recorded_labs %}
+      <div class="overflow-x-auto">
+        <table class="grid">
+          <thead><tr><th>Date</th>{% for code, label in lab_cols %}<th>{{ label }}</th>{% endfor %}</tr></thead>
+          <tbody>
+            {% for row in recorded_labs %}
+            <tr>
+              <td class="font-medium">{{ row.date }}</td>
+              {% for val in row.cells %}
+              <td>{% if val is not None %}{{ val }}{% else %}—{% endif %}</td>
+              {% endfor %}
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+      {% else %}
+      <div class="empty-state">
+        <div class="icon"><i class="fas fa-flask-vial"></i></div>
+        <div class="title">No recorded lab values yet</div>
+        <div class="desc">Enter labs at a <a href="{% url 'clinic:baseline' patient.pk %}">Baseline</a> or <a href="{% url 'clinic:followup' patient.pk %}">Follow-up</a> visit and the values appear here.</div>
+      </div>
+      {% endif %}
+    </div>
+  </div>
+
+</div>
+
+<!-- ===== TAB: Safety ===== -->
+<div id="tab-safety" class="tab-content">
+  <div class="card">
+    <div class="card-header"><i class="fas fa-triangle-exclamation text-primary-500"></i> Adverse events
+      <a href="{% url 'clinic:adverse_event' patient.pk %}" class="btn ghost sm" style="margin-left:auto"><i class="fas fa-plus"></i> Report AE</a>
+    </div>
+    <div class="card-body" style="padding:0">
+      {% if adverse_events %}
+      <div class="overflow-x-auto">
+        <table class="grid">
+          <thead><tr><th>Onset</th><th>Category</th><th>Severity</th><th>Outcome</th><th>Suspected drug</th><th>Serious</th></tr></thead>
+          <tbody>
+            {% for ae in adverse_events %}
+            <tr>
+              <td class="font-medium">{{ ae.onset_date }}</td>
+              <td>{{ ae.get_category_display }}{% if ae.infection_type %} · {{ ae.get_infection_type_display }}{% endif %}</td>
+              <td>{{ ae.get_severity_display }}</td>
+              <td>{{ ae.get_outcome_display|default:"—" }}</td>
+              <td>{% if ae.suspected_drug %}{{ ae.suspected_drug.generic_name }}{% else %}—{% endif %}</td>
+              <td>{% if ae.serious %}<span class="badge danger">SAE</span>{% else %}<span class="text-slate-400">—</span>{% endif %}</td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+      {% else %}
+      <div class="empty-state">
+        <div class="icon"><i class="fas fa-triangle-exclamation"></i></div>
+        <div class="title">No adverse events</div>
+        <div class="desc"><a href="{% url 'clinic:adverse_event' patient.pk %}">Report one</a></div>
+      </div>
+      {% endif %}
+    </div>
+  </div>
+</div>
+
+<!-- ===== TAB: Pathology ===== -->
+<div id="tab-pathology" class="tab-content">
+  <div class="card">
+    <div class="card-header"><i class="fas fa-microscope text-primary-500"></i> Biopsies
+      <a href="{% url 'clinic:biopsy' patient.pk %}" class="btn ghost sm" style="margin-left:auto"><i class="fas fa-plus"></i> Add biopsy</a>
+    </div>
+    <div class="card-body" style="padding:0">
+      {% if biopsies %}
+      <div class="overflow-x-auto">
+        <table class="grid">
+          <thead><tr><th>Date</th><th>Diagnosis</th><th>Adequacy</th><th>Review</th><th class="text-right">Actions</th></tr></thead>
+          <tbody>
+            {% for b in biopsies %}
+            <tr>
+              <td class="font-medium">{{ b.biopsy_date }}</td>
+              <td>{% if b.diagnosis %}{{ b.diagnosis.get_diagnosis_display }}{% else %}—{% endif %}</td>
+              <td>{{ b.get_adequacy_display|default:"—" }}</td>
+              <td>
+                {% if b.review_status == 'discordant' %}<span class="badge warn">Discordant</span>
+                {% elif b.review_status == 'concordant' or b.review_status == 'adjudicated' %}<span class="badge ok">Concordant</span>
+                {% else %}<span class="badge neutral">{{ b.get_review_status_display }}</span>{% endif %}
+              </td>
+              <td class="text-right"><a href="/admin/pathology/biopsy/{{ b.pk }}/change/">Detail</a></td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+      {% else %}
+      <div class="empty-state">
+        <div class="icon"><i class="fas fa-microscope"></i></div>
+        <div class="title">No biopsies</div>
+        <div class="desc"><a href="{% url 'clinic:biopsy' patient.pk %}">Add one</a></div>
+      </div>
+      {% endif %}
+    </div>
+  </div>
+</div>
+
+<!-- ===== TAB: Research ===== -->
+<div id="tab-research" class="tab-content">
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px">
+    <!-- Study enrolments -->
+    <div class="card">
+      <div class="card-header"><i class="fas fa-flask text-primary-500"></i> Study enrolments
+        <a href="{% url 'clinic:study_enroll' patient.pk %}" class="btn ghost sm" style="margin-left:auto"><i class="fas fa-plus"></i> Enrol</a>
+      </div>
+      <div class="card-body" style="padding:0">
+        {% if enrollments %}
+        <div class="overflow-x-auto">
+          <table class="grid" style="table-layout:fixed;width:100%">
+            <colgroup>
+              <col style="width:18%"><col style="width:22%"><col style="width:20%"><col style="width:20%"><col style="width:20%">
+            </colgroup>
+            <thead><tr><th>Study</th><th>Status</th><th>Arm</th><th>Stratum</th><th>Enrolled</th></tr></thead>
+            <tbody>
+              {% for en in enrollments %}
+              <tr>
+                <td class="font-medium">{{ en.study.code }}</td>
+                <td>
+                  {% if en.status == 'enrolled' %}<span class="badge ok">{{ en.get_status_display }}</span>
+                  {% elif en.status == 'screened' and en.eligible %}<span class="badge ok" title="Auto-screened: meets encoded eligibility criteria"><i class="fas fa-circle-check"></i> Eligible</span>
+                  {% elif en.status == 'ineligible' or en.status == 'withdrawn' %}<span class="badge danger" {% if en.ineligibility_reasons %}title="{{ en.ineligibility_reasons|join:'; ' }}"{% endif %}>{{ en.get_status_display }}</span>
+                  {% else %}<span class="badge neutral">{{ en.get_status_display }}</span>{% endif %}
+                </td>
+                <td>{% if en.arm %}{{ en.arm.name }}{% else %}—{% endif %}</td>
+                <td>{% if en.stratum and en.stratum != 'all' %}{{ en.stratum }}{% else %}—{% endif %}</td>
+                <td>{{ en.enrolled_date|default:"—" }}</td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+        {% else %}
+        <div class="empty-state" style="padding:24px">
+          <div class="icon" style="font-size:28px"><i class="fas fa-flask"></i></div>
+          <div class="desc">Not enrolled in any study. <a href="{% url 'clinic:study_enroll' patient.pk %}">Enrol</a></div>
+        </div>
+        {% endif %}
+      </div>
+    </div>
+
+    <!-- Treatment history -->
+    <div class="card">
+      <div class="card-header"><i class="fas fa-pills text-primary-500"></i> Treatment history
+        <a href="{% url 'clinic:treatment' patient.pk %}" class="btn ghost sm" style="margin-left:auto"><i class="fas fa-plus"></i> Add</a>
+      </div>
+      <div class="card-body" style="padding:0">
+        {% if exposures %}
+        <div class="overflow-x-auto">
+          <table class="grid" style="table-layout:fixed;width:100%">
+            <colgroup>
+              <col style="width:22%"><col style="width:28%"><col style="width:16%"><col style="width:24%"><col style="width:10%">
+            </colgroup>
+            <thead><tr><th>Drug</th><th>Regimen</th><th>Start</th><th>Stop</th><th>Status</th></tr></thead>
+            <tbody>
+              {% for x in exposures %}
+              <tr>
+                <td class="font-medium">{{ x.drug_name }}</td>
+                <td>{{ x.dose }}{% if x.dose_unit %} {{ x.dose_unit }}{% endif %}{% if x.frequency %} · {{ x.frequency }}{% endif %}</td>
+                <td>{{ x.start_date }}</td>
+                <td>{% if x.stop_date %}{{ x.stop_date }}{% if x.stop_reason %}<span style="display:block;font-size:11px;color:#94a3b8">{{ x.get_stop_reason_display }}</span>{% endif %}{% else %}—{% endif %}</td>
+                <td>{% if x.ongoing %}<span class="badge ok">Ongoing</span>{% else %}<span class="badge neutral">Stopped</span>{% endif %}</td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+        {% else %}
+        <div class="empty-state" style="padding:24px">
+          <div class="icon" style="font-size:28px"><i class="fas fa-pills"></i></div>
+          <div class="desc">No medication episodes. <a href="{% url 'clinic:treatment' patient.pk %}">Add a medication</a></div>
+        </div>
+        {% endif %}
+      </div>
+    </div>
+
+    {% if monitoring %}
+    <div class="card" style="border-left:4px solid #f59e0b">
+      <div class="card-header"><i class="fas fa-vial-circle-check text-primary-500"></i> Monitoring plan
+        <span class="badge warn" style="margin-left:auto">auto from active drugs</span>
+      </div>
+      <div class="card-body" style="padding:0">
+        <div class="overflow-x-auto">
+          <table class="grid" style="table-layout:fixed;width:100%">
+            <colgroup>
+              <col style="width:30%"><col style="width:40%"><col style="width:30%">
+            </colgroup>
+            <thead><tr><th>Agent</th><th>Monitor</th><th>Cadence</th></tr></thead>
+            <tbody>
+              {% for m in monitoring %}
+              <tr>
+                <td class="font-medium">{{ m.agent }}<span style="display:block;font-size:11px;color:#94a3b8">{{ m.drug }}</span></td>
+                <td>{{ m.labs }}</td>
+                <td>{{ m.cadence }}</td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+    {% endif %}
+  </div>
+</div>
+
+<!-- ===== TAB: Consent ===== -->
+<div id="tab-consent" class="tab-content">
+  <div class="card">
+    <div class="card-header"><i class="fas fa-handshake text-primary-500"></i> Consent status
+      <a href="{% url 'clinic:consent' patient.pk %}" class="btn ghost sm" style="margin-left:auto"><i class="fas fa-pen"></i> Manage</a>
+    </div>
+    <div class="card-body">
+      <div style="display:flex;flex-wrap:wrap;gap:10px">
+        {% for c in consents %}
+        <div style="display:flex;align-items:center;gap:10px;padding:14px 16px;border-radius:10px;border:1px solid {% if c.current and c.current.is_active %}#bbf7d0{% elif c.current %}#fef3c7{% else %}#e2e8f0{% endif %};background:{% if c.current and c.current.is_active %}#f0fdf4{% elif c.current %}#fffbeb{% else %}#f8fafc{% endif %};flex:1;min-width:200px">
+          <span style="font-size:18px;{% if c.current and c.current.is_active %}color:#15803d{% elif c.current %}color:#b45309{% else %}color:#94a3b8{% endif %}">
+            {% if c.current and c.current.is_active %}<i class="fas fa-check-circle"></i>
+            {% elif c.current %}<i class="fas fa-clock"></i>
+            {% else %}<i class="fas fa-circle-xmark"></i>{% endif %}
+          </span>
+          <div>
+            <div style="font-weight:600;font-size:13px">{{ c.label }}</div>
+            <div style="font-size:12px;color:#64748b">
+              {% if c.current and c.current.is_active %}Granted · {{ c.current.consent_date }}
+              {% elif c.current %}{{ c.current.get_status_display }} · {{ c.current.consent_date }}
+              {% else %}Not recorded{% endif %}
+            </div>
+          </div>
+        </div>
+        {% endfor %}
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ===== TAB: Audit Log ===== -->
+<div id="tab-audit" class="tab-content">
+  <div class="card">
+    <div class="card-header"><i class="fas fa-history text-primary-500"></i> Audit Trail</div>
+    <div class="card-body" style="padding:0">
+      {% if audit_entries %}
+      <div class="overflow-x-auto">
+        <table class="grid">
+          <thead><tr><th>Date</th><th>Model</th><th>Action</th><th>Field</th><th>Old</th><th>New</th><th>User</th></tr></thead>
+          <tbody>
+            {% for e in audit_entries %}
+            <tr>
+              <td style="white-space:nowrap" class="font-medium">{{ e.changed_at|date:"Y-m-d H:i" }}</td>
+              <td><span class="badge neutral" style="font-size:10px">{{ e.model_label }}</span></td>
+              <td>{% if e.action == 'create' %}<span class="badge ok">Created</span>{% elif e.action == 'update' %}<span class="badge info">Updated</span>{% elif e.action == 'delete' %}<span class="badge danger">Deleted</span>{% endif %}</td>
+              <td style="font-size:12px">{{ e.field_name|default:"—" }}</td>
+              <td style="font-size:12px;max-width:160px;overflow:hidden;text-overflow:ellipsis">{{ e.old_value|truncatechars:30|default:"—" }}</td>
+              <td style="font-size:12px;max-width:160px;overflow:hidden;text-overflow:ellipsis">{{ e.new_value|truncatechars:30|default:"—" }}</td>
+              <td style="font-size:12px">{{ e.changed_by|default:"—" }}</td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+      {% else %}
+      <div class="empty-state" style="padding:24px">
+        <div class="icon" style="font-size:28px"><i class="fas fa-history"></i></div>
+        <div class="desc">No audit entries for this patient yet.</div>
+      </div>
+      {% endif %}
+    </div>
+  </div>
+</div>
+
+{% endwith %}
+{% endblock %}

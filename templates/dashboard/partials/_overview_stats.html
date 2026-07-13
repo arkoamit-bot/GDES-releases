@@ -1,0 +1,12 @@
+{% load static %}
+{% for s in stats %}
+<a class="stat-card" href="{{ s.url }}">
+  <span class="icon {% if s.icon == 'fa-user-injured' %}blue{% elif s.icon == 'fa-prescription' %}purple{% elif s.icon == 'fa-flask' %}green{% elif s.icon == 'fa-calendar-xmark' %}red{% elif s.icon == 'fa-triangle-exclamation' %}amber{% elif s.icon == 'fa-microscope' %}purple{% elif s.icon == 'fa-vials' %}green{% else %}blue{% endif %}">
+    <i class="fas {{ s.icon }}"></i>
+  </span>
+  <span>
+    <div class="value">{{ s.value }}</div>
+    <div class="label">{{ s.label }}</div>
+  </span>
+</a>
+{% endfor %}

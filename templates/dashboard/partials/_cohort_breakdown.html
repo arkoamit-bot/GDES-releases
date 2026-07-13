@@ -1,0 +1,38 @@
+{% load static %}
+{% if data %}
+<canvas id="cohortChart" style="width:100%;max-height:220px"
+        data-labels="{{ data.labels|safe }}"
+        data-values="{{ data.values|safe }}"></canvas>
+<script>
+(function(){
+  var el = document.getElementById('cohortChart');
+  if (!el || !window.Chart) return;
+  var labels = (el.getAttribute('data-labels') || '').split(',');
+  var values = (el.getAttribute('data-values') || '').split(',').map(Number);
+  var colors = ['#0c92d4','#15803d','#b45309','#7c3aed','#dc2626','#0891b2','#ca8a04','#be185d'];
+  new Chart(el, {
+    type: 'doughnut',
+    data: {
+      labels: labels,
+      datasets: [{
+        data: values,
+        backgroundColor: colors.slice(0, labels.length),
+        borderWidth: 1
+      }]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: {
+        legend: { position: 'right', labels: { font: { size: 11 }, boxWidth: 12, padding: 8 } }
+      }
+    }
+  });
+})();
+</script>
+{% else %}
+<div class="empty-state">
+  <div class="icon"><i class="fas fa-chart-pie"></i></div>
+  <div class="title">No cohort data</div>
+</div>
+{% endif %}

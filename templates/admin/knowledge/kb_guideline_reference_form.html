@@ -1,0 +1,57 @@
+{% extends "admin/base_site.html" %}
+{% block breadcrumbs %}
+<div class="breadcrumbs">
+  <a href="{% url 'admin:index' %}">Home</a>
+  &rsaquo; <a href="{% url 'admin:app_list' app_label='knowledge' %}">Knowledge</a>
+  &rsaquo; <a href="{% url 'admin:knowledge_knowledgebaseentry_changelist' %}">Knowledge base entries</a>
+  &rsaquo; Import guideline (reference)
+</div>
+{% endblock %}
+{% block content %}
+<h1>Import guideline (reference)</h1>
+
+<p style="max-width:680px">
+  Store a guideline (e.g. a KDIGO <strong>PDF</strong>) as a citable reference.
+  The text is extracted and saved as a <em>Guideline document</em> under a
+  <em>Guideline source</em>, so your rules can cite it (evidence link, chapter,
+  quote) and you can read the source inside the app.
+  <strong>This does not create or change any clinical rules</strong> — turning
+  guideline prose into rules is a clinical authoring task done separately.
+</p>
+
+<form method="post" enctype="multipart/form-data">
+  {% csrf_token %}
+  <fieldset class="module aligned" style="max-width:680px">
+    <div class="form-row">
+      <label style="font-weight:600">Source abbreviation *</label>
+      <input type="text" name="abbreviation" placeholder="KDIGO" required>
+    </div>
+    <div class="form-row">
+      <label style="font-weight:600">Source year *</label>
+      <input type="number" name="version_year" placeholder="2025" required>
+    </div>
+    <div class="form-row">
+      <label style="font-weight:600">Title (optional)</label>
+      <input type="text" name="doc_title"
+             placeholder="KDIGO 2025 IgAN/IgAV Guideline — Executive Summary"
+             style="width:100%;max-width:640px">
+    </div>
+    <div class="form-row">
+      <label style="font-weight:600">Upload a PDF/text file</label>
+      <input type="file" name="file" accept=".pdf,.txt,.md,.markdown,application/pdf,text/plain">
+    </div>
+    <div class="form-row">
+      <label style="font-weight:600">…or paste a web link</label>
+      <input type="url" name="url"
+             placeholder="https://kdigo.org/.../KDIGO-2025-IgAN-IgAV-Guideline-Executive-Summary.pdf"
+             style="width:100%;max-width:640px">
+      <p class="help">Direct http/https link to the PDF (or text). Max 25&nbsp;MB.
+        Scanned image-only PDFs need OCR first.</p>
+    </div>
+  </fieldset>
+  <div class="submit-row" style="margin-top:16px">
+    <input type="submit" value="Import reference" class="default">
+    <a href="{% url 'admin:knowledge_knowledgebaseentry_changelist' %}" class="button cancel-link">Cancel</a>
+  </div>
+</form>
+{% endblock %}

@@ -1,0 +1,342 @@
+# ROADMAP.md
+
+# GDES Development Roadmap
+## Glomerular Disease Expert System
+
+**Version:** 1.0
+
+**Status:** Active Development Roadmap
+
+**Authority:** This document defines the development priorities for GDES. All future work should follow this roadmap unless explicitly revised.
+
+---
+
+# Current Project Status
+
+## Completed
+
+✓ Registry Platform
+
+✓ Clinical Decision Support
+
+✓ Knowledge Base
+
+✓ Clinical Reasoning Engine
+
+✓ Drug Recommendation Framework
+
+✓ Timeline Engine
+
+✓ Follow-up Infrastructure
+
+✓ Research Analytics
+
+✓ Enterprise Deployment
+
+✓ Knowledge Engineering Platform
+
+The platform foundation is considered stable.
+
+Future work should prioritize clinical workflow rather than expanding infrastructure.
+
+---
+
+# Development Philosophy
+
+Every new feature must satisfy at least one of the following objectives:
+
+1. Improve the GN Registry.
+
+2. Improve Automated Clinical Management.
+
+3. Improve Automated Follow-up.
+
+4. Improve Clinical Research.
+
+If a proposed feature does not clearly support one of these objectives, it should normally be deferred.
+
+---
+
+# Priority 1
+# Registry Excellence
+
+Goal
+
+Develop the best longitudinal GN registry possible.
+
+Objectives
+
+Improve patient registration
+
+Improve encounter documentation
+
+Improve biopsy workflow
+
+Improve pathology capture
+
+Improve treatment documentation
+
+Improve longitudinal outcome tracking
+
+Improve multi-center support
+
+Improve registry quality metrics
+
+Success Criteria
+
+Complete longitudinal records for every patient.
+
+---
+
+# Priority 2
+# Automated Clinical Management
+
+Goal
+
+Provide intelligent clinical decision support during routine patient care.
+
+Future Features
+
+Disease-specific management recommendations
+
+Drug recommendation engine
+
+Drug contraindication checking
+
+Drug interaction checking
+
+Dose adjustment
+
+Treatment pathway recommendations
+
+Safety alerts
+
+Guideline adherence monitoring
+
+Clinical override audit
+
+Expected Outcome
+
+Reduce variation in clinical practice while preserving clinician autonomy.
+
+---
+
+# Priority 3
+# Automated Follow-up
+
+Goal
+
+Ensure that no patient is lost during long-term care.
+
+Future Features
+
+Automatic follow-up scheduling
+
+Disease-specific follow-up intervals
+
+Overdue visit detection
+
+Overdue laboratory detection
+
+Drug monitoring reminders
+
+Vaccination reminders
+
+Relapse surveillance
+
+Remission surveillance
+
+SMS / Email notifications
+
+Clinician task lists
+
+Dashboard for patients requiring attention
+
+Expected Outcome
+
+Improve continuity of care and reduce missed follow-up.
+
+---
+
+# Priority 4
+# Research Platform
+
+Goal
+
+Transform routine clinical care into high-quality research.
+
+Future Features
+
+Automated cohort builder
+
+Publication-ready datasets
+
+Outcome dashboards
+
+Survival analysis
+
+Treatment effectiveness
+
+Comparative effectiveness
+
+Clinical trial eligibility screening
+
+AI-ready structured datasets
+
+Registry reporting
+
+Multi-center analytics
+
+Expected Outcome
+
+Every patient contributes to clinical research.
+
+---
+
+# Priority 5
+# Clinical Validation
+
+Goal
+
+Validate every recommendation against real clinical practice.
+
+Future Features
+
+Expert-reviewed patient cases
+
+Recommendation validation
+
+Guideline concordance analysis
+
+Outcome comparison
+
+Quality assurance dashboards
+
+Clinical acceptance testing
+
+Expected Outcome
+
+Demonstrate that GDES recommendations are clinically reliable.
+
+---
+
+# Priority 6
+# Operational Excellence
+
+Goal
+
+Improve usability without changing core architecture.
+
+Future Features
+
+Performance optimization
+
+Improved dashboards
+
+Search improvements
+
+Audit enhancements
+
+Deployment automation
+
+Backup improvements
+
+Monitoring
+
+Logging
+
+Expected Outcome
+
+A robust production platform suitable for routine hospital use.
+
+---
+
+# Items Deferred to Future Versions
+
+These are valuable but are **not current priorities** unless they directly improve one of the four core objectives.
+
+Examples include:
+
+General medical encyclopedia
+
+Large ontology projects
+
+Generic AI chatbot
+
+Non-nephrology knowledge expansion
+
+Experimental machine learning
+
+Novel AI research features
+
+General hospital information system functions
+
+These may be revisited after the core objectives are fully achieved.
+
+---
+
+# Decision Checklist
+
+Before starting any new development, answer the following:
+
+□ Does this improve the GN Registry?
+
+□ Does this improve automated clinical management?
+
+□ Does this improve automated follow-up?
+
+□ Does this improve research capability?
+
+If **all answers are NO**, postpone the feature.
+
+---
+
+# Current Success Definition
+
+GDES will be considered Version 1.0 ready when it provides:
+
+✓ A complete longitudinal GN registry
+
+✓ Automated evidence-based clinical recommendations
+
+✓ Intelligent patient follow-up management
+
+✓ Integrated nephrology research platform
+
+These four goals define project success.
+
+---
+
+# Long-Term Vision
+
+The purpose of GDES is not to build the largest medical knowledge base.
+
+The purpose is to build the most useful clinical platform for nephrologists caring for patients with glomerular diseases.
+
+Knowledge, software, and automation should always serve this mission.
+
+---
+
+# Final Instruction
+
+Whenever development priorities are uncertain, choose the option that most directly improves:
+
+1. Patient care
+
+2. Clinician workflow
+
+3. Follow-up quality
+
+4. Research capability
+
+Avoid unnecessary complexity.
+
+Prefer practical clinical value over technical sophistication.
+
+---
+
+**Document ID:** GDES-ROADMAP-001
+
+**Version:** 1.0
+
+**Status:** Active

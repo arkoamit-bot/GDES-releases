@@ -1,0 +1,44 @@
+Django>=5.0
+djangorestframework>=3.15
+django-jazzmin>=3.0
+WeasyPrint>=60
+
+# Excel export (research datasets + data-dictionary sheet).
+openpyxl>=3.1
+
+# SPSS .sav export (variable labels, value labels, measurement levels).
+# pyreadstat pulls in pandas; both are needed for the .sav writer.
+pyreadstat>=1.2
+pandas>=2.0
+
+# --- Desktop (single-user Windows) build ------------------------------------
+# Waitress: pure-Python WSGI server the launcher runs on 127.0.0.1:8000.
+# WhiteNoise: serves the compiled static files from the WSGI app (no nginx).
+waitress>=3.0
+whitenoise>=6.6
+# pyinstaller>=6.0   # build-time only; packages BGDDR.exe (desktop/build_exe.ps1)
+
+# Production hardening
+# ----------------------
+
+# xhtml2pdf is a pure-Python PDF fallback when WeasyPrint/native GTK is unavailable.
+# It uses pypdf + reportlab under the hood and renders the same HTML template.
+xhtml2pdf>=0.2.15
+
+# PostgreSQL adapter (uncomment / install when switching from SQLite).
+# psycopg>=3.1
+
+# gunicorn for WSGI serving (uncomment / install for production deploy).
+# gunicorn>=22.0
+
+# Background task infrastructure (Phase 3.2)
+celery>=5.4
+redis>=5.0
+
+# SMS and email integrations (reminders)
+# twilio>=9.0            # SMS / WhatsApp Business API
+# SendGrid SDK for email (or use django's built-in SMTP)
+
+# For security / health checks
+# django-csp>=3.8        # Content-Security-Policy headers
+# django-ratelimit>=4.1  # Rate-limiting on auth endpoints

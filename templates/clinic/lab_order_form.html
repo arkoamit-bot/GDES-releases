@@ -1,0 +1,70 @@
+{% extends "base.html" %}
+{% block title %}Order labs — {{ patient.patient_id }}{% endblock %}
+{% block heading %}Order labs · {{ patient.patient_id }}{% endblock %}
+{% block content %}
+
+<div class="crumbs"><a href="/patients/">Patients</a> ›
+  <a href="{% url 'clinic:patient_detail' patient.pk %}">{{ patient.patient_id }}</a> › Order labs</div>
+
+<!-- Page nav: back + shortcuts -->
+<div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px;margin-bottom:16px">
+  <div style="display:flex;gap:8px">
+    <a class="btn ghost sm" href="{% url 'clinic:patient_detail' patient.pk %}"><i class="fas fa-arrow-left"></i> Back to patient</a>
+  </div>
+  <div style="display:flex;gap:8px">
+    <a class="btn ghost sm" href="{% url 'clinic:prescription' patient.pk %}"><i class="fas fa-prescription"></i> Prescription</a>
+  </div>
+</div>
+
+{% include "clinic/_patient_context.html" %}
+
+<form method="post" autocomplete="off">
+  {% csrf_token %}
+  {% if form.non_field_errors %}<div class="msg error">{{ form.non_field_errors }}</div>{% endif %}
+
+  <div class="panel"><div class="pb">
+    <p class="help" style="margin-bottom:14px">
+      This page <strong>orders / requests</strong> investigations for the latest visit
+      (<strong>{{ encounter.encounter_date }}</strong>) — it records <em>what was asked for</em>.
+      Enter the <strong>result values</strong> when they come back at the
+      <a href="{% url 'clinic:followup' patient.pk %}">Follow-up</a> (or
+      <a href="{% url 'clinic:baseline' patient.pk %}">Baseline</a>) visit; they then appear
+      under the patient's <em>Labs → Recorded results</em>.
+    </p>
+
+    <div class="frow">
+      <label for="{{ form.panel.id_for_label }}">{{ form.panel.label }}</label>
+      {{ form.panel }}
+      {% if form.panel.help_text %}<div class="help">{{ form.panel.help_text }}</div>{% endif %}
+      {% if form.panel.errors %}<div class="errs">{{ form.panel.errors|striptags }}</div>{% endif %}
+    </div>
+
+    <fieldset class="fieldset" style="margin-top:18px">
+      <legend><i class="fas fa-flask"></i> Individual tests</legend>
+      <div class="help" style="margin-bottom:10px">Tick any additional tests. These are combined with the panel above (deduplicated).</div>
+      <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:8px">
+        {% for choice in form.custom_tests %}
+        <label style="display:flex;align-items:center;gap:8px;font-size:13.5px;font-weight:400;cursor:pointer;padding:6px 8px;border:1px solid var(--line);border-radius:8px;background:#fff">
+          {{ choice.tag }}
+          <span>{{ choice.choice_label }}</span>
+        </label>
+        {% endfor %}
+      </div>
+      {% if form.custom_tests.errors %}<div class="errs">{{ form.custom_tests.errors|striptags }}</div>{% endif %}
+    </fieldset>
+
+    <div class="frow" style="margin-top:18px">
+      <label for="{{ form.notes.id_for_label }}">{{ form.notes.label }}</label>
+      {{ form.notes }}
+      {% if form.notes.help_text %}<div class="help">{{ form.notes.help_text }}</div>{% endif %}
+      {% if form.notes.errors %}<div class="errs">{{ form.notes.errors|striptags }}</div>{% endif %}
+    </div>
+
+    <div style="display:flex;gap:10px;margin-top:18px">
+      <button class="btn" type="submit"><i class="fas fa-floppy-disk"></i> Place order</button>
+      <a class="btn ghost" href="{% url 'clinic:patient_detail' patient.pk %}">Cancel</a>
+    </div>
+  </div></div>
+</form>
+
+{% endblock %}

@@ -1,0 +1,66 @@
+{% extends "base.html" %}
+{% block title %}Enrol — {{ patient.patient_id }}{% endblock %}
+{% block heading %}Enrol in study · {{ patient.patient_id }}{% endblock %}
+{% block content %}
+
+<div class="crumbs"><a href="/patients/">Patients</a> ›
+  <a href="{% url 'clinic:patient_detail' patient.pk %}">{{ patient.patient_id }}</a> › Enrol</div>
+
+<!-- Page nav: back + shortcuts -->
+<div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px;margin-bottom:16px">
+  <div style="display:flex;gap:8px">
+    <a class="btn ghost sm" href="{% url 'clinic:patient_detail' patient.pk %}"><i class="fas fa-arrow-left"></i> Back to patient</a>
+  </div>
+  <div style="display:flex;gap:8px">
+    <a class="btn ghost sm" href="{% url 'clinic:consent' patient.pk %}"><i class="fas fa-handshake"></i> Consent</a>
+  </div>
+</div>
+
+{% include "clinic/_patient_context.html" %}
+
+<form method="post" autocomplete="off">
+  {% csrf_token %}
+  {% if form.non_field_errors %}<div class="msg error">{{ form.non_field_errors }}</div>{% endif %}
+  <div class="panel"><div class="pb">
+    <fieldset class="fieldset">
+      <legend><i class="fas fa-vials"></i> Screening &amp; enrolment</legend>
+      <div class="help" style="margin-bottom:10px">Submitting screens the patient against the study's eligibility rules. If eligible (and trial consent is on file when required), a randomized study allocates an arm automatically via its seeded sequence.</div>
+      <div class="cols2">
+        {% for f in form %}
+        <div class="frow">
+          <label for="{{ f.id_for_label }}">{{ f.label }}</label>
+          {{ f }}
+          {% if f.help_text %}<div class="help">{{ f.help_text }}</div>{% endif %}
+          {% if f.errors %}<div class="errs">{{ f.errors|striptags }}</div>{% endif %}
+        </div>
+        {% endfor %}
+      </div>
+    </fieldset>
+    <div style="display:flex;gap:10px">
+      <button class="btn" type="submit"><i class="fas fa-user-plus"></i> Screen &amp; enrol</button>
+      <a class="btn ghost" href="{% url 'clinic:patient_detail' patient.pk %}">Cancel</a>
+    </div>
+  </div></div>
+</form>
+
+{% if studies %}
+<div class="panel" style="margin-top:18px">
+  <div class="ph"><i class="fas fa-circle-info"></i> Studies open for enrolment</div>
+  <div class="pb" style="padding:0"><table class="grid">
+    <thead><tr><th>Code</th><th>Title</th><th>Type</th><th>Randomization</th><th>Consent</th><th>Arms</th></tr></thead>
+    <tbody>
+      {% for s in studies %}
+      <tr>
+        <td><strong>{{ s.code }}</strong></td>
+        <td>{{ s.title }}</td>
+        <td>{{ s.get_study_type_display }}</td>
+        <td>{{ s.get_randomization_scheme_display }}</td>
+        <td>{% if s.requires_trial_consent %}<span class="chip warn">TRIAL required</span>{% else %}—{% endif %}</td>
+        <td>{% for a in s.arms_ordered %}<span class="chip">{{ a.code }}{% if a.ratio != 1 %}×{{ a.ratio }}{% endif %}</span> {% empty %}—{% endfor %}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table></div>
+</div>
+{% endif %}
+{% endblock %}
