@@ -47,6 +47,46 @@ packaged `--check` self-test, and writes `version.json` + `RELEASE_REPORT.md`.
    iscc desktop\installer\GDES.iss           # -> dist\installer\Setup_GDES_<version>.exe
    ```
 
+### 2.1 Full manual rebuild — cheat-sheet
+Run from the repo root (`bgddr\`) in PowerShell after any code/KB change:
+```powershell
+# 0. (once) prerequisites on the build box:
+#    - Python + deps:   python -m pip install pyinstaller waitress whitenoise openpyxl pyreadstat pandas
+#    - Inno Setup 6:    winget install --id JRSoftware.InnoSetup
+#    - Windows SDK (for signtool) — already present if Visual Studio/SDK installed
+
+# 1. (optional) bump the version for a published update:
+#    edit bgddr\version.py           -> __version__ = "6.6.0"
+#    edit desktop\installer\GDES.iss -> #define AppVersion "6.6.0"
+
+# 2. Gate on tests
+python -m pytest -q
+
+# 3. Build the app (onedir) + self-check certification
+.\desktop\build_exe.ps1
+#    …or directly (skips the self-check/report):
+#    python -m PyInstaller desktop\BGDDR.spec --noconfirm --distpath dist --workpath build
+
+# 4. (optional) sign the app exe FIRST (so the installer embeds a signed exe)
+.\desktop\sign_build.ps1 -Files dist\BGDDR\BGDDR.exe -Thumbprint <CERT_THUMBPRINT>
+
+# 5. Build the installer
+& "$env:LOCALAPPDATA\Programs\Inno Setup 6\ISCC.exe" desktop\installer\GDES.iss
+#    -> dist\installer\Setup_GDES_<version>.exe
+
+# 6. (optional) sign the installer
+.\desktop\sign_build.ps1 -Files dist\installer\Setup_GDES_<version>.exe -Thumbprint <CERT_THUMBPRINT>
+```
+Notes:
+- **Order matters for signing:** sign `BGDDR.exe` (step 4) *before* building the
+  installer (step 5), then sign the installer (step 6).
+- The current **pilot self-signed** cert thumbprint is
+  `72B2EA2AD59EECA18B219A7FC36D0D19BE65F576` (in `Cert:\CurrentUser\My`). For a
+  real release use your OV/EV cert thumbprint instead.
+- Only `BGDDR.spec` (onedir) is for the pilot; do not build `BGDDR_onefile.spec`.
+- After bumping the KB (`knowledge/kb_version.py PACKAGED_KB_VERSION`), existing
+  installs re-seed the new knowledge automatically at next launch (P1-2).
+
 ---
 
 ## 3. Code signing / SmartScreen (P2-3)

@@ -13,7 +13,7 @@
 #define AppName "GDES Registry"
 #define AppPublisher "BIRDEM — Department of Nephrology"
 #ifndef AppVersion
-  #define AppVersion "6.5.0"
+  #define AppVersion "6.6.0"
 #endif
 #define AppExeName "BGDDR.exe"
 ; Path to the onedir build output (relative to this .iss).

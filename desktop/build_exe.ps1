@@ -7,7 +7,15 @@ $root = Split-Path -Parent $PSScriptRoot
 Set-Location $root
 
 Write-Host "==> Ensuring build dependencies ..." -ForegroundColor Cyan
+# pip writes progress/warnings to stderr; under $ErrorActionPreference='Stop'
+# (PowerShell 5.1) that would abort the script even on success. Relax locally.
+$prevEAP = $ErrorActionPreference
+$ErrorActionPreference = "Continue"
 python -m pip install --quiet pyinstaller waitress whitenoise openpyxl
+if ($LASTEXITCODE -ne 0) {
+    Write-Warning "pip reported a non-zero exit; continuing (dependencies may already be installed)."
+}
+$ErrorActionPreference = $prevEAP
 
 Write-Host "==> Rebuilding compiled CSS (if npm is available) ..." -ForegroundColor Cyan
 if (Get-Command npm -ErrorAction SilentlyContinue) {

@@ -6,4 +6,4 @@ in the update folder's ``latest.json`` manifest to decide whether a newer build
 is available. Use a simple dotted numeric form, e.g. "6.5.0", "6.6.0".
 """
 
-__version__ = "6.5.0"
+__version__ = "6.6.0"
