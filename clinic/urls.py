@@ -38,6 +38,8 @@ urlpatterns = [
     path("clinic/safety/", views.safety_page, name="safety"),
     path("clinic/pathology/", views.pathology_page, name="pathology"),
     path("clinic/biomarkers/", views.biomarkers_page, name="biomarkers"),
+    path("clinic/drugs/", views.drug_intelligence_page, name="drugs"),
+    path("clinic/drugs/<str:drug_id>/", views.drug_intelligence_detail, name="drug_detail"),
     path("clinic/export/", views.export_page, name="export"),
     # In-app help / documentation
     path("clinic/help/", views.help_index, name="help"),

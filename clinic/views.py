@@ -1098,6 +1098,34 @@ def studies_page(request):
 
 
 @login_required(login_url=LOGIN)
+def drug_intelligence_page(request):
+    """Drug Intelligence — browsable disease-independent clinical drug knowledge."""
+    from knowledge.models import DrugIntelligence
+
+    q = (request.GET.get("q") or "").strip()
+    drugs = DrugIntelligence.objects.filter(is_active=True)
+    if q:
+        drugs = drugs.filter(Q(name__icontains=q) | Q(drug_class__icontains=q))
+    return render(request, "clinic/drug_intelligence.html", {
+        "active": "drugs",
+        "drugs": drugs.order_by("name"),
+        "q": q,
+        "total": DrugIntelligence.objects.filter(is_active=True).count(),
+    })
+
+
+@login_required(login_url=LOGIN)
+def drug_intelligence_detail(request, drug_id):
+    """Full drug monograph."""
+    from knowledge.models import DrugIntelligence
+
+    drug = get_object_or_404(DrugIntelligence, pk=drug_id, is_active=True)
+    return render(request, "clinic/drug_intelligence_detail.html", {
+        "active": "drugs", "drug": drug,
+    })
+
+
+@login_required(login_url=LOGIN)
 def safety_page(request):
     group_by = request.GET.get("group_by", "diabetes")
     ctx = {"active": "safety", "group_by": group_by,

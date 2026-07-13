@@ -1,0 +1,82 @@
+{% extends "base.html" %}
+{% block title %}{{ drug.name }} — Drug Intelligence — GDES{% endblock %}
+{% block heading %}{{ drug.name }}{% endblock %}
+{% block content %}
+
+<div class="page-nav">
+  <div class="page-nav-left">
+    <a class="btn ghost sm" href="{% url 'clinic:drugs' %}"><i class="fas fa-arrow-left"></i> All drugs</a>
+  </div>
+</div>
+
+<h2 class="page-title"><i class="fas fa-capsules text-primary-500"></i> {{ drug.name }}</h2>
+<p class="page-desc">
+  <span class="badge neutral">{{ drug.drug_class }}</span>
+  {% if drug.evidence_level %}<span class="badge info">Evidence level {{ drug.evidence_level }}</span>{% endif %}
+  {% for dis in drug.indications.all %}<span class="badge ok" style="font-size:10px">{{ dis.name }}</span>{% endfor %}
+</p>
+
+<div style="background:#fffbeb;border:1px solid #fde68a;border-radius:8px;padding:10px 14px;font-size:12px;color:#92400e;margin-bottom:16px">
+  <i class="fas fa-triangle-exclamation"></i> Clinical decision support — verify against the current guideline and the patient's context. Not a substitute for prescriber judgement.
+</div>
+
+{% if drug.mechanism_of_action %}
+<div class="card" style="margin-bottom:14px"><div class="card-header"><i class="fas fa-atom text-primary-500"></i> Mechanism of action</div>
+  <div class="card-body" style="font-size:14px;line-height:1.5">{{ drug.mechanism_of_action }}</div></div>
+{% endif %}
+
+<div style="display:grid;grid-template-columns:1fr 1fr;gap:14px">
+  {% if drug.contraindications %}
+  <div class="card"><div class="card-header" style="color:#b91c1c"><i class="fas fa-ban"></i> Contraindications & cautions</div>
+    <div class="card-body" style="font-size:13px;line-height:1.5">{{ drug.contraindications }}</div></div>
+  {% endif %}
+  {% if drug.stopping_criteria %}
+  <div class="card"><div class="card-header" style="color:#b45309"><i class="fas fa-hand"></i> Hold / stop criteria</div>
+    <div class="card-body" style="font-size:13px;line-height:1.5">{{ drug.stopping_criteria }}</div></div>
+  {% endif %}
+  {% if drug.renal_dosing %}
+  <div class="card"><div class="card-header"><i class="fas fa-kidneys text-primary-500"></i> Dosing in kidney disease</div>
+    <div class="card-body" style="font-size:13px;line-height:1.5">{{ drug.renal_dosing }}
+      {% if drug.dialysis_dosing %}<div style="margin-top:8px"><strong>Dialysis:</strong> {{ drug.dialysis_dosing }}</div>{% endif %}
+      {% if drug.transplant_considerations %}<div style="margin-top:8px"><strong>Transplant:</strong> {{ drug.transplant_considerations }}</div>{% endif %}
+    </div></div>
+  {% endif %}
+  <div class="card"><div class="card-header"><i class="fas fa-person-pregnant text-primary-500"></i> Pregnancy & lactation</div>
+    <div class="card-body" style="font-size:13px;line-height:1.5">
+      <div><strong>Pregnancy:</strong> {{ drug.pregnancy|default:"—" }}</div>
+      <div style="margin-top:6px"><strong>Lactation:</strong> {{ drug.lactation|default:"—" }}</div>
+    </div></div>
+  {% if drug.laboratory_monitoring %}
+  <div class="card"><div class="card-header"><i class="fas fa-vial text-primary-500"></i> Laboratory monitoring</div>
+    <div class="card-body" style="font-size:13px;line-height:1.5">{{ drug.laboratory_monitoring }}
+      {% if drug.vaccination_advice %}<div style="margin-top:8px"><strong>Vaccination:</strong> {{ drug.vaccination_advice }}</div>{% endif %}
+    </div></div>
+  {% endif %}
+  {% if drug.drug_interactions %}
+  <div class="card"><div class="card-header"><i class="fas fa-arrows-turn-to-dots text-primary-500"></i> Key interactions</div>
+    <div class="card-body"><ul style="margin:0;padding-left:18px;font-size:13px;line-height:1.6">
+      {% for i in drug.drug_interactions %}<li>{{ i }}</li>{% endfor %}</ul></div></div>
+  {% endif %}
+</div>
+
+{% if drug.common_side_effects or drug.serious_side_effects %}
+<div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-top:14px">
+  {% if drug.common_side_effects %}
+  <div class="card"><div class="card-header"><i class="fas fa-notes-medical text-slate-500"></i> Common side effects</div>
+    <div class="card-body"><div style="display:flex;flex-wrap:wrap;gap:6px">
+      {% for s in drug.common_side_effects %}<span class="badge neutral">{{ s }}</span>{% endfor %}</div></div></div>
+  {% endif %}
+  {% if drug.serious_side_effects %}
+  <div class="card"><div class="card-header" style="color:#b91c1c"><i class="fas fa-heart-crack"></i> Serious side effects</div>
+    <div class="card-body"><div style="display:flex;flex-wrap:wrap;gap:6px">
+      {% for s in drug.serious_side_effects %}<span class="badge danger">{{ s }}</span>{% endfor %}</div></div></div>
+  {% endif %}
+</div>
+{% endif %}
+
+{% if drug.guideline_references %}
+<div style="margin-top:14px;font-size:12px;color:#64748b">
+  <i class="fas fa-book-medical"></i> References: {{ drug.guideline_references|join:"; " }}
+</div>
+{% endif %}
+{% endblock %}

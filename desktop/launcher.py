@@ -452,7 +452,7 @@ def initialise(data_dir: Path) -> None:
             f"(installed={get_installed_kb_version() or 'none'} -> {PACKAGED_KB_VERSION}) ...")
         for cmd in ("seed_knowledge_base", "seed_v4_knowledge",
                      "seed_clinical_cases", "seed_drug_knowledge",
-                     "activate_entries"):
+                     "seed_drug_intelligence", "activate_entries"):
             try:
                 run_cmd(cmd, verbosity=0)
             except Exception as exc:
