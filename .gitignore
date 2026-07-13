@@ -34,6 +34,12 @@ bgddr_paths.json
 # --- Secrets --------------------------------------------------------------
 .env
 .secret_key
+# Code-signing private keys must NEVER be committed (public .cer is fine).
+*.pfx
+*.p12
+*.key
+# Bundled Microsoft WebView2 bootstrapper (re-downloadable; not source).
+desktop/installer/MicrosoftEdgeWebview2Setup.exe
 
 # --- Node / front-end build ----------------------------------------------
 node_modules/
@@ -55,3 +61,6 @@ Thumbs.db
 # Keep the COMPILED stylesheet (static/css/app.css) and vendored JS committed so
 # the app runs without a Node build; only re-run `npm run build:css` when the
 # templates/CSS change.
+
+# Build logs
+build_pyinstaller.log

@@ -51,13 +51,46 @@ packaged `--check` self-test, and writes `version.json` + `RELEASE_REPORT.md`.
 
 ## 3. Code signing / SmartScreen (P2-3)
 
-Unsigned PyInstaller exes trip Windows SmartScreen and some hospital AV.
+Unsigned exes trip Windows SmartScreen and some hospital AV. Sign **`BGDDR.exe`
+first**, rebuild the installer, then sign the installer (`desktop\sign_build.ps1`).
 
-- **Preferred:** sign `BGDDR.exe` **and** `Setup_GDES_*.exe` with an OV or EV
-  Authenticode certificate (`signtool sign /fd sha256 /tr <timestamp-url> …`).
-  An EV cert clears SmartScreen reputation immediately.
-- **Interim (unsigned):** on first launch choose **More info → Run anyway**, and
-  ask hospital IT to allowlist `%LOCALAPPDATA%\GDES\` in the AV/EDR product.
+### 3a. Production (wide distribution) — buy a real certificate
+Use an **OV** or **EV** Authenticode cert (EV clears SmartScreen reputation
+immediately). Import it (or plug in the EV token), then:
+```powershell
+.\desktop\build_exe.ps1
+.\desktop\sign_build.ps1 -Files dist\BGDDR\BGDDR.exe -Thumbprint <YOUR_CERT_TP>
+iscc desktop\installer\GDES.iss
+.\desktop\sign_build.ps1 -Files dist\installer\Setup_GDES_6.5.0.exe -Thumbprint <YOUR_CERT_TP>
+```
+(Or `-PfxPath cert.pfx -PfxPassword ****`.) Both files are SHA-256 signed and
+RFC-3161 timestamped, so they stay valid after the cert expires.
+
+### 3b. Pilot (single clinic PC) — self-signed cert, trusted on that PC
+A self-signed cert is fine for one known machine: sign with it, then import the
+public cert into that PC's trust stores so Windows shows a consistent publisher
+and no "unknown publisher" warning.
+
+Already produced in this repo:
+- `desktop\installer\GDES_Pilot_CodeSign.cer` — the **public** cert (safe to share).
+- The private key stays in the signer's `Cert:\CurrentUser\My` (never exported/committed).
+
+On the **clinic PC**, import the public cert once:
+```powershell
+# Per-user (no admin): trusts it for the logged-in clinician.
+Import-Certificate -FilePath GDES_Pilot_CodeSign.cer -CertStoreLocation Cert:\CurrentUser\Root
+Import-Certificate -FilePath GDES_Pilot_CodeSign.cer -CertStoreLocation Cert:\CurrentUser\TrustedPublisher
+# Per-machine (needs admin, trusts all users):
+#   Import-Certificate -FilePath GDES_Pilot_CodeSign.cer -CertStoreLocation Cert:\LocalMachine\Root
+#   Import-Certificate -FilePath GDES_Pilot_CodeSign.cer -CertStoreLocation Cert:\LocalMachine\TrustedPublisher
+```
+A self-signed cert does **not** raise SmartScreen reputation on the open
+internet — it only removes the warning on machines that trust it. For anything
+beyond the single pilot PC, use 3a.
+
+### 3c. Interim (do nothing)
+On first launch choose **More info → Run anyway**, and ask hospital IT to
+allowlist `%LOCALAPPDATA%\GDES\` in the AV/EDR product.
 
 ---
 
