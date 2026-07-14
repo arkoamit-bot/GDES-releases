@@ -282,11 +282,15 @@ def configure_data_paths(root: Path, interactive: bool = True) -> None:
 
 
 # --------------------------------------------------------------------------- #
-# In-app update (from the OneDrive update folder)
+# In-app update (from OneDrive folder OR GitHub Releases)
 # --------------------------------------------------------------------------- #
+_GITHUB_REPO = "arkoamit-bot/GDES"
+_GITHUB_API = "https://api.github.com/repos/{repo}/releases/latest"
+
+
 def _resolve_update_dir(root: Path) -> str | None:
     """Where published updates live. Precedence: env var > saved config >
-    <OneDrive>/BGDDR-Update. Returns None when no update folder is configured."""
+    <OneDrive>/GDES-Update. Returns None when no update folder is configured."""
     env = os.environ.get("BGDDR_UPDATE_DIR")
     if env:
         return env
@@ -296,10 +300,67 @@ def _resolve_update_dir(root: Path) -> str | None:
     onedrive = os.environ.get("OneDrive") or os.environ.get("OneDriveConsumer") \
         or os.environ.get("OneDriveCommercial") or ""
     if onedrive and Path(onedrive).is_dir():
-        cand = Path(onedrive) / "BGDDR-Update"
+        cand = Path(onedrive) / "GDES-Update"
         if cand.is_dir():
             return str(cand)
     return None
+
+
+def _github_update_available(current: str) -> dict | None:
+    """Check GitHub Releases for a newer version. Returns manifest dict or None."""
+    if not _GITHUB_REPO or _GITHUB_REPO.startswith("YOUR_"):
+        return None
+    try:
+        from bgddr.updater import is_newer
+        import urllib.request
+        url = _GITHUB_API.format(repo=_GITHUB_REPO)
+        req = urllib.request.Request(url, headers={"Accept": "application/vnd.github.v3+json",
+                                                    "User-Agent": "GDES-Updater"})
+        with urllib.request.urlopen(req, timeout=15) as resp:
+            data = json.loads(resp.read().decode())
+        tag = (data.get("tag_name") or "").lstrip("v")
+        if not tag or not is_newer(tag, current):
+            return None
+        zip_name = f"GDES-{tag}.zip"
+        asset_url = None
+        for asset in data.get("assets", []):
+            if asset.get("name") == zip_name:
+                asset_url = asset.get("browser_download_url")
+                break
+        if not asset_url:
+            return None
+        return {"version": tag, "file": zip_name, "url": asset_url,
+                "notes": data.get("body", "")}
+    except Exception:
+        return None
+
+
+def _github_download_and_stage(manifest: dict, log=print) -> Path | None:
+    """Download a release zip from GitHub and extract to a staging folder."""
+    import tempfile
+    import urllib.request
+    import zipfile
+    url = manifest.get("url")
+    if not url:
+        log("No download URL in GitHub manifest.")
+        return None
+    try:
+        staging = Path(tempfile.mkdtemp(prefix="gdes-gh-update-"))
+        zip_path = staging / manifest["file"]
+        log(f"Downloading {manifest['file']} from GitHub ...")
+        urllib.request.urlretrieve(url, str(zip_path))
+        log("Download complete. Extracting ...")
+        with zipfile.ZipFile(zip_path) as zf:
+            zf.extractall(staging)
+        zip_path.unlink(missing_ok=True)
+        for cand in [staging] + [p for p in staging.iterdir() if p.is_dir()]:
+            if (cand / "GDES.exe").is_file() and (cand / "_internal").is_dir():
+                return cand
+        log("Extracted zip does not contain GDES.exe / _internal.")
+        return None
+    except Exception as exc:
+        log(f"GitHub download/stage failed: {exc}")
+        return None
 
 
 def _tk_root():
@@ -331,22 +392,23 @@ def _update_prompt(current: str, manifest: dict) -> bool:
     except Exception:
         return False
     notes = (manifest.get("notes") or "").strip()
-    body = (f"A new version of BGDDR is available.\n\n"
+    body = (f"A new version of GDES is available.\n\n"
             f"Installed:  {current}\nAvailable:  {manifest['version']}\n"
             + (f"\n{notes}\n" if notes else "")
             + "\nThe app will close, update itself, and reopen. Your data and "
               "backups are not touched. Install now?")
     root, owned = _tk_root()
-    ok = messagebox.askyesno("BGDDR — Update available", body, parent=root)
+    ok = messagebox.askyesno("GDES — Update available", body, parent=root)
     if owned:
         root.destroy()
     return bool(ok)
 
 
 def run_update_check(root: Path, interactive: bool = True) -> bool:
-    """Check the update folder and, if the user confirms, stage the new build and
-    spawn the swap helper. Returns True if an update is being applied — the caller
-    must then exit so the helper can replace the files.
+    """Check for an update (local folder OR GitHub Releases) and, if the user
+    confirms, stage the new build and spawn the swap helper. Returns True if an
+    update is being applied — the caller must then exit so the helper can replace
+    the files.
 
     Only meaningful for the packaged .exe; a no-op when running from source.
     """
@@ -359,18 +421,28 @@ def run_update_check(root: Path, interactive: bool = True) -> bool:
         log(f"Update check unavailable: {exc}")
         return False
 
+    manifest = None
+    github_mode = False
+
+    # 1. Check local/OneDrive update folder first.
     update_dir = _resolve_update_dir(root)
-    if not update_dir:
-        return False
-    try:
-        manifest = updater.check_for_update(Path(update_dir), current)
-    except Exception as exc:
-        log(f"Update check failed: {exc}")
-        return False
+    if update_dir:
+        try:
+            manifest = updater.check_for_update(Path(update_dir), current)
+        except Exception as exc:
+            log(f"Local update check failed: {exc}")
+
+    # 2. If no local update, check GitHub Releases.
+    if not manifest:
+        manifest = _github_update_available(current)
+        if manifest:
+            github_mode = True
+            log(f"GitHub update available: {manifest['version']}")
+
     if not manifest:
         log(f"Up to date (version {current}).")
         if interactive:
-            _info_msg("BGDDR — Up to date", f"You are running the latest version ({current}).")
+            _info_msg("GDES — Up to date", f"You are running the latest version ({current}).")
         return False
 
     log(f"Update available: {current} -> {manifest['version']}")
@@ -378,10 +450,14 @@ def run_update_check(root: Path, interactive: bool = True) -> bool:
         log("User postponed the update.")
         return False
 
-    staging = updater.verify_and_stage(Path(update_dir), manifest, log=log)
+    if github_mode:
+        staging = _github_download_and_stage(manifest, log=log)
+    else:
+        staging = updater.verify_and_stage(Path(update_dir), manifest, log=log)
+
     if not staging:
         if interactive:
-            _info_msg("BGDDR — Update failed",
+            _info_msg("GDES — Update failed",
                       "The update could not be verified or extracted. "
                       "See Logs\\update.log. Your app is unchanged.")
         return False
@@ -393,10 +469,6 @@ def run_update_check(root: Path, interactive: bool = True) -> bool:
     except Exception as exc:
         log(f"pre-update backup warning: {exc}")
 
-    # The code (BGDDR.exe + _internal) lives in the APP folder, which is NOT the
-    # data dir: since the data dir was moved to %LOCALAPPDATA%\GDES\Data, the
-    # swap must target app_dir(), not `root` (the data dir). Getting this wrong
-    # makes the updater "succeed" but silently swap nothing.
     code_dir = app_dir()
     started = updater.apply_update(
         app_dir=code_dir, staging_root=staging,
@@ -404,8 +476,8 @@ def run_update_check(root: Path, interactive: bool = True) -> bool:
         log_path=Path(root) / "Logs" / "update.log", log=log,
     )
     if started and interactive:
-        _info_msg("BGDDR — Updating",
-                  f"Updating to {manifest['version']}. BGDDR will close and reopen "
+        _info_msg("GDES — Updating",
+                  f"Updating to {manifest['version']}. GDES will close and reopen "
                   "in a moment.")
     return started
 
@@ -685,8 +757,8 @@ def _status_window(server, root: Path) -> None:
             win.destroy()
             os._exit(0)
 
-    # Only offer the button when an update folder is actually configured.
-    if getattr(sys, "frozen", False) and _resolve_update_dir(root):
+    # Only offer the button when running as a packaged .exe (update dir or GitHub).
+    if getattr(sys, "frozen", False):
         tk.Button(row, text="Check for updates", width=15,
                   command=check_updates).grid(row=0, column=1, padx=4)
     tk.Button(row, text="Stop", width=9, command=stop).grid(row=0, column=2, padx=4)
