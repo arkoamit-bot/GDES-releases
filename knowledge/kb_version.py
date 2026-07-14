@@ -12,7 +12,7 @@ from pathlib import Path
 
 # Bump this when the packaged knowledge base changes in a way that should
 # re-seed on update. Keep in step with the seeders' `knowledge_version`.
-PACKAGED_KB_VERSION = "6.6"
+PACKAGED_KB_VERSION = "7.3"
 
 _STAMP_NAME = ".kb_version"
 

@@ -86,11 +86,13 @@ def _sha256(path: Path) -> str:
 
 
 def _find_build_root(base: Path) -> Path | None:
-    """Locate the folder holding BGDDR.exe + _internal within an extracted zip
-    (top level, or one directory down if the zip wraps it in a folder)."""
+    """Locate the folder holding GDES.exe + _internal within an extracted zip
+    (top level, or one directory down if the zip wraps it in a folder).
+    Also tolerates legacy BGDDR.exe name."""
     candidates = [base] + [p for p in base.iterdir() if p.is_dir()]
     for cand in candidates:
-        if (cand / "BGDDR.exe").is_file() and (cand / "_internal").is_dir():
+        if ((cand / "GDES.exe").is_file() or (cand / "BGDDR.exe").is_file()) \
+                and (cand / "_internal").is_dir():
             return cand
     return None
 
@@ -141,17 +143,26 @@ Start-Sleep -Seconds 1
 
 $app        = "{app}"
 $staging    = "{staging}"
-$exe        = Join-Path $app "BGDDR.exe"
+$exe        = Join-Path $app "GDES.exe"
 $internal   = Join-Path $app "_internal"
-$bakExe     = Join-Path $app "BGDDR.exe.old-{oldver}"
+$bakExe     = Join-Path $app "GDES.exe.old-{oldver}"
 $bakInt     = Join-Path $app "_internal.old-{oldver}"
+
+# Fallback: also handle legacy BGDDR.exe name
+if (-not (Test-Path $exe)) {{
+    $exe = Join-Path $app "BGDDR.exe"
+    $bakExe = Join-Path $app "BGDDR.exe.old-{oldver}"
+}}
 
 try {{
     if (Test-Path $bakExe) {{ Remove-Item $bakExe -Force }}
     if (Test-Path $bakInt) {{ Remove-Item $bakInt -Recurse -Force }}
     Move-Item $exe $bakExe
     Move-Item $internal $bakInt
-    Move-Item (Join-Path $staging "BGDDR.exe") $exe
+    # Accept either GDES.exe or BGDDR.exe from the staging folder
+    $newExe = Join-Path $staging "GDES.exe"
+    if (-not (Test-Path $newExe)) {{ $newExe = Join-Path $staging "BGDDR.exe" }}
+    Move-Item $newExe $exe
     Move-Item (Join-Path $staging "_internal") $internal
     Log "swapped code -> {newver} (previous kept as *.old-{oldver})"
 }} catch {{

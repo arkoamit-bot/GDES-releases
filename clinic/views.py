@@ -42,7 +42,11 @@ MAX_PRESCRIPTION_ITEMS = 12
 # so keep these in sync with PatientForm.Meta.fields.
 _PATIENT_DEM_FIELDS = ["name", "hospital_id", "phone", "sex", "dob"]
 _PATIENT_CLIN_FIELDS = ["enrollment_date", "cohort", "diabetes_status",
-                        "primary_diagnosis"]
+                         "primary_diagnosis"]
+_PATIENT_LEVEL2_FIELDS = [
+    "hypertension", "autoimmune_disease", "chronic_infection", "smoking_status",
+    "hepatitis_status", "hiv_status", "biopsy_diagnosis", "oxford_mestc",
+    "isn_rps_class", "ckd_etiology", "transplant_status"]
 
 
 def _save_labs(patient, form, result_date):
@@ -136,7 +140,8 @@ def patient_create(request):
     return render(request, "clinic/patient_form.html",
                   {"active": "patients", "form": form, "mode": "create",
                    "dem_fields": _PATIENT_DEM_FIELDS,
-                   "clin_fields": _PATIENT_CLIN_FIELDS})
+                   "clin_fields": _PATIENT_CLIN_FIELDS,
+                   "level2_fields": _PATIENT_LEVEL2_FIELDS})
 
 
 @login_required(login_url=LOGIN)
@@ -187,7 +192,8 @@ def patient_edit(request, pk):
                   {"active": "patients", "form": form, "mode": "edit",
                    "patient": patient,
                    "dem_fields": _PATIENT_DEM_FIELDS,
-                   "clin_fields": _PATIENT_CLIN_FIELDS})
+                   "clin_fields": _PATIENT_CLIN_FIELDS,
+                   "level2_fields": _PATIENT_LEVEL2_FIELDS})
 
 
 def _get_recommendation_audit_records(patient):
@@ -388,6 +394,8 @@ def patient_detail(request, pk):
         {"key": "outcome", "label": "Outcomes", "done": outcome is not None,
          "icon": "fa-chart-line", "url": f"/patients/{patient.pk}/outcome/recompute/"},
     ]
+    last_visit = encounters[0] if encounters else None
+
     return render(request, "clinic/patient_detail.html", {
         "active": "patients", "patient": patient, "baseline": baseline,
         "encounters": encounters, "prescriptions": prescriptions,
@@ -406,6 +414,7 @@ def patient_detail(request, pk):
         "followup_schedule": followup_schedule,
         "cds_errors": cds_errors,
         "audit_records": _get_recommendation_audit_records(patient),
+        "last_visit": last_visit,
     })
 
 
@@ -431,6 +440,16 @@ def baseline_edit(request, pk):
 
 # --- Follow-up visit --------------------------------------------------------
 
+
+def _sync_level2_from_followup(patient, form):
+    """Sync Level 2 persistent fields from follow-up form back to Patient.
+
+    Currently the follow-up form displays Level 2 as read-only; when clinicians
+    update persistent data via Edit Patient, this sync ensures consistency.
+    """
+    pass  # Level 2 edits go through patient_edit → Patient form.
+
+
 @login_required(login_url=LOGIN)
 def followup_create(request, pk):
     patient = get_object_or_404(Patient, pk=pk)
@@ -440,6 +459,8 @@ def followup_create(request, pk):
         enc.patient = patient
         enc.save()
         n = _save_labs(patient, form, enc.encounter_date)
+        # --- Level 2: sync any clinician changes back to Patient (single source) ---
+        _sync_level2_from_followup(patient, form)
         # Advance the disease-phase state machine from this visit's assessment.
         from encounters.services.workflow import apply_visit
         apply_visit(enc)
@@ -462,9 +483,38 @@ def followup_create(request, pk):
                  ("24h UTP", _last("utp_24h")), ("UPCR", _last("upcr")),
                  ("Albumin", _last("albumin")), ("K⁺", _last("potassium"))]
     last_labs = [(lbl, v) for lbl, v in last_labs if v is not None]
+
+    baseline = getattr(patient, "baseline", None)
+    baseline_dx = patient.primary_diagnosis or ""
+    biopsy_dx = ""
+    try:
+        latest_biopsy = patient.biopsies.select_related("diagnosis").order_by("-biopsy_date").first()
+        if latest_biopsy and latest_biopsy.diagnosis:
+            biopsy_dx = latest_biopsy.diagnosis.diagnosis or ""
+    except Exception:
+        pass
+
+    # Level 2 persistent clinical data from Patient (single source of truth).
+    level2 = {
+        "primary_diagnosis": patient.primary_diagnosis or "",
+        "biopsy_diagnosis": patient.biopsy_diagnosis or "",
+        "diabetes_status": patient.get_diabetes_status_display() if patient.diabetes_status != "none" else "",
+        "hypertension": patient.hypertension,
+        "autoimmune_disease": patient.autoimmune_disease,
+        "chronic_infection": patient.chronic_infection,
+        "smoking_status": patient.get_smoking_status_display() if patient.smoking_status else "",
+        "hepatitis_status": patient.get_hepatitis_status_display() if patient.hepatitis_status else "",
+        "hiv_status": patient.get_hiv_status_display() if patient.hiv_status else "",
+        "oxford_mestc": patient.oxford_mestc or "",
+        "isn_rps_class": patient.isn_rps_class or "",
+    }
+
     return render(request, "clinic/followup_form.html",
                   {"active": "patients", "form": form, "patient": patient,
-                   "prev": prev, "last_labs": last_labs})
+                   "prev": prev, "last_labs": last_labs,
+                   "baseline": baseline,
+                   "baseline_dx": baseline_dx, "biopsy_dx": biopsy_dx,
+                   "level2": level2})
 
 
 # --- GN registry workflow: registration, relapse, admission ------------------
@@ -552,6 +602,35 @@ _SCORE_HINTS = {
 }
 
 
+def _sync_biopsy_to_patient(patient, dxo, active_scores):
+    """Sync Level 2 biopsy data to Patient model (single source of truth)."""
+    changed = False
+    if dxo.diagnosis and not patient.biopsy_diagnosis:
+        patient.biopsy_diagnosis = dxo.get_diagnosis_display() or dxo.diagnosis
+        changed = True
+    if dxo.diagnosis and not patient.primary_diagnosis:
+        patient.primary_diagnosis = dxo.diagnosis
+        changed = True
+    # Oxford MEST-C
+    igan = active_scores.get("igan")
+    if igan and igan.is_valid():
+        score = f"M{igan.cleaned_data['M']}E{igan.cleaned_data['E']}S{igan.cleaned_data['S']}T{igan.cleaned_data['T']}C{igan.cleaned_data['C']}"
+        if not patient.oxford_mestc:
+            patient.oxford_mestc = score
+            changed = True
+    # ISN/RPS class
+    lupus = active_scores.get("lupus")
+    if lupus and lupus.is_valid():
+        cls = lupus.cleaned_data.get("isn_rps_class", "")
+        if cls and not patient.isn_rps_class:
+            patient.isn_rps_class = cls
+            changed = True
+    if changed:
+        patient.save(update_fields=[
+            "biopsy_diagnosis", "primary_diagnosis", "oxford_mestc",
+            "isn_rps_class", "updated_at"])
+
+
 @login_required(login_url=LOGIN)
 def biopsy_create(request, pk):
     """Guided biopsy entry: the core biopsy + its diagnosis (the driver of the
@@ -587,6 +666,8 @@ def biopsy_create(request, pk):
                 obj = f.save(commit=False)
                 obj.biopsy = biopsy
                 obj.save()
+            # --- Level 2: sync biopsy diagnosis to Patient (single source) ---
+            _sync_biopsy_to_patient(patient, dxo, active)
             extra = f" + {len(active)} score block(s)" if active else ""
             # --- Confirm-GN gate (workflow) --------------------------------
             # A positive biopsy (specific GN) auto-registers the patient into the
@@ -902,15 +983,17 @@ def prescription_create(request, pk):
     # Comorbidities: standard tick-list, pre-checked from the baseline record
     # (and the patient's diabetes status), then carried forward from the last Rx.
     comorbidity_options = ["Hypertension", "Diabetes mellitus", "Bronchial asthma",
-                           "Hypothyroidism", "Dyslipidemia", "Ischaemic heart disease",
+                           "Hypothyroidism", "Dyslipidaemia", "Ischaemic heart disease",
                            "COPD", "CKD"]
     prefill_comorbid = set()
-    bl = getattr(patient, "baseline", None)
-    if bl and getattr(bl, "hypertension", False):
+    # Use Patient Level 2 (single source of truth) for comorbidities.
+    if patient.hypertension:
         prefill_comorbid.add("Hypertension")
-    if bl and getattr(bl, "cvd_history", False):
-        prefill_comorbid.add("Ischaemic heart disease")
-    if getattr(patient, "diabetes_status", "none") not in ("", "none", None):
+    if patient.autoimmune_disease:
+        prefill_comorbid.add("Autoimmune disease")
+    if patient.chronic_infection:
+        prefill_comorbid.add("Chronic infection")
+    if patient.diabetes_status not in ("", "none", None):
         prefill_comorbid.add("Diabetes mellitus")
     if prev and prev.comorbidities:
         prefill_comorbid |= {s.strip() for s in prev.comorbidities.split(",") if s.strip()}

@@ -58,6 +58,9 @@ node_modules/
 Thumbs.db
 .claude/settings.local.json
 
+# Scratch / per-machine customisations (never commit)
+*-Dr-Wasim.*
+
 # Keep the COMPILED stylesheet (static/css/app.css) and vendored JS committed so
 # the app runs without a Node build; only re-run `npm run build:css` when the
 # templates/CSS change.

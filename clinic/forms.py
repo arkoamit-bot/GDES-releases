@@ -124,13 +124,23 @@ class PatientForm(forms.ModelForm):
         # patient_id is auto-assigned (BGD-00001…); latest_egfr is set by labs.
         fields = ["name", "hospital_id", "phone", "sex", "dob",
                   "enrollment_date", "cohort", "diabetes_status",
-                  "primary_diagnosis"]
+                  "primary_diagnosis",
+                  # Level 2: persistent clinical data (single source of truth).
+                  "hypertension", "autoimmune_disease", "chronic_infection",
+                  "smoking_status", "hepatitis_status", "hiv_status",
+                  "biopsy_diagnosis", "oxford_mestc", "isn_rps_class",
+                  "ckd_etiology", "transplant_status"]
         widgets = {
             "dob": _date(),
             "enrollment_date": _date(),
         }
         help_texts = {
             "hospital_id": "Hospital/BIRDEM registration number (optional).",
+            "primary_diagnosis": "Primary GN diagnosis (auto-set from biopsy if available).",
+            "biopsy_diagnosis": "Diagnosis from biopsy report (auto-synced from pathology).",
+            "oxford_mestc": "Oxford MEST-C score (auto-synced from IgAN score).",
+            "isn_rps_class": "ISN/RPS class for lupus nephritis (auto-synced from pathology).",
+            "ckd_etiology": "CKD aetiology (auto-derived or clinician-entered).",
         }
 
 
