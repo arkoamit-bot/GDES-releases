@@ -32,6 +32,27 @@
 </div>
 {% endif %}
 
+{% if level2 %}
+<div class="card" style="border-left:4px solid #8b5cf6;margin-bottom:16px">
+  <div class="card-header" style="font-size:13px"><i class="fas fa-diagnoses text-purple-500"></i>
+    Persistent clinical record <span style="color:#94a3b8;font-weight:400;margin-left:6px">(auto-carried from Patient record — update via Edit Patient if changed)</span></div>
+  <div class="card-body" style="display:flex;flex-wrap:wrap;gap:14px 20px;font-size:13px">
+    {% if level2.primary_diagnosis %}<div><span style="color:#94a3b8">Primary GN diagnosis</span> <b>{{ level2.primary_diagnosis }}</b></div>{% endif %}
+    {% if level2.biopsy_diagnosis %}<div><span style="color:#94a3b8">Biopsy diagnosis</span> <b>{{ level2.biopsy_diagnosis }}</b></div>{% endif %}
+    {% if level2.oxford_mestc %}<div><span style="color:#94a3b8">Oxford MEST-C</span> <b>{{ level2.oxford_mestc }}</b></div>{% endif %}
+    {% if level2.isn_rps_class %}<div><span style="color:#94a3b8">ISN/RPS</span> <b>{{ level2.isn_rps_class }}</b></div>{% endif %}
+    {% if level2.diabetes_status %}<div><span style="color:#94a3b8">Diabetes</span> <b>{{ level2.diabetes_status }}</b></div>{% endif %}
+    {% if level2.hypertension %}<div><span style="color:#94a3b8">Hypertension</span> <b>Yes</b></div>{% endif %}
+    {% if level2.autoimmune_disease %}<div><span style="color:#94a3b8">Autoimmune disease</span> <b>Yes</b></div>{% endif %}
+    {% if level2.chronic_infection %}<div><span style="color:#94a3b8">Chronic infection</span> <b>Yes</b></div>{% endif %}
+    {% if level2.smoking_status %}<div><span style="color:#94a3b8">Smoking</span> <b>{{ level2.smoking_status }}</b></div>{% endif %}
+    {% if level2.hepatitis_status %}<div><span style="color:#94a3b8">Hepatitis</span> <b>{{ level2.hepatitis_status }}</b></div>{% endif %}
+    {% if level2.hiv_status %}<div><span style="color:#94a3b8">HIV</span> <b>{{ level2.hiv_status }}</b></div>{% endif %}
+    {% if baseline.height_cm %}<div><span style="color:#94a3b8">Height</span> <b>{{ baseline.height_cm }} cm</b></div>{% endif %}
+  </div>
+</div>
+{% endif %}
+
 <form method="post" autocomplete="off">
   {% csrf_token %}
   {% if form.non_field_errors %}<div class="msg error">{{ form.non_field_errors }}</div>{% endif %}

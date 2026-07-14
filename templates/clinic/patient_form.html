@@ -50,6 +50,29 @@
         </div>
         {% endif %}{% endfor %}
       </div>
+
+      <!-- Level 2: Persistent Clinical Record -->
+      {% if level2_fields %}
+      <div style="margin-top:20px;padding-top:16px;border-top:1px solid var(--line)">
+        <h4 style="font-size:14px;font-weight:600;color:#8b5cf6;margin-bottom:4px">
+          <i class="fas fa-database"></i> Persistent Clinical Record (Level 2)
+        </h4>
+        <p style="font-size:12px;color:#64748b;margin-bottom:12px">
+          These fields are entered once at baseline and auto-carried forward to all encounters.
+          Only update when a true clinical change occurs.
+        </p>
+        <div class="cols2">
+          {% for f in form %}{% if f.name in level2_fields %}
+          <div class="frow">
+            <label for="{{ f.id_for_label }}">{{ f.label }}</label>
+            {{ f }}
+            {% if f.help_text %}<div class="help">{{ f.help_text }}</div>{% endif %}
+            {% if f.errors %}<div class="errs">{{ f.errors|striptags }}</div>{% endif %}
+          </div>
+          {% endif %}{% endfor %}
+        </div>
+      </div>
+      {% endif %}
     </div>
 
     <!-- Step 3 — Review -->

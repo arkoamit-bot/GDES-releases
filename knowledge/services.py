@@ -67,6 +67,16 @@ def extract_patient_features(patient: Patient) -> dict:
         if age_years < 18:
             features["ageGroup"] = "child"
 
+    # --- Level 2: persistent clinical features from Patient (single source) ---
+    # Ensures reasoning always has access to comorbidity data even if
+    # encounter-level data is missing.
+    if patient.hypertension and "hypertension" not in features["features"]:
+        features["features"].append("hypertension")
+    if patient.autoimmune_disease and "autoimmune" not in features["features"]:
+        features["features"].append("autoimmune")
+    if patient.chronic_infection and "chronicInfection" not in features["features"]:
+        features["features"].append("chronicInfection")
+
     # --- Clinical features from latest encounter ---
     latest_encounter = (
         patient.encounters.order_by("-encounter_date").first()
@@ -169,6 +179,7 @@ def extract_patient_features(patient: Patient) -> dict:
         from pathology.models import Biopsy, GNDiagnosis, IgANScore
         biopsy = patient.biopsies.order_by("-biopsy_date").first()
         if biopsy:
+            features["biopsy"].append("biopsy_done")
             # Check GN diagnosis
             gn_dx = getattr(biopsy, "diagnosis", None)
             if gn_dx:

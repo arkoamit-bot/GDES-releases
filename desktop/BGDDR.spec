@@ -1,15 +1,62 @@
 # -*- mode: python ; coding: utf-8 -*-
 """
-PyInstaller spec for the BGDDR single-user Windows desktop build.
+PyInstaller spec for the GDES single-user Windows desktop build.
 
 Build from the project root:
 
     pyinstaller desktop/BGDDR.spec --noconfirm
 
-Produces  dist/BGDDR/BGDDR.exe  plus its support files. Copy the dist/BGDDR
+Produces  dist/GDES/GDES.exe  plus its support files. Copy the dist/GDES
 folder to where the user wants it (e.g. inside OneDrive); db.sqlite3, Backups/,
-Exports/, Media/ and Logs/ are created next to BGDDR.exe on first run.
+Exports/, Media/ and Logs/ are created next to GDES.exe on first run.
 """
+# --- Build-time shim for Python 3.14 shutil.copyfile COLLECT bug ----------
+# Patches BOTH shutil.copyfile AND PyInstaller's assemble to handle the
+# [Errno 22] Invalid argument that occurs when reading certain binary files.
+import shutil as _shutil_shim
+import os as _os_shim
+if not getattr(_shutil_shim, "_gdes_patched", False):
+    _orig_copyfile = _shutil_shim.copyfile
+    def _safe_copyfile(src, dst, *, follow_symlinks=True):
+        try:
+            return _orig_copyfile(src, dst, follow_symlinks=follow_symlinks)
+        except OSError:
+            # Fallback: binary chunk copy with per-chunk error handling
+            try:
+                size = _os_shim.path.getsize(src)
+            except Exception:
+                size = 0
+            with open(src, "rb") as _fs, open(dst, "wb") as _fd:
+                pos = 0
+                while True:
+                    try:
+                        _fs.seek(pos)
+                        data = _fs.read(1024 * 1024)
+                    except (OSError, ValueError):
+                        break
+                    if not data:
+                        break
+                    _fd.write(data)
+                    pos += len(data)
+    _shutil_shim.copyfile = _safe_copyfile
+    _shutil_shim._gdes_patched = True
+
+# Also patch PyInstaller's COLLECT.assemble to use the safe copy
+try:
+    import PyInstaller.building.api as _api
+    _orig_assemble = _api.COLLECT.assemble
+    def _safe_assemble(self):
+        import shutil
+        _saved = shutil.copyfile
+        shutil.copyfile = _safe_copyfile
+        try:
+            return _orig_assemble(self)
+        finally:
+            shutil.copyfile = _saved
+    _api.COLLECT.assemble = _safe_assemble
+except Exception:
+    pass
+
 import os
 from pathlib import Path
 
@@ -94,7 +141,9 @@ a = Analysis(
     hookspath=[],
     hooksconfig={},
     runtime_hooks=[],
-    excludes=["tkinter.test", "test", "tests"],
+    excludes=["tkinter.test", "test", "tests",
+              "pandas.tests", "numpy.tests", "numpy.typing.tests",
+              "scipy.tests", "celery.contrib.pytest", "kombu.tests"],
     win_no_prefer_redirects=False,
     win_private_assemblies=False,
     cipher=block_cipher,
@@ -108,7 +157,7 @@ exe = EXE(
     a.scripts,
     [],
     exclude_binaries=True,
-    name="BGDDR",
+    name="GDES",
     debug=False,
     bootloader_ignore_signals=False,
     strip=False,
@@ -129,5 +178,5 @@ coll = COLLECT(
     strip=False,
     upx=True,
     upx_exclude=[],
-    name="BGDDR",
+    name="GDES",
 )

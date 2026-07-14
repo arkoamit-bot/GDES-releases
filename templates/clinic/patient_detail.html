@@ -186,8 +186,13 @@
             <div style="font-size:11px;color:#94a3b8">{{ prot_label }}</div>
           </div>
           <div style="background:#fff;border:1px solid var(--line);border-radius:14px;padding:16px;text-align:center">
+            <div style="font-size:11px;font-weight:600;color:#64748b;text-transform:uppercase">Height</div>
+            <div style="font-size:24px;font-weight:700;color:var(--ink);margin-top:4px">{% if baseline.height_cm %}{{ baseline.height_cm }}{% else %}—{% endif %}</div>
+            <div style="font-size:11px;color:#94a3b8">cm</div>
+          </div>
+          <div style="background:#fff;border:1px solid var(--line);border-radius:14px;padding:16px;text-align:center">
             <div style="font-size:11px;font-weight:600;color:#64748b;text-transform:uppercase">Weight</div>
-            <div style="font-size:24px;font-weight:700;color:var(--ink);margin-top:4px">{% if last_visit.weight_kg %}{{ last_visit.weight_kg }}{% else %}—{% endif %}</div>
+            <div style="font-size:24px;font-weight:700;color:var(--ink);margin-top:4px">{% if last_visit.weight_kg %}{{ last_visit.weight_kg }}{% elif baseline.weight_kg %}{{ baseline.weight_kg }}{% else %}—{% endif %}</div>
             <div style="font-size:11px;color:#94a3b8">kg</div>
           </div>
         </div>
@@ -334,6 +339,31 @@
       </div>
     </div>
   </div>
+
+  <!-- Level 2: Persistent Clinical Record (single source of truth) -->
+  {% if patient.primary_diagnosis or patient.biopsy_diagnosis or patient.hypertension or patient.autoimmune_disease or patient.chronic_infection or patient.diabetes_status != "none" %}
+  <div class="card" style="margin-bottom:16px;border-left:4px solid #8b5cf6">
+    <div class="card-header"><i class="fas fa-database text-purple-500"></i> Persistent Clinical Record
+      <span style="color:#94a3b8;font-weight:400;margin-left:6px;font-size:12px">(Level 2 · single source of truth)</span>
+      <a href="{% url 'clinic:patient_edit' patient.pk %}" class="btn ghost sm" style="margin-left:auto"><i class="fas fa-pen"></i> Edit</a>
+    </div>
+    <div class="card-body" style="display:flex;flex-wrap:wrap;gap:14px 24px;font-size:13px">
+      {% if patient.primary_diagnosis %}<div><span style="color:#94a3b8">Primary GN</span> <b>{{ patient.primary_diagnosis }}</b></div>{% endif %}
+      {% if patient.biopsy_diagnosis %}<div><span style="color:#94a3b8">Biopsy diagnosis</span> <b>{{ patient.biopsy_diagnosis }}</b></div>{% endif %}
+      {% if patient.oxford_mestc %}<div><span style="color:#94a3b8">Oxford MEST-C</span> <b>{{ patient.oxford_mestc }}</b></div>{% endif %}
+      {% if patient.isn_rps_class %}<div><span style="color:#94a3b8">ISN/RPS</span> <b>{{ patient.isn_rps_class }}</b></div>{% endif %}
+      {% if patient.diabetes_status and patient.diabetes_status != "none" %}<div><span style="color:#94a3b8">Diabetes</span> <b>{{ patient.get_diabetes_status_display }}</b></div>{% endif %}
+      {% if patient.hypertension %}<div><span style="color:#94a3b8">Hypertension</span> <span class="badge warn">Yes</span></div>{% endif %}
+      {% if patient.autoimmune_disease %}<div><span style="color:#94a3b8">Autoimmune</span> <span class="badge warn">Yes</span></div>{% endif %}
+      {% if patient.chronic_infection %}<div><span style="color:#94a3b8">Chronic infection</span> <span class="badge warn">Yes</span></div>{% endif %}
+      {% if patient.smoking_status %}<div><span style="color:#94a3b8">Smoking</span> <b>{{ patient.get_smoking_status_display }}</b></div>{% endif %}
+      {% if patient.hepatitis_status %}<div><span style="color:#94a3b8">Hepatitis</span> <b>{{ patient.get_hepatitis_status_display }}</b></div>{% endif %}
+      {% if patient.hiv_status %}<div><span style="color:#94a3b8">HIV</span> <b>{{ patient.get_hiv_status_display }}</b></div>{% endif %}
+      {% if patient.transplant_status and patient.transplant_status != "none" %}<div><span style="color:#94a3b8">Transplant</span> <b>{{ patient.get_transplant_status_display }}</b></div>{% endif %}
+      {% if patient.ckd_etiology %}<div><span style="color:#94a3b8">CKD aetiology</span> <b>{{ patient.ckd_etiology }}</b></div>{% endif %}
+    </div>
+  </div>
+  {% endif %}
 
   <!-- Lab trend chart -->
   <div class="card" style="margin-bottom:16px">

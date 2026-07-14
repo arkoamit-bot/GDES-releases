@@ -28,7 +28,7 @@
 
 <div class="section-title" id="firstrun"><i class="fas fa-folder-tree mr-1"></i> 1. First-run folder setup</div>
 <div class="card" style="margin-bottom:16px"><div class="card-body" style="font-size:13.5px;color:#334155;line-height:1.7">
-  <p>On first launch a wizard asks where to keep <strong>Backups</strong>, <strong>Media</strong> and (optionally) <strong>Updates</strong>. It suggests <code>…\OneDrive\BGDDR-Backups</code>, <code>-Media</code> and <code>-Update</code>. The choice is saved in <code>bgddr_paths.json</code> next to the app and is not asked again.</p>
+  <p>On first launch a wizard asks where to keep <strong>Backups</strong>, <strong>Media</strong> and (optionally) <strong>Updates</strong>. It suggests <code>…\OneDrive\GDES-Backups</code>, <code>-Media</code> and <code>-Update</code>. The choice is saved in <code>bgddr_paths.json</code> next to the app and is not asked again.</p>
   <p>To change it later, set the environment variables <code>BGDDR_BACKUP_DIR</code>, <code>BGDDR_MEDIA_DIR</code>, <code>BGDDR_UPDATE_DIR</code> (they override the saved choice), or edit <code>bgddr_paths.json</code>.</p>
 </div></div>
 
@@ -72,7 +72,7 @@ python manage.py restore_db &lt;name&gt; --yes   # restore a specific backup</di
 
 <div class="section-title" id="layout"><i class="fas fa-shield-halved mr-1"></i> 6. OneDrive layout &amp; data safety</div>
 <div class="card" style="margin-bottom:16px"><div class="card-body" style="font-size:13.5px;color:#334155;line-height:1.7">
-  <p>Keep the <strong>app and <code>db.sqlite3</code> on local disk</strong> (e.g. <code>C:\BGDDR\</code>) and point only <strong>Backups</strong>, <strong>Media</strong> and <strong>Update</strong> at OneDrive.</p>
+  <p>Keep the <strong>app and <code>db.sqlite3</code> on local disk</strong> (e.g. <code>C:\GDES\</code>) and point only <strong>Backups</strong>, <strong>Media</strong> and <strong>Update</strong> at OneDrive.</p>
   <p><strong>Why:</strong> OneDrive continuously syncing a live, actively-written SQLite file can corrupt it. Backup snapshots are closed files and media are write-once, so syncing those is safe and gives off-machine copies. The <code>db.sqlite3-wal</code>/<code>-shm</code> sidecar files belong next to the database on local disk and must <strong>not</strong> be synced.</p>
 </div></div>
 
@@ -82,7 +82,7 @@ python manage.py restore_db &lt;name&gt; --yes   # restore a specific backup</di
     <li><strong>Nothing happens / error on launch</strong> — check <code>Logs\bgddr.log</code>.</li>
     <li><strong>Port already in use</strong> — set <code>BGDDR_PORT</code> to a free port and relaunch.</li>
     <li><strong>Forgot admin password</strong> — <code>python manage.py changepassword &lt;username&gt;</code>.</li>
-    <li><strong>An update broke something</strong> — close the app; rename <code>BGDDR.exe.old-&lt;version&gt;</code>→<code>BGDDR.exe</code> and <code>_internal.old-&lt;version&gt;</code>→<code>_internal</code>, relaunch, and restore the <code>pre_update</code> backup if needed. See <code>Logs\update.log</code>.</li>
+    <li><strong>An update broke something</strong> — close the app; rename <code>GDES.exe.old-&lt;version&gt;</code>→<code>GDES.exe</code> and <code>_internal.old-&lt;version&gt;</code>→<code>_internal</code>, relaunch, and restore the <code>pre_update</code> backup if needed. See <code>Logs\update.log</code>.</li>
   </ul>
   <p style="color:#64748b">The full reference is in <code>DESKTOP_DEPLOYMENT.md</code> shipped with the app.</p>
 </div></div>

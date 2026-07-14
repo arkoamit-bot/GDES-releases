@@ -82,6 +82,41 @@ class Patient(models.Model):
     primary_diagnosis = models.CharField(
         max_length=120, blank=True, choices=choices.SPECIFIC_GN_DIAGNOSIS)
 
+    # --- Level 2: Persistent clinical data (single source of truth) ---------
+    # Entered once at baseline; auto-carried-forward to all encounters.
+    # Clinicians update only when a true clinical change occurs.
+    hypertension = models.BooleanField(default=False)
+    autoimmune_disease = models.BooleanField(default=False)
+    chronic_infection = models.BooleanField(
+        default=False, help_text="HBV / HCV / HIV / TB")
+    smoking_status = models.CharField(
+        max_length=20, blank=True, choices=choices.SMOKING)
+    hepatitis_status = models.CharField(
+        max_length=20, blank=True,
+        choices=[("", "—"), ("negative", "Negative"), ("hbv", "HBV"),
+                 ("hcv", "HCV"), ("both", "HBV + HCV")])
+    hiv_status = models.CharField(
+        max_length=10, blank=True,
+        choices=[("", "—"), ("negative", "Negative"), ("positive", "Positive")])
+    biopsy_diagnosis = models.CharField(
+        max_length=120, blank=True,
+        help_text="GN diagnosis from biopsy (auto-synced from GNDiagnosis)")
+    oxford_mestc = models.CharField(
+        max_length=20, blank=True,
+        help_text="Oxford MEST-C summary (auto-synced from IgANScore)")
+    isn_rps_class = models.CharField(
+        max_length=10, blank=True,
+        help_text="ISN/RPS class for lupus nephritis (auto-synced)")
+    ckd_etiology = models.CharField(
+        max_length=120, blank=True,
+        help_text="CKD aetiology (auto-derived or clinician-entered)")
+    transplant_status = models.CharField(
+        max_length=20, blank=True,
+        choices=[("", "—"), ("none", "No transplant"),
+                 ("preemptive", "Pre-emptive transplant"),
+                 ("living", "Living donor transplant"),
+                 ("deceased", "Deceased donor transplant")])
+
     # Latest known renal function, refreshed by the labs app.
     latest_egfr = models.DecimalField(
         max_digits=5, decimal_places=1, null=True, blank=True
