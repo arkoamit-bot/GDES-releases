@@ -101,6 +101,14 @@ class Patient(models.Model):
     biopsy_diagnosis = models.CharField(
         max_length=120, blank=True,
         help_text="GN diagnosis from biopsy (auto-synced from GNDiagnosis)")
+    gn_broad_group = models.CharField(
+        max_length=80, blank=True, choices=choices.GN_BROAD_GROUP,
+        help_text="Broad disease category (auto-synced from GNDiagnosis)")
+    gn_primary_secondary = models.CharField(
+        max_length=10, blank=True,
+        choices=[("", "—"), ("primary", "Primary"), ("secondary", "Secondary"),
+                 ("unknown", "Unknown")],
+        help_text="Primary vs secondary GN (auto-synced from GNDiagnosis)")
     oxford_mestc = models.CharField(
         max_length=20, blank=True,
         help_text="Oxford MEST-C summary (auto-synced from IgANScore)")

@@ -45,8 +45,9 @@ _PATIENT_CLIN_FIELDS = ["enrollment_date", "cohort", "diabetes_status",
                          "primary_diagnosis"]
 _PATIENT_LEVEL2_FIELDS = [
     "hypertension", "autoimmune_disease", "chronic_infection", "smoking_status",
-    "hepatitis_status", "hiv_status", "biopsy_diagnosis", "oxford_mestc",
-    "isn_rps_class", "ckd_etiology", "transplant_status"]
+    "hepatitis_status", "hiv_status", "biopsy_diagnosis", "gn_broad_group",
+    "gn_primary_secondary", "oxford_mestc", "isn_rps_class",
+    "ckd_etiology", "transplant_status"]
 
 
 def _save_labs(patient, form, result_date):
@@ -498,6 +499,8 @@ def followup_create(request, pk):
     level2 = {
         "primary_diagnosis": patient.primary_diagnosis or "",
         "biopsy_diagnosis": patient.biopsy_diagnosis or "",
+        "gn_broad_group": patient.gn_broad_group or "",
+        "gn_primary_secondary": patient.gn_primary_secondary or "",
         "diabetes_status": patient.get_diabetes_status_display() if patient.diabetes_status != "none" else "",
         "hypertension": patient.hypertension,
         "autoimmune_disease": patient.autoimmune_disease,
@@ -611,6 +614,12 @@ def _sync_biopsy_to_patient(patient, dxo, active_scores):
     if dxo.diagnosis and not patient.primary_diagnosis:
         patient.primary_diagnosis = dxo.diagnosis
         changed = True
+    if dxo.broad_group and not patient.gn_broad_group:
+        patient.gn_broad_group = dxo.broad_group
+        changed = True
+    if dxo.primary_secondary and not patient.gn_primary_secondary:
+        patient.gn_primary_secondary = dxo.primary_secondary
+        changed = True
     # Oxford MEST-C
     igan = active_scores.get("igan")
     if igan and igan.is_valid():
@@ -627,7 +636,8 @@ def _sync_biopsy_to_patient(patient, dxo, active_scores):
             changed = True
     if changed:
         patient.save(update_fields=[
-            "biopsy_diagnosis", "primary_diagnosis", "oxford_mestc",
+            "biopsy_diagnosis", "primary_diagnosis", "gn_broad_group",
+            "gn_primary_secondary", "oxford_mestc",
             "isn_rps_class", "updated_at"])
 
 

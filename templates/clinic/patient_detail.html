@@ -341,15 +341,17 @@
   </div>
 
   <!-- Level 2: Persistent Clinical Record (single source of truth) -->
-  {% if patient.primary_diagnosis or patient.biopsy_diagnosis or patient.hypertension or patient.autoimmune_disease or patient.chronic_infection or patient.diabetes_status != "none" %}
+  {% if patient.primary_diagnosis or patient.biopsy_diagnosis or patient.gn_broad_group or patient.gn_primary_secondary or patient.hypertension or patient.autoimmune_disease or patient.chronic_infection or patient.diabetes_status != "none" %}
   <div class="card" style="margin-bottom:16px;border-left:4px solid #8b5cf6">
     <div class="card-header"><i class="fas fa-database text-purple-500"></i> Persistent Clinical Record
       <span style="color:#94a3b8;font-weight:400;margin-left:6px;font-size:12px">(Level 2 · single source of truth)</span>
       <a href="{% url 'clinic:patient_edit' patient.pk %}" class="btn ghost sm" style="margin-left:auto"><i class="fas fa-pen"></i> Edit</a>
     </div>
     <div class="card-body" style="display:flex;flex-wrap:wrap;gap:14px 24px;font-size:13px">
-      {% if patient.primary_diagnosis %}<div><span style="color:#94a3b8">Primary GN</span> <b>{{ patient.primary_diagnosis }}</b></div>{% endif %}
-      {% if patient.biopsy_diagnosis %}<div><span style="color:#94a3b8">Biopsy diagnosis</span> <b>{{ patient.biopsy_diagnosis }}</b></div>{% endif %}
+    {% if patient.primary_diagnosis %}<div><span style="color:#94a3b8">Primary GN</span> <b>{{ patient.primary_diagnosis }}</b></div>{% endif %}
+    {% if patient.gn_broad_group %}<div><span style="color:#94a3b8">Broad group</span> <b>{{ patient.get_gn_broad_group_display }}</b></div>{% endif %}
+    {% if patient.gn_primary_secondary %}<div><span style="color:#94a3b8">Primary/Secondary</span> <b>{{ patient.get_gn_primary_secondary_display }}</b></div>{% endif %}
+    {% if patient.biopsy_diagnosis %}<div><span style="color:#94a3b8">Biopsy diagnosis</span> <b>{{ patient.biopsy_diagnosis }}</b></div>{% endif %}
       {% if patient.oxford_mestc %}<div><span style="color:#94a3b8">Oxford MEST-C</span> <b>{{ patient.oxford_mestc }}</b></div>{% endif %}
       {% if patient.isn_rps_class %}<div><span style="color:#94a3b8">ISN/RPS</span> <b>{{ patient.isn_rps_class }}</b></div>{% endif %}
       {% if patient.diabetes_status and patient.diabetes_status != "none" %}<div><span style="color:#94a3b8">Diabetes</span> <b>{{ patient.get_diabetes_status_display }}</b></div>{% endif %}

@@ -38,6 +38,8 @@
     Persistent clinical record <span style="color:#94a3b8;font-weight:400;margin-left:6px">(auto-carried from Patient record — update via Edit Patient if changed)</span></div>
   <div class="card-body" style="display:flex;flex-wrap:wrap;gap:14px 20px;font-size:13px">
     {% if level2.primary_diagnosis %}<div><span style="color:#94a3b8">Primary GN diagnosis</span> <b>{{ level2.primary_diagnosis }}</b></div>{% endif %}
+    {% if level2.gn_broad_group %}<div><span style="color:#94a3b8">Broad group</span> <b>{{ level2.gn_broad_group }}</b></div>{% endif %}
+    {% if level2.gn_primary_secondary %}<div><span style="color:#94a3b8">Primary/Secondary</span> <b>{{ level2.gn_primary_secondary }}</b></div>{% endif %}
     {% if level2.biopsy_diagnosis %}<div><span style="color:#94a3b8">Biopsy diagnosis</span> <b>{{ level2.biopsy_diagnosis }}</b></div>{% endif %}
     {% if level2.oxford_mestc %}<div><span style="color:#94a3b8">Oxford MEST-C</span> <b>{{ level2.oxford_mestc }}</b></div>{% endif %}
     {% if level2.isn_rps_class %}<div><span style="color:#94a3b8">ISN/RPS</span> <b>{{ level2.isn_rps_class }}</b></div>{% endif %}
