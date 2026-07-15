@@ -65,8 +65,41 @@ class Biopsy(models.Model):
     crescent_pct = models.DecimalField(max_digits=5, decimal_places=1, null=True, blank=True)
     necrosis_present = models.BooleanField(default=False)
 
-    if_pattern = models.CharField(max_length=120, blank=True)
-    em_findings = models.TextField(blank=True)
+    if_pattern = models.CharField(
+        max_length=120, blank=True,
+        choices=[
+            ("", "—"),
+            ("mesangial_iga", "Mesangial IgA"),
+            ("full_house", "Full-house (IgG/IgA/IgM/C3/C1q)"),
+            ("granular_capillary_subendothelial", "Granular capillary wall — subendothelial"),
+            ("granular_capillary_subepithelial", "Granular capillary wall — subepithelial"),
+            ("linear_igg", "Linear IgG (anti-GBM pattern)"),
+            ("pauci_immune", "Pauci-immune / no immune deposits"),
+            ("mesangial_c3", "Mesangial C3"),
+            ("mesangial_igg", "Mesangial IgG"),
+            ("c3_dominant", "C3 dominant (starry sky)"),
+            ("granular_mesangial_capillary", "Granular mesangial + capillary wall"),
+            ("other", "Other (specify in notes)"),
+        ],
+        help_text="Immunofluorescence pattern on biopsy")
+    em_findings = models.TextField(
+        blank=True,
+        choices=[
+            ("", "—"),
+            ("normal", "Normal ultrastructure"),
+            ("mesangial_expansion", "Mesangial matrix expansion"),
+            ("subendothelial_deposits", "Subendothelial electron-dense deposits"),
+            ("subepithelial_deposits", "Subepithelial electron-dense deposits"),
+            ("mesangial_deposits", "Mesangial electron-dense deposits"),
+            ("intramembranous_deposits", "Intramembranous deposits"),
+            ("foot_process_effacement", "Foot process effacement"),
+            ("basement_membrane_thinning", "GBM thinning"),
+            ("basement_membrane_irregularity", "GBM irregularity/double contours"),
+            ("electron_dense_cryoglobulin", "Electron-dense cryoglobulin-like deposits"),
+            ("fibrillary_deposits", "Fibrillary/tubulointerstitial deposits"),
+            ("other", "Other (specify in notes)"),
+        ],
+        help_text="Electron microscopy findings")
     notes = models.TextField(blank=True)
 
     created_at = models.DateTimeField(auto_now_add=True)

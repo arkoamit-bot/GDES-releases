@@ -266,10 +266,9 @@ class BiopsyForm(forms.ModelForm):
         exclude = ["patient", "review_status", "created_at", "updated_at"]
         widgets = {
             "biopsy_date": _date(),
-            "em_findings": forms.Textarea(attrs={"rows": 2}),
+            "em_findings": forms.Select(),
             "notes": forms.Textarea(attrs={"rows": 2}),
-            "if_pattern": forms.TextInput(
-                attrs={"placeholder": "e.g. mesangial IgA, full-house"}),
+            "if_pattern": forms.Select(),
         }
 
 
