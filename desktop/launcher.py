@@ -298,22 +298,33 @@ _GITHUB_API = "https://api.github.com/repos/{repo}/releases/latest"
 
 
 def _resolve_update_dir(root: Path) -> str | None:
-    """Where published updates live. Precedence: env var > saved config >
-    <OneDrive>/GDES-Update. Returns None when no update folder is configured."""
+    """Where published updates live. Returns the single best candidate.
+    (Legacy — prefer _collect_update_dirs for multi-dir fallback.)"""
+    dirs = _collect_update_dirs(root)
+    return dirs[0] if dirs else None
+
+
+def _collect_update_dirs(root: Path) -> list[str]:
+    """Return all candidate update directories, highest priority first.
+
+    Env var > saved config > <OneDrive>/GDES-Update > <OneDrive>/BGDDR-Update.
+    The caller tries each in order; the first that has a newer manifest wins.
+    """
+    dirs: list[str] = []
     env = os.environ.get("BGDDR_UPDATE_DIR")
     if env:
-        return env
+        dirs.append(env)
     saved = _read_paths_config(root / _PATHS_CONFIG_NAME) or {}
-    if saved.get("update_dir"):
-        return saved["update_dir"]
+    if saved.get("update_dir") and saved["update_dir"] not in dirs:
+        dirs.append(saved["update_dir"])
     onedrive = os.environ.get("OneDrive") or os.environ.get("OneDriveConsumer") \
         or os.environ.get("OneDriveCommercial") or ""
     if onedrive and Path(onedrive).is_dir():
         for name in ("GDES-Update", "BGDDR-Update"):
-            cand = Path(onedrive) / name
-            if cand.is_dir():
-                return str(cand)
-    return None
+            cand = str(Path(onedrive) / name)
+            if cand not in dirs and Path(cand).is_dir():
+                dirs.append(cand)
+    return dirs
 
 
 def _github_update_available(current: str) -> dict | None:
@@ -370,7 +381,12 @@ def _github_update_available(current: str) -> dict | None:
             "notes": data.get("body") or "",
         }
     except Exception as exc:
-        log(f"GitHub update check failed: {exc}")
+        code = getattr(exc, "code", None)
+        if code == 404:
+            log(f"GitHub update check: repo '{_GITHUB_REPO}' not found (404). "
+                "Set BGDDR_GITHUB_REPO env var if the repo was moved or renamed.")
+        else:
+            log(f"GitHub update check failed: {exc}")
         return None
 
 
@@ -458,13 +474,18 @@ def run_update_check(root: Path, interactive: bool = True) -> bool:
         return False
 
     manifest = None
-    update_dir = _resolve_update_dir(root)
+    update_dir = None
     github_mode = False
-    if update_dir:
+    for candidate in _collect_update_dirs(root):
         try:
-            manifest = updater.check_for_update(Path(update_dir), current)
+            md = updater.check_for_update(Path(candidate), current)
+            if md:
+                manifest = md
+                update_dir = candidate
+                break
         except Exception as exc:
-            log(f"Local update check failed: {exc}")
+            log(f"Update check failed for {candidate}: {exc}")
+            continue
     if not manifest:
         manifest = _github_update_available(current)
         github_mode = bool(manifest)

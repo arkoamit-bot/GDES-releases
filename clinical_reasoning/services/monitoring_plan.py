@@ -1,4 +1,4 @@
-"""Monitoring Plan Generator — generates disease-specific and treatment-specific
+﻿"""Monitoring Plan Generator â€” generates disease-specific and treatment-specific
 monitoring protocols with risk-adjusted intervals.
 
 Aligns with GDES vision: "automated monitoring plan generation based on disease
@@ -22,11 +22,11 @@ DISEASE_MONITORING_PROTOCOLS: dict[str, dict[str, Any]] = {
     "iga": {
         "disease_name": "IgA Nephropathy",
         "parameters": [
-            {"name": "UPCR", "interval_days": 30, "target": "<0.5 g/day", "alert_above": 1.0, "unit": "g/day"},
-            {"name": "Serum creatinine", "interval_days": 30, "target": "Stable", "alert_pct_decline": 20, "unit": "µmol/L"},
+            {"name": "24h UTP (g/day)", "interval_days": 30, "target": "<0.5 g/day", "alert_above": 1.0, "unit": "g/day"},
+            {"name": "Serum creatinine", "interval_days": 30, "target": "Stable", "alert_pct_decline": 20, "unit": "Âµmol/L"},
             {"name": "Blood pressure", "interval_days": 14, "target": "<130/80 mmHg", "alert_above": "140/90", "unit": "mmHg"},
             {"name": "Serum potassium", "interval_days": 30, "target": "3.5-5.0 mEq/L", "alert_above": 5.5, "unit": "mEq/L"},
-            {"name": "eGFR", "interval_days": 30, "target": "Stable", "alert_pct_decline": 20, "unit": "mL/min/1.73m²"},
+            {"name": "eGFR", "interval_days": 30, "target": "Stable", "alert_pct_decline": 20, "unit": "mL/min/1.73mÂ²"},
         ],
         "treatment_monitoring": {
             "acei_arb": [
@@ -47,14 +47,14 @@ DISEASE_MONITORING_PROTOCOLS: dict[str, dict[str, Any]] = {
         "disease_name": "Membranous Nephropathy",
         "parameters": [
             {"name": "PLA2R antibody", "interval_days": 90, "target": "Undetectable", "alert_if_persistent": True, "unit": "EU/mL"},
-            {"name": "UPCR", "interval_days": 30, "target": "<0.3 g/day", "alert_above": 3.5, "unit": "g/day"},
+            {"name": "24h UTP (g/day)", "interval_days": 30, "target": "<0.3 g/day", "alert_above": 3.5, "unit": "g/day"},
             {"name": "Serum albumin", "interval_days": 30, "target": ">3.0 g/dL", "alert_below": 2.5, "unit": "g/dL"},
-            {"name": "Serum creatinine", "interval_days": 30, "target": "Stable", "alert_pct_decline": 20, "unit": "µmol/L"},
-            {"name": "eGFR", "interval_days": 30, "target": "Stable", "alert_pct_decline": 20, "unit": "mL/min/1.73m²"},
+            {"name": "Serum creatinine", "interval_days": 30, "target": "Stable", "alert_pct_decline": 20, "unit": "Âµmol/L"},
+            {"name": "eGFR", "interval_days": 30, "target": "Stable", "alert_pct_decline": 20, "unit": "mL/min/1.73mÂ²"},
         ],
         "treatment_monitoring": {
             "rituximab": [
-                {"name": "CD19+ B-cells", "interval_days": 90, "target": "<5 cells/µL", "alert_above": 10},
+                {"name": "CD19+ B-cells", "interval_days": 90, "target": "<5 cells/ÂµL", "alert_above": 10},
                 {"name": "Immunoglobulins", "interval_days": 180, "target": "Normal", "alert_below": 400},
             ],
             "cyclophosphamide": [
@@ -65,7 +65,7 @@ DISEASE_MONITORING_PROTOCOLS: dict[str, dict[str, Any]] = {
     "mcd": {
         "disease_name": "Minimal Change Disease",
         "parameters": [
-            {"name": "UPCR", "interval_days": 14, "target": "<0.3 g/day", "alert_above": 3.5, "unit": "g/day"},
+            {"name": "24h UTP (g/day)", "interval_days": 14, "target": "<0.3 g/day", "alert_above": 3.5, "unit": "g/day"},
             {"name": "Serum albumin", "interval_days": 30, "target": ">3.5 g/dL", "alert_below": 3.0, "unit": "g/dL"},
             {"name": "Blood glucose", "interval_days": 7, "target": "<200 mg/dL", "alert_above": 250, "unit": "mg/dL"},
             {"name": "Blood pressure", "interval_days": 14, "target": "<130/80 mmHg", "alert_above": "140/90", "unit": "mmHg"},
@@ -76,17 +76,17 @@ DISEASE_MONITORING_PROTOCOLS: dict[str, dict[str, Any]] = {
                 {"name": "Blood pressure", "interval_days": 14, "target": "<140/90", "alert_above": 160/100},
             ],
             "rituximab": [
-                {"name": "CD19+ B-cells", "interval_days": 90, "target": "<5 cells/µL", "alert_above": 10},
+                {"name": "CD19+ B-cells", "interval_days": 90, "target": "<5 cells/ÂµL", "alert_above": 10},
             ],
         },
     },
     "fsgs": {
         "disease_name": "Focal Segmental Glomerulosclerosis",
         "parameters": [
-            {"name": "UPCR", "interval_days": 30, "target": "<0.3 g/day", "alert_above": 3.5, "unit": "g/day"},
-            {"name": "Serum creatinine", "interval_days": 30, "target": "Stable", "alert_pct_decline": 20, "unit": "µmol/L"},
+            {"name": "24h UTP (g/day)", "interval_days": 30, "target": "<0.3 g/day", "alert_above": 3.5, "unit": "g/day"},
+            {"name": "Serum creatinine", "interval_days": 30, "target": "Stable", "alert_pct_decline": 20, "unit": "Âµmol/L"},
             {"name": "Blood pressure", "interval_days": 14, "target": "<130/80 mmHg", "alert_above": "140/90", "unit": "mmHg"},
-            {"name": "eGFR", "interval_days": 30, "target": "Stable", "alert_pct_decline": 20, "unit": "mL/min/1.73m²"},
+            {"name": "eGFR", "interval_days": 30, "target": "Stable", "alert_pct_decline": 20, "unit": "mL/min/1.73mÂ²"},
         ],
         "treatment_monitoring": {
             "calcineurin_inhibitor": [
@@ -106,7 +106,7 @@ DISEASE_MONITORING_PROTOCOLS: dict[str, dict[str, Any]] = {
             {"name": "Complement C3", "interval_days": 60, "target": "Normal range", "alert_below": 70, "unit": "mg/dL"},
             {"name": "Complement C4", "interval_days": 60, "target": "Normal range", "alert_below": 10, "unit": "mg/dL"},
             {"name": "UPCR", "interval_days": 30, "target": "<0.5 g/day", "alert_above": 1.0, "unit": "g/day"},
-            {"name": "CBC with differential", "interval_days": 30, "target": "WBC >3000", "alert_below": 2500, "unit": "cells/µL"},
+            {"name": "CBC with differential", "interval_days": 30, "target": "WBC >3000", "alert_below": 2500, "unit": "cells/ÂµL"},
             {"name": "Liver function (ALT)", "interval_days": 30, "target": "Normal", "alert_above": 120, "unit": "U/L"},
         ],
         "treatment_monitoring": {
@@ -123,14 +123,14 @@ DISEASE_MONITORING_PROTOCOLS: dict[str, dict[str, Any]] = {
         "disease_name": "ANCA-Associated Vasculitis",
         "parameters": [
             {"name": "ANCA titer", "interval_days": 90, "target": "Declining", "alert_if_rising": True, "unit": "EU/mL"},
-            {"name": "Serum creatinine", "interval_days": 30, "target": "Stable", "alert_pct_decline": 20, "unit": "µmol/L"},
-            {"name": "eGFR", "interval_days": 30, "target": "Stable", "alert_pct_decline": 20, "unit": "mL/min/1.73m²"},
-            {"name": "CBC with differential", "interval_days": 30, "target": "Normal", "alert_below": 2500, "unit": "cells/µL"},
+            {"name": "Serum creatinine", "interval_days": 30, "target": "Stable", "alert_pct_decline": 20, "unit": "Âµmol/L"},
+            {"name": "eGFR", "interval_days": 30, "target": "Stable", "alert_pct_decline": 20, "unit": "mL/min/1.73mÂ²"},
+            {"name": "CBC with differential", "interval_days": 30, "target": "Normal", "alert_below": 2500, "unit": "cells/ÂµL"},
             {"name": "Urine dipstick", "interval_days": 30, "target": "No active sediment", "alert_if_abnormal": True},
         ],
         "treatment_monitoring": {
             "rituximab": [
-                {"name": "CD19+ B-cells", "interval_days": 90, "target": "<5 cells/µL", "alert_above": 10},
+                {"name": "CD19+ B-cells", "interval_days": 90, "target": "<5 cells/ÂµL", "alert_above": 10},
                 {"name": "Immunoglobulins", "interval_days": 180, "target": "Normal", "alert_below": 400},
             ],
             "cyclophosphamide": [
@@ -142,8 +142,8 @@ DISEASE_MONITORING_PROTOCOLS: dict[str, dict[str, Any]] = {
         "disease_name": "Anti-GBM Disease",
         "parameters": [
             {"name": "Anti-GBM antibody", "interval_days": 14, "target": "Undetectable", "alert_if_persistent": True, "unit": "U/mL"},
-            {"name": "Serum creatinine", "interval_days": 7, "target": "Stabilization", "alert_pct_decline": 50, "unit": "µmol/L"},
-            {"name": "CBC with differential", "interval_days": 7, "target": "Normal", "alert_below": 2000, "unit": "cells/µL"},
+            {"name": "Serum creatinine", "interval_days": 7, "target": "Stabilization", "alert_pct_decline": 50, "unit": "Âµmol/L"},
+            {"name": "CBC with differential", "interval_days": 7, "target": "Normal", "alert_below": 2000, "unit": "cells/ÂµL"},
         ],
         "treatment_monitoring": {
             "plasma_exchange": [
@@ -155,8 +155,8 @@ DISEASE_MONITORING_PROTOCOLS: dict[str, dict[str, Any]] = {
     "infectionRelated": {
         "disease_name": "Infection-Related Glomerulonephritis",
         "parameters": [
-            {"name": "UPCR", "interval_days": 30, "target": "<0.5 g/day", "alert_above": 1.0, "unit": "g/day"},
-            {"name": "Serum creatinine", "interval_days": 30, "target": "Improving", "alert_pct_decline": 20, "unit": "µmol/L"},
+            {"name": "24h UTP (g/day)", "interval_days": 30, "target": "<0.5 g/day", "alert_above": 1.0, "unit": "g/day"},
+            {"name": "Serum creatinine", "interval_days": 30, "target": "Improving", "alert_pct_decline": 20, "unit": "Âµmol/L"},
             {"name": "Complement C3", "interval_days": 30, "target": "Normalizing", "alert_if_persistent_low": True, "unit": "mg/dL"},
         ],
         "treatment_monitoring": {},
@@ -165,9 +165,9 @@ DISEASE_MONITORING_PROTOCOLS: dict[str, dict[str, Any]] = {
         "disease_name": "C3 Glomerulopathy",
         "parameters": [
             {"name": "C3 level", "interval_days": 30, "target": "Normal range", "alert_below": 70, "unit": "mg/dL"},
-            {"name": "UPCR", "interval_days": 30, "target": "<0.5 g/day", "alert_above": 1.0, "unit": "g/day"},
-            {"name": "Serum creatinine", "interval_days": 30, "target": "Stable", "alert_pct_decline": 20, "unit": "µmol/L"},
-            {"name": "eGFR", "interval_days": 30, "target": "Stable", "alert_pct_decline": 20, "unit": "mL/min/1.73m²"},
+            {"name": "24h UTP (g/day)", "interval_days": 30, "target": "<0.5 g/day", "alert_above": 1.0, "unit": "g/day"},
+            {"name": "Serum creatinine", "interval_days": 30, "target": "Stable", "alert_pct_decline": 20, "unit": "Âµmol/L"},
+            {"name": "eGFR", "interval_days": 30, "target": "Stable", "alert_pct_decline": 20, "unit": "mL/min/1.73mÂ²"},
         ],
         "treatment_monitoring": {
             "complement_inhibitor": [
@@ -307,7 +307,7 @@ def _adjust_intervals(
             if new_interval != old_interval:
                 p["interval_days"] = new_interval
                 adjustments.append(
-                    f"{p['name']}: {old_interval} → {new_interval} days ({intensity} risk)"
+                    f"{p['name']}: {old_interval} â†’ {new_interval} days ({intensity} risk)"
                 )
 
     return params, adjustments
@@ -329,3 +329,4 @@ def _build_default_monitoring_plan(patient, disease_id: str) -> MonitoringPlan:
         risk_adjustments=[],
         generated_date=str(dt.date.today()),
     )
+

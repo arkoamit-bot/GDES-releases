@@ -177,7 +177,7 @@ def _identify_information_gaps(features: dict) -> list[dict]:
         })
     if features.get("proteinuria") == "none":
         # Only flag proteinuria quantification for suspected lupus nephritis,
-        # where UTP is specifically recommended for remission evaluation.
+        # where UPCR is specifically recommended for remission evaluation.
         biopsy_flags = features.get("biopsy", [])
         disease_features = features.get("features", [])
         is_lupus = (

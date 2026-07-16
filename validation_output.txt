@@ -1,0 +1,12 @@
+﻿=== Patient validation report ===
+Total patients: 1
+Flagged patients: 1
+  -> 100.0% of patients need review
+
+Flag breakdown:
+  missing_diagnosis: 1
+  no_encounters: 1
+  few_encounters(0): 1
+
+Top 10 most-sparse flagged patients:
+  BGD-00001 | amit                         | enc=0 labs=8 | missing_diagnosis; no_encounters; few_encounters(0)

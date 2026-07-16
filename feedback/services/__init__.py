@@ -73,7 +73,7 @@ def model_to_safe_dict(instance, seen=None):
 
 
 def export_feedback_package(date_from=None, date_to=None):
-    from .models import (
+    from ..models import (
         ErrorLog, ClinicalConflict, PerformanceLog, AIFailureLog,
         KnowledgeConflict, UserFeedback, WorkflowFeedback, RuleFailureLog,
         KnowledgeImprovementSuggestion,
@@ -144,7 +144,7 @@ def export_feedback_package(date_from=None, date_to=None):
 
 def generate_improvement_suggestions():
     from django.db.models import Count, Q
-    from .models import ClinicalConflict, KnowledgeImprovementSuggestion
+    from ..models import ClinicalConflict, KnowledgeImprovementSuggestion
 
     suggestions = []
     conflicts = (
@@ -187,7 +187,7 @@ def generate_improvement_suggestions():
 
 
 def generate_summary_report():
-    from .models import (
+    from ..models import (
         ErrorLog, CrashReport, ClinicalConflict, KnowledgeConflict,
         AIFailureLog, RuleFailureLog, UserFeedback, PerformanceLog,
         KnowledgeImprovementSuggestion, WorkflowFeedback,

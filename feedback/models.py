@@ -262,7 +262,18 @@ class WorkflowFeedback(models.Model):
         "patients.Patient", on_delete=models.SET_NULL, null=True, blank=True,
     )
     feedback_type = models.CharField(max_length=30, choices=FEEDBACK_TYPES, db_index=True)
-    rating = models.PositiveSmallIntegerField()
+    rating = models.PositiveSmallIntegerField(default=0)
+    # V8 Layer 10: explicit nephrologist decision on a recommendation. Structured
+    # learning data — NEVER auto-applied to the production knowledge base.
+    ACTION_CHOICES = [
+        ("accept", "Accepted"),
+        ("modify", "Modified"),
+        ("reject", "Rejected"),
+    ]
+    action = models.CharField(max_length=10, choices=ACTION_CHOICES, blank=True, db_index=True)
+    recommendation_ref = models.CharField(
+        max_length=120, blank=True,
+        help_text="What the feedback is about (e.g. differential:iga, management_plan:membranous).")
     comments = models.TextField(blank=True)
     recommendation_audit = models.ForeignKey(
         "knowledge.RecommendationAudit", on_delete=models.SET_NULL,
@@ -274,6 +285,7 @@ class WorkflowFeedback(models.Model):
         verbose_name_plural = "Workflow Feedback"
         indexes = [
             models.Index(fields=["feedback_type", "rating"]),
+            models.Index(fields=["action", "feedback_type"]),
             models.Index(fields=["user"]),
         ]
 

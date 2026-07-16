@@ -419,6 +419,27 @@
       <i class="fas fa-arrow-up-right-from-square" style="font-size:9px"></i>
     </a>
   </div>
+
+  {% if profile and profile.differential %}
+  <!-- V8 Layer 10: nephrologist feedback on the AI recommendation -->
+  <div class="card" style="margin-bottom:14px;border-left:3px solid #6366f1">
+    <div class="card-body" style="padding:10px 14px">
+      <form method="post" action="{% url 'clinic:recommendation_feedback' patient.pk %}"
+            style="display:flex;flex-wrap:wrap;align-items:center;gap:8px">
+        {% csrf_token %}
+        <input type="hidden" name="area" value="clinical_reasoning">
+        <input type="hidden" name="ref" value="differential:{% if profile.differential.0 %}{{ profile.differential.0.disease_id }}{% endif %}">
+        <span style="font-size:12px;color:#475569;font-weight:600"><i class="fas fa-user-doctor"></i> Your assessment of this AI reasoning:</span>
+        <input type="text" name="comments" placeholder="Optional note / correction…"
+               style="flex:1;min-width:160px;font-size:12px;padding:5px 8px;border:1px solid var(--line);border-radius:6px">
+        <button type="submit" name="action" value="accept" class="btn ghost sm" title="Agree with the AI recommendation"><i class="fas fa-check text-green-600"></i> Accept</button>
+        <button type="submit" name="action" value="modify" class="btn ghost sm" title="Partly agree — add your note"><i class="fas fa-pen text-amber-600"></i> Modify</button>
+        <button type="submit" name="action" value="reject" class="btn ghost sm" title="Disagree with the AI recommendation"><i class="fas fa-xmark text-red-600"></i> Reject</button>
+      </form>
+      <div style="font-size:10px;color:#94a3b8;margin-top:4px">Feedback is stored as learning data and reviewed by an expert before any knowledge change — it never auto-updates the guidelines.</div>
+    </div>
+  </div>
+  {% endif %}
   {% if profile and profile.differential %}
   <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:16px">
     <div class="card">

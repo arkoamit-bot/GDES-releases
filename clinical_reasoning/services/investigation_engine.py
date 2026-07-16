@@ -26,7 +26,7 @@ DISEASE_INVESTIGATIONS: dict[str, list[dict[str, Any]]] = {
     "iga": [
         {"test": "Renal biopsy (if not done)", "rationale": "Confirm IgAN diagnosis and assess MEST-C score", "priority": "urgent", "diagnostic_value": "Definitive diagnosis and prognostication", "guideline": "KDIGO 2021 GN 4.1", "when_missing": ["biopsy"]},
         {"test": "Serum IgA level", "rationale": "Elevated in ~50% of IgAN; supports diagnosis", "priority": "medium", "diagnostic_value": "Supportive", "guideline": "KDIGO 2021", "when_missing": []},
-        {"test": "Urine protein quantification (UPCR or 24h)", "rationale": "Essential for disease activity assessment and treatment response", "priority": "high", "diagnostic_value": "Core monitoring variable", "guideline": "KDIGO 2021 GN 4.1.3", "when_missing": ["proteinuria"]},
+        {"test": "24h UTP (24-hour urine total protein)", "rationale": "Essential for disease activity assessment and treatment response; 24h collection is the gold standard for quantifying proteinuria in GN", "priority": "high", "diagnostic_value": "Core monitoring variable", "guideline": "KDIGO 2021 GN 4.1.3", "when_missing": ["proteinuria"]},
         {"test": "Serum creatinine + eGFR", "rationale": "Baseline kidney function for staging and trajectory", "priority": "high", "diagnostic_value": "Core staging", "guideline": "KDIGO 2021", "when_missing": ["egfr"]},
         {"test": "Complement C3, C4", "rationale": "Low C3 may suggest post-infectious GN or MPGN; helps exclude lupus", "priority": "medium", "diagnostic_value": "Differential exclusion", "guideline": "KDIGO 2021", "when_missing": ["lowC3", "lowC4"]},
     ],

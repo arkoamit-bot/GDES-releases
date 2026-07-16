@@ -1,4 +1,4 @@
-"""Personalized Management Plan Generator — Phase 6 of GDES transformation.
+﻿"""Personalized Management Plan Generator â€” Phase 6 of GDES transformation.
 
 Generates comprehensive, evidence-based management plans per disease profile
 including: first-line therapy, second-line therapy, rescue therapy,
@@ -8,29 +8,29 @@ Every recommendation is audited via RecommendationAudit (knowledge/models.py)
 and tracked for clinician feedback (accept/reject/override) per Layer 10 of
 the V8 AI Knowledge Engine Roadmap.
 
-STATUS — V8.0 Clinical Intelligence Platform:
-  ✓ KDIGO 2021/2024-aligned treatment protocols for 9 glomerular diseases
-  ✓ Evidence-graded recommendations (1=strong, 2=weak, OP=expert opinion)
-  ✓ Risk-stratified monitoring intensification (low/moderate/high/very_high)
-  ✓ CKD stage-specific modifications (anemia, MBD screening)
-  ✓ Safety checks: pregnancy, infection, drug contraindications
-  ✓ Patient education templates per disease
-  ✓ Fully audited: every generated plan creates a RecommendationAudit record
-  ✓ Governance metadata requires: guideline chapter, evidence grade, author,
+STATUS â€” V8.0 Clinical Intelligence Platform:
+  âœ“ KDIGO 2021/2024-aligned treatment protocols for 9 glomerular diseases
+  âœ“ Evidence-graded recommendations (1=strong, 2=weak, OP=expert opinion)
+  âœ“ Risk-stratified monitoring intensification (low/moderate/high/very_high)
+  âœ“ CKD stage-specific modifications (anemia, MBD screening)
+  âœ“ Safety checks: pregnancy, infection, drug contraindications
+  âœ“ Patient education templates per disease
+  âœ“ Fully audited: every generated plan creates a RecommendationAudit record
+  âœ“ Governance metadata requires: guideline chapter, evidence grade, author,
     reviewer, approval timestamp, next review date (enforced by validate_governance)
-  ✓ KB governance metadata populated: guideline_chapter, evidence_url,
+  âœ“ KB governance metadata populated: guideline_chapter, evidence_url,
     author, approved_by, approved_at on all 209 active entries
-  ✓ V8 Field Error Reporting & Feedback System live (feedback/ app):
+  âœ“ V8 Field Error Reporting & Feedback System live (feedback/ app):
     11 models, auto-crash/error/performance middleware, export/import
     utilities, analytics dashboard, conflict resolution, improvement
     suggestions engine, star ratings, summary report
-  ✗ Clinical validation of all 9 disease profiles remains pending —
+  âœ— Clinical validation of all 9 disease profiles remains pending â€”
     requires nephrologist sign-off (IgAN done, 8 remaining)
 
 RECENT CORRECTIONS (2026-07):
-  - Fixed budesonide (Nefecon) dosing: was incorrect 16 mg × 2 wk → 8 mg × 10 wk
-    taper; corrected to fixed 16 mg/day × 9 months per NefIgArd Phase 3 (Lancet 2023)
-  - All other profiles cross-checked against KDIGO and major trial evidence — clean
+  - Fixed budesonide (Nefecon) dosing: was incorrect 16 mg Ã— 2 wk â†’ 8 mg Ã— 10 wk
+    taper; corrected to fixed 16 mg/day Ã— 9 months per NefIgArd Phase 3 (Lancet 2023)
+  - All other profiles cross-checked against KDIGO and major trial evidence â€” clean
 
 Aligns with the GDES vision document: "Once the diagnosis is confirmed,
 GDES should automatically generate a comprehensive management plan."
@@ -74,7 +74,7 @@ DISEASE_TREATMENT_PROFILES: dict[str, dict[str, Any]] = {
                 "drug": "Sparsentan (dual endothelin/angiotensin receptor antagonist)",
                 "dose": "400mg daily",
                 "duration": "24 weeks minimum",
-                "target": "Proteinuria reduction ≥50%",
+                "target": "Proteinuria reduction â‰¥50%",
                 "rationale": "PROTECT trial: superior proteinuria reduction vs irbesartan in IgAN",
                 "evidence_grade": "1",
             },
@@ -90,17 +90,17 @@ DISEASE_TREATMENT_PROFILES: dict[str, dict[str, Any]] = {
         "rescue_therapy": [
             {
                 "drug": "Targeted-release budesonide (Nefecon)",
-                "dose": "16 mg/day (4 × 4 mg capsules) — fixed dose, no taper",
+                "dose": "16 mg/day (4 Ã— 4 mg capsules) â€” fixed dose, no taper",
                 "duration": "9 months",
                 "target": "Proteinuria reduction, eGFR preservation for high-risk IgAN",
-                "rationale": "NefIgArd Phase 3: TRF-budesonide 16 mg/day for 9 months reduced UPCR by 27% and preserved eGFR (5.05 mL/min benefit at 2 years, p<0.0001). KDIGO 2024 recommends for persistent proteinuria >1 g/day despite ≥90 days optimized RAASi.",
+                "rationale": "NefIgArd Phase 3: TRF-budesonide 16 mg/day for 9 months reduced UPCR by 27% and preserved eGFR (5.05 mL/min benefit at 2 years, p<0.0001). KDIGO 2024 recommends for persistent proteinuria >1 g/day despite â‰¥90 days optimized RAASi.",
                 "evidence_grade": "1",
-                "conditions": "Proteinuria >1 g/day despite ≥3 months optimized supportive care (RAASi + SGLT2i), eGFR ≥30 mL/min",
+                "conditions": "Proteinuria >1 g/day despite â‰¥3 months optimized supportive care (RAASi + SGLT2i), eGFR â‰¥30 mL/min",
             },
         ],
         "contraindicated": ["NSAIDs (active disease)", "Aminoglycosides"],
         "monitoring": [
-            {"parameter": "UPCR", "interval": "monthly during active phase, quarterly in remission", "target": "<0.5g/day", "action_threshold": ">1g/day"},
+            {"parameter": "24h UTP (g/day)", "interval": "monthly during active phase, quarterly in remission", "target": "<0.5g/day", "action_threshold": ">1g/day"},
             {"parameter": "Serum creatinine/eGFR", "interval": "monthly during active phase, quarterly in remission", "target": "Stable or improving", "action_threshold": ">20% decline"},
             {"parameter": "Blood pressure", "interval": "every visit", "target": "<130/80 mmHg", "action_threshold": ">140/90 mmHg"},
             {"parameter": "Serum potassium", "interval": "1-2 weeks after ACEi/ARB initiation, then quarterly", "target": "3.5-5.0 mEq/L", "action_threshold": ">5.5 mEq/L"},
@@ -135,7 +135,7 @@ DISEASE_TREATMENT_PROFILES: dict[str, dict[str, Any]] = {
         "second_line": [
             {
                 "drug": "Cyclophosphamide + corticosteroids (Ponticelli protocol)",
-                "dose": "Alternating monthly: IV methylprednisolone 1g × 3 days then oral pred 0.5mg/kg/d × 27 days; oral cyclophosphamide 2mg/kg/d × 30 days",
+                "dose": "Alternating monthly: IV methylprednisolone 1g Ã— 3 days then oral pred 0.5mg/kg/d Ã— 27 days; oral cyclophosphamide 2mg/kg/d Ã— 30 days",
                 "duration": "6 months (3 cycles each)",
                 "target": "Complete remission",
                 "rationale": "Classic regimen with 60-70% complete remission rate; reserved for high-risk or rituximab failure",
@@ -153,7 +153,7 @@ DISEASE_TREATMENT_PROFILES: dict[str, dict[str, Any]] = {
         "rescue_therapy": [
             {
                 "drug": "Rituximab (re-dosing after initial failure)",
-                "dose": "1000mg IV × 2 doses, consider third dose at 6 months",
+                "dose": "1000mg IV Ã— 2 doses, consider third dose at 6 months",
                 "duration": "As needed based on PLA2R titer",
                 "target": "PLA2R titer normalization",
                 "rationale": "Repeat rituximab for incomplete response; PLA2R-guided treatment",
@@ -163,7 +163,7 @@ DISEASE_TREATMENT_PROFILES: dict[str, dict[str, Any]] = {
         "contraindicated": ["NSAIDs (nephrotic range)", "Aminoglycosides"],
         "monitoring": [
             {"parameter": "PLA2R antibody titer", "interval": "every 3-6 months", "target": "Undetectable", "action_threshold": "Rising titer or persistent positive"},
-            {"parameter": "UPCR", "interval": "monthly during treatment, quarterly in remission", "target": "<0.3g/day (complete remission)", "action_threshold": ">3.5g/day or >50% increase"},
+            {"parameter": "24h UTP (g/day)", "interval": "monthly during treatment, quarterly in remission", "target": "<0.3g/day (complete remission)", "action_threshold": ">3.5g/day or >50% increase"},
             {"parameter": "Serum albumin", "interval": "monthly", "target": ">3.0 g/dL", "action_threshold": "<2.5 g/dL"},
             {"parameter": "Serum creatinine/eGFR", "interval": "monthly", "target": "Stable", "action_threshold": ">20% decline"},
         ],
@@ -188,7 +188,7 @@ DISEASE_TREATMENT_PROFILES: dict[str, dict[str, Any]] = {
         "second_line": [
             {
                 "drug": "Rituximab (steroid-dependent/relapsing)",
-                "dose": "375mg/m² IV × 1-4 doses",
+                "dose": "375mg/mÂ² IV Ã— 1-4 doses",
                 "duration": "As needed for relapse prevention",
                 "target": "Sustained remission off steroids",
                 "rationale": "Emerging evidence for rituximab in steroid-dependent MCD to avoid cumulative steroid toxicity",
@@ -215,7 +215,7 @@ DISEASE_TREATMENT_PROFILES: dict[str, dict[str, Any]] = {
         ],
         "contraindicated": [],
         "monitoring": [
-            {"parameter": "UPCR", "interval": "weekly during induction, then monthly", "target": "<0.3g/day", "action_threshold": "Relapse (nephrotic range proteinuria)"},
+            {"parameter": "24h UTP (g/day)", "interval": "weekly during induction, then monthly", "target": "<0.3g/day", "action_threshold": "Relapse (nephrotic range proteinuria)"},
             {"parameter": "Serum albumin", "interval": "monthly", "target": ">3.5 g/dL", "action_threshold": "<3.0 g/dL"},
             {"parameter": "Serum creatinine/eGFR", "interval": "monthly during steroid therapy", "target": "Stable", "action_threshold": ">20% decline (consider FSGS)"},
             {"parameter": "Blood glucose (on steroids)", "interval": "weekly during high-dose steroids", "target": "<200 mg/dL", "action_threshold": "Steroid diabetes"},
@@ -257,7 +257,7 @@ DISEASE_TREATMENT_PROFILES: dict[str, dict[str, Any]] = {
             },
             {
                 "drug": "Rituximab",
-                "dose": "375mg/m² × 1-4 doses",
+                "dose": "375mg/mÂ² Ã— 1-4 doses",
                 "duration": "As needed",
                 "target": "Remission in steroid-resistant/dependent FSGS",
                 "rationale": "Emerging evidence; may be considered in steroid-resistant cases",
@@ -276,7 +276,7 @@ DISEASE_TREATMENT_PROFILES: dict[str, dict[str, Any]] = {
         ],
         "contraindicated": ["NSAIDs (nephrotic range)", "Aminoglycosides"],
         "monitoring": [
-            {"parameter": "UPCR", "interval": "monthly", "target": "<0.3g/day", "action_threshold": "Nephrotic range proteinuria"},
+            {"parameter": "24h UTP (g/day)", "interval": "monthly", "target": "<0.3g/day", "action_threshold": "Nephrotic range proteinuria"},
             {"parameter": "Serum creatinine/eGFR", "interval": "monthly", "target": "Stable", "action_threshold": ">20% decline"},
             {"parameter": "Blood pressure", "interval": "every visit", "target": "<130/80", "action_threshold": ">140/90"},
             {"parameter": "Drug levels (if on CNI)", "interval": "weekly until stable, then monthly", "target": "Trough 4-8 ng/mL", "action_threshold": "Below therapeutic range"},
@@ -300,17 +300,17 @@ DISEASE_TREATMENT_PROFILES: dict[str, dict[str, Any]] = {
             },
             {
                 "drug": "Low-dose corticosteroids",
-                "dose": "0.3-0.5mg/kg/day, taper to ≤7.5mg/day by 3 months",
+                "dose": "0.3-0.5mg/kg/day, taper to â‰¤7.5mg/day by 3 months",
                 "duration": "Taper over 6-12 months",
                 "target": "Minimize steroid exposure while controlling disease",
-                "rationale": "KDIGO 2024: glucocorticoid-sparing approach; target ≤5mg/day maintenance",
+                "rationale": "KDIGO 2024: glucocorticoid-sparing approach; target â‰¤5mg/day maintenance",
                 "evidence_grade": "1",
             },
         ],
         "second_line": [
             {
                 "drug": "IV Cyclophosphamide (Euro-Lupus or NIH protocol)",
-                "dose": "Euro-Lupus: 500mg IV every 2 weeks × 6 doses; NIH: 0.5-1g/m² monthly × 6",
+                "dose": "Euro-Lupus: 500mg IV every 2 weeks Ã— 6 doses; NIH: 0.5-1g/mÂ² monthly Ã— 6",
                 "duration": "3-6 months induction",
                 "target": "Remission in severe/rapidly progressive LN",
                 "rationale": "Reserved for severe cases (crescentic GN, rapid GFR decline) or MMF failure",
@@ -328,7 +328,7 @@ DISEASE_TREATMENT_PROFILES: dict[str, dict[str, Any]] = {
         "rescue_therapy": [
             {
                 "drug": "Rituximab",
-                "dose": "375mg/m² × 4 weekly doses or 1000mg × 2 doses",
+                "dose": "375mg/mÂ² Ã— 4 weekly doses or 1000mg Ã— 2 doses",
                 "duration": "As needed",
                 "target": "Refractory lupus nephritis",
                 "rationale": "For refractory cases failing MMF and cyclophosphamide",
@@ -341,7 +341,7 @@ DISEASE_TREATMENT_PROFILES: dict[str, dict[str, Any]] = {
             {"parameter": "Complement C3/C4", "interval": "every 1-3 months", "target": "Normal range", "action_threshold": "Declining or low"},
             {"parameter": "UPCR", "interval": "monthly during induction, quarterly maintenance", "target": "<0.5g/day", "action_threshold": ">1g/day"},
             {"parameter": "CBC with differential", "interval": "monthly on MMF/cyclophosphamide", "target": "WBC >3000, ANC >1500", "action_threshold": "Leukopenia/neutropenia"},
-            {"parameter": "Liver function", "interval": "monthly on MMF", "target": "Normal", "action_threshold": "ALT >3× ULN"},
+            {"parameter": "Liver function", "interval": "monthly on MMF", "target": "Normal", "action_threshold": "ALT >3Ã— ULN"},
         ],
         "follow_up": {
             "induction_phase": "Every 2-4 weeks",
@@ -354,7 +354,7 @@ DISEASE_TREATMENT_PROFILES: dict[str, dict[str, Any]] = {
         "first_line": [
             {
                 "drug": "Rituximab (induction)",
-                "dose": "375mg/m² weekly × 4 weeks",
+                "dose": "375mg/mÂ² weekly Ã— 4 weeks",
                 "duration": "4 weeks induction; may extend to 6 months for granulomatous disease",
                 "target": "Remission (BVAS = 0)",
                 "rationale": "RAVE and RITUXVAS trials: rituximab non-inferior to cyclophosphamide for induction; preferred for relapsing disease",
@@ -362,7 +362,7 @@ DISEASE_TREATMENT_PROFILES: dict[str, dict[str, Any]] = {
             },
             {
                 "drug": "Low-dose corticosteroids",
-                "dose": "1mg/kg/day pred tapering to ≤5mg/day by 3-5 months (RAVE protocol)",
+                "dose": "1mg/kg/day pred tapering to â‰¤5mg/day by 3-5 months (RAVE protocol)",
                 "duration": "5-6 months",
                 "target": "Disease control with minimized steroid exposure",
                 "rationale": "PEXIVAS: reduced-dose steroid protocol is non-inferior with fewer infections",
@@ -372,7 +372,7 @@ DISEASE_TREATMENT_PROFILES: dict[str, dict[str, Any]] = {
         "second_line": [
             {
                 "drug": "IV Cyclophosphamide",
-                "dose": "15mg/kg every 2-3 weeks × 3-6 months (adjust for age/renal function)",
+                "dose": "15mg/kg every 2-3 weeks Ã— 3-6 months (adjust for age/renal function)",
                 "duration": "3-6 months",
                 "target": "Remission in severe/rituximab-refractory AAV",
                 "rationale": "Alternative to rituximab for severe disease (alveolar hemorrhage, rapidly declining GFR)",
@@ -384,7 +384,7 @@ DISEASE_TREATMENT_PROFILES: dict[str, dict[str, Any]] = {
                 "drug": "Plasma exchange (PLEX)",
                 "dose": "6-7 sessions over 14 days",
                 "duration": "2 weeks",
-                "target": "Severe alveolar hemorrhage or creatinine >500 μmol/L",
+                "target": "Severe alveolar hemorrhage or creatinine >500 Î¼mol/L",
                 "rationale": "PEXIVAS: no overall benefit but may reduce ESKD in severe renal involvement; individualize for alveolar hemorrhage",
                 "evidence_grade": "1",
             },
@@ -394,7 +394,7 @@ DISEASE_TREATMENT_PROFILES: dict[str, dict[str, Any]] = {
             {"parameter": "ANCA titer (MPO/PR3)", "interval": "every 3 months", "target": "Declining", "action_threshold": "Rising titer (relapse predictor, not treatment trigger)"},
             {"parameter": "Serum creatinine/eGFR", "interval": "monthly during induction, quarterly maintenance", "target": "Stable or improving", "action_threshold": ">20% decline"},
             {"parameter": "CBC with differential", "interval": "every 2 weeks during cyclophosphamide, monthly on rituximab", "target": "Normal", "action_threshold": "Lymphopenia <500 (infection risk)"},
-            {"parameter": "Urine dipstick/UPCR", "interval": "monthly", "target": "No active sediment", "action_threshold": "New hematuria or proteinuria"},
+            {"parameter": "Urine dipstick + 24h UTP (g/day)", "interval": "monthly", "target": "No active sediment", "action_threshold": "New hematuria or proteinuria"},
         ],
         "follow_up": {
             "induction_phase": "Weekly during rituximab, then every 2-4 weeks",
@@ -407,10 +407,10 @@ DISEASE_TREATMENT_PROFILES: dict[str, dict[str, Any]] = {
         "first_line": [
             {
                 "drug": "Plasma exchange + Cyclophosphamide + Corticosteroids (triple therapy)",
-                "dose": "PLEX: daily for 14 days; Cyclophosphamide: 3mg/kg/day × 2-3 months; Prednisolone: 1mg/kg/day tapering over 3 months",
+                "dose": "PLEX: daily for 14 days; Cyclophosphamide: 3mg/kg/day Ã— 2-3 months; Prednisolone: 1mg/kg/day tapering over 3 months",
                 "duration": "2-3 months intensive treatment",
                 "target": "Clearance of anti-GBM antibodies, prevent ESKD",
-                "rationale": "Standard of care for anti-GBM disease; early initiation critical — do not wait for biopsy if clinical picture is classic",
+                "rationale": "Standard of care for anti-GBM disease; early initiation critical â€” do not wait for biopsy if clinical picture is classic",
                 "evidence_grade": "1",
                 "conditions": "Emergency: initiate within 24 hours of presentation if anti-GBM positive",
             },
@@ -453,7 +453,7 @@ DISEASE_TREATMENT_PROFILES: dict[str, dict[str, Any]] = {
         "rescue_therapy": [],
         "contraindicated": ["Immunosuppression (active infection)", "Corticosteroids (unless post-streptococcal with nephrotic syndrome)"],
         "monitoring": [
-            {"parameter": "UPCR", "interval": "monthly until resolution", "target": "<0.5g/day", "action_threshold": "Persistent nephrotic range >3 months"},
+            {"parameter": "24h UTP (g/day)", "interval": "monthly until resolution", "target": "<0.5g/day", "action_threshold": "Persistent nephrotic range >3 months"},
             {"parameter": "Serum creatinine/eGFR", "interval": "monthly", "target": "Improving", "action_threshold": "Worsening (consider alternative diagnosis)"},
             {"parameter": "Complement C3", "interval": "monthly", "target": "Normalizing", "action_threshold": "Persistent low C3 >3 months (consider alternative)"},
         ],
@@ -475,7 +475,7 @@ DISEASE_TREATMENT_PROFILES: dict[str, dict[str, Any]] = {
                 "evidence_grade": "2",
             },
             {
-                "drug": "Complement inhibitors (investigational — iptacopan, pegcetacoplan)",
+                "drug": "Complement inhibitors (investigational â€” iptacopan, pegcetacoplan)",
                 "dose": "Per clinical trial protocol",
                 "duration": "Ongoing",
                 "target": "Normalize complement activity, reduce proteinuria",
@@ -498,7 +498,7 @@ DISEASE_TREATMENT_PROFILES: dict[str, dict[str, Any]] = {
         "contraindicated": ["Immunosuppression without complement pathway evaluation", "Plasma exchange (controversial)"],
         "monitoring": [
             {"parameter": "C3 level", "interval": "monthly", "target": "Normal range", "action_threshold": "Persistent low C3"},
-            {"parameter": "UPCR", "interval": "monthly", "target": "<0.5g/day", "action_threshold": "Persistent nephrotic range"},
+            {"parameter": "24h UTP (g/day)", "interval": "monthly", "target": "<0.5g/day", "action_threshold": "Persistent nephrotic range"},
             {"parameter": "Serum creatinine/eGFR", "interval": "monthly", "target": "Stable", "action_threshold": ">20% decline"},
         ],
         "follow_up": {
@@ -541,7 +541,7 @@ DISEASE_TREATMENT_PROFILES: dict[str, dict[str, Any]] = {
         "rescue_therapy": [],
         "contraindicated": [],
         "monitoring": [
-            {"parameter": "UPCR", "interval": "every 1-3 months", "target": "<0.5g/day", "action_threshold": "Persistent nephrotic range"},
+            {"parameter": "24h UTP (g/day)", "interval": "every 1-3 months", "target": "<0.5g/day", "action_threshold": "Persistent nephrotic range"},
             {"parameter": "Serum creatinine/eGFR", "interval": "every 1-3 months", "target": "Stable", "action_threshold": ">20% decline"},
             {"parameter": "Complement C3/C4", "interval": "every 1-3 months", "target": "Normal range", "action_threshold": "Persistent hypocomplementemia"},
             {"parameter": "Blood pressure", "interval": "every visit", "target": "<130/80 mmHg", "action_threshold": ">140/90 mmHg"},
@@ -565,7 +565,7 @@ DISEASE_TREATMENT_PROFILES: dict[str, dict[str, Any]] = {
             },
             {
                 "drug": "Eculizumab (terminal complement inhibitor)",
-                "dose": "900mg IV weekly × 4, then 1200mg every 2 weeks",
+                "dose": "900mg IV weekly Ã— 4, then 1200mg every 2 weeks",
                 "duration": "Ongoing if responsive",
                 "target": "Stabilize or improve eGFR, reduce proteinuria",
                 "rationale": "Blocks C5 cleavage; may benefit patients with progressive disease and documented alternative pathway activation",
@@ -579,14 +579,14 @@ DISEASE_TREATMENT_PROFILES: dict[str, dict[str, Any]] = {
                 "dose": "MMF 2g/day + prednisolone 0.5mg/kg/day tapering to 5-10mg/day",
                 "duration": "12-24 months",
                 "target": "Proteinuria reduction, eGFR stabilization",
-                "rationale": "Alternative when eculizumab is unavailable or ineffective; reduces immune complex–mediated inflammation",
+                "rationale": "Alternative when eculizumab is unavailable or ineffective; reduces immune complexâ€“mediated inflammation",
                 "evidence_grade": "OP",
             },
         ],
         "rescue_therapy": [],
         "contraindicated": [],
         "monitoring": [
-            {"parameter": "UPCR", "interval": "every 1-3 months", "target": "<0.5g/day", "action_threshold": "Persistent nephrotic range"},
+            {"parameter": "24h UTP (g/day)", "interval": "every 1-3 months", "target": "<0.5g/day", "action_threshold": "Persistent nephrotic range"},
             {"parameter": "Serum creatinine/eGFR", "interval": "every 1-3 months", "target": "Stable", "action_threshold": ">20% decline"},
             {"parameter": "C3 level", "interval": "every 1-3 months", "target": "Normal range", "action_threshold": "Persistent low C3"},
             {"parameter": "Blood pressure", "interval": "every visit", "target": "<130/80 mmHg", "action_threshold": ">140/90 mmHg"},
@@ -624,7 +624,7 @@ DISEASE_TREATMENT_PROFILES: dict[str, dict[str, Any]] = {
                 "dose": "Cyclophosphamide or bendamustine-based protocol per hematology",
                 "duration": "Per protocol (typically 4-6 cycles)",
                 "target": "Deep hematologic response in refractory cases",
-                "rationale": "For clones refractory to proteasome inhibitor–based therapy",
+                "rationale": "For clones refractory to proteasome inhibitorâ€“based therapy",
                 "evidence_grade": "OP",
             },
         ],
@@ -632,7 +632,7 @@ DISEASE_TREATMENT_PROFILES: dict[str, dict[str, Any]] = {
         "contraindicated": ["Corticosteroids alone (ineffective for underlying clone; may mask disease progression)"],
         "monitoring": [
             {"parameter": "Serum free light chains (FLC)", "interval": "every 1-3 months", "target": "Normal FLC ratio (0.26-1.65)", "action_threshold": "Abnormal or rising ratio"},
-            {"parameter": "UPCR", "interval": "every 1-3 months", "target": "Improving", "action_threshold": "Worsening proteinuria"},
+            {"parameter": "24h UTP (g/day)", "interval": "every 1-3 months", "target": "Improving", "action_threshold": "Worsening proteinuria"},
             {"parameter": "Serum creatinine/eGFR", "interval": "every 1-3 months", "target": "Stable", "action_threshold": ">20% decline"},
             {"parameter": "Hematologic response assessment", "interval": "every 3 months during treatment", "target": "Complete hematologic response", "action_threshold": "Non-response at 3 months"},
         ],
@@ -647,7 +647,7 @@ DISEASE_TREATMENT_PROFILES: dict[str, dict[str, Any]] = {
         "first_line": [
             {
                 "drug": "Daratumumab + cyclophosphamide + bortezomib + dexamethasone (AL amyloidosis)",
-                "dose": "Daratumumab 1800mg SC weekly × 8 wk, then every 2 wk × 16 wk, then every 4 wk; CyBorD backbone per hematologic protocol",
+                "dose": "Daratumumab 1800mg SC weekly Ã— 8 wk, then every 2 wk Ã— 16 wk, then every 4 wk; CyBorD backbone per hematologic protocol",
                 "duration": "Minimum 6 cycles, extend per response",
                 "target": "Hematologic complete response (NT-proBNP reduction, normal FLC ratio)",
                 "rationale": "DARA-CyBorD achieves higher hematologic response rates than CyBorD alone in AL amyloidosis (ANDROMEDA trial)",
@@ -667,7 +667,7 @@ DISEASE_TREATMENT_PROFILES: dict[str, dict[str, Any]] = {
         "second_line": [
             {
                 "drug": "High-dose melphalan + autologous stem cell transplant (AL amyloidosis)",
-                "dose": "Melphalan 200mg/m² (adjust for cardiac/renal staging) with ASCT",
+                "dose": "Melphalan 200mg/mÂ² (adjust for cardiac/renal staging) with ASCT",
                 "duration": "Inpatient; engraftment typically 2-3 weeks",
                 "target": "Deep and durable hematologic complete response",
                 "rationale": "Highest CR rate (~40%) but limited to early-stage patients (Mayo Stage I/II) with adequate organ function",
@@ -679,7 +679,7 @@ DISEASE_TREATMENT_PROFILES: dict[str, dict[str, Any]] = {
         "contraindicated": ["High-dose corticosteroids in AL amyloidosis (infection risk in immunocompromised with organ dysfunction)"],
         "monitoring": [
             {"parameter": "Cardiac biomarkers (NT-proBNP, troponin)", "interval": "every 1-3 months", "target": "Declining or stable", "action_threshold": "Rising NT-proBNP >30% (cardiac progression)"},
-            {"parameter": "UPCR", "interval": "every 1-3 months", "target": "Improving", "action_threshold": "Worsening proteinuria"},
+            {"parameter": "24h UTP (g/day)", "interval": "every 1-3 months", "target": "Improving", "action_threshold": "Worsening proteinuria"},
             {"parameter": "Serum creatinine/eGFR", "interval": "every 1-3 months", "target": "Stable", "action_threshold": ">20% decline"},
             {"parameter": "Serum free light chains (FLC)", "interval": "every 1-3 months during treatment", "target": "Normal ratio", "action_threshold": "Abnormal or rising ratio"},
         ],
@@ -703,7 +703,7 @@ DISEASE_TREATMENT_PROFILES: dict[str, dict[str, Any]] = {
             },
             {
                 "drug": "Rituximab + corticosteroids (idiopathic or refractory after DAA)",
-                "dose": "Rituximab 375mg/m² × 4 weekly doses + prednisolone 0.5mg/kg/day taper",
+                "dose": "Rituximab 375mg/mÂ² Ã— 4 weekly doses + prednisolone 0.5mg/kg/day taper",
                 "duration": "4 weeks induction, then assess response",
                 "target": "Resolution of cryoglobulinemia, proteinuria reduction",
                 "rationale": "Depletes B-cell clone producing cryoglobulins; used when HCV-negative or persistent disease after SVR",
@@ -711,7 +711,7 @@ DISEASE_TREATMENT_PROFILES: dict[str, dict[str, Any]] = {
             },
             {
                 "drug": "Plasmapheresis + rituximab (severe/critical disease)",
-                "dose": "PLEX every other day × 5-7 sessions + rituximab 375mg/m² × 4 weekly doses",
+                "dose": "PLEX every other day Ã— 5-7 sessions + rituximab 375mg/mÂ² Ã— 4 weekly doses",
                 "duration": "2-3 weeks intensive phase",
                 "target": "Rapid reduction of pathogenic cryoglobulins; prevent organ damage",
                 "rationale": "Combination removes circulating cryoglobulins while rituximab suppresses production; for severe GN, vasculitis, or alveolar hemorrhage",
@@ -722,7 +722,7 @@ DISEASE_TREATMENT_PROFILES: dict[str, dict[str, Any]] = {
         "second_line": [
             {
                 "drug": "Cyclophosphamide",
-                "dose": "1-2mg/kg/day oral or 500-750mg/m² IV monthly",
+                "dose": "1-2mg/kg/day oral or 500-750mg/mÂ² IV monthly",
                 "duration": "2-3 months, then transition to maintenance",
                 "target": "Severe or refractory cryoglobulinemic GN",
                 "rationale": "For cases refractory to rituximab; limited use due to toxicity",
@@ -735,7 +735,7 @@ DISEASE_TREATMENT_PROFILES: dict[str, dict[str, Any]] = {
             {"parameter": "Cryocrit", "interval": "every 1-3 months", "target": "Undetectable", "action_threshold": "Recurrent detectable cryoglobulins"},
             {"parameter": "Complement C4", "interval": "every 1-3 months", "target": "Normal range", "action_threshold": "Persistent low C4 (disease activity marker)"},
             {"parameter": "HCV RNA", "interval": "per hepatology protocol (end of treatment, 12 weeks post)", "target": "Undetectable (SVR)", "action_threshold": "Virologic relapse"},
-            {"parameter": "UPCR", "interval": "every 1-3 months", "target": "<0.5g/day", "action_threshold": "Persistent nephrotic range"},
+            {"parameter": "24h UTP (g/day)", "interval": "every 1-3 months", "target": "<0.5g/day", "action_threshold": "Persistent nephrotic range"},
             {"parameter": "Serum creatinine/eGFR", "interval": "every 1-3 months", "target": "Stable", "action_threshold": ">20% decline"},
         ],
         "follow_up": {
@@ -768,17 +768,17 @@ DISEASE_TREATMENT_PROFILES: dict[str, dict[str, Any]] = {
         "second_line": [
             {
                 "drug": "Rituximab-based regimen (if autoimmune-associated)",
-                "dose": "375mg/m² × 4 weekly doses or 1000mg × 2 doses",
+                "dose": "375mg/mÂ² Ã— 4 weekly doses or 1000mg Ã— 2 doses",
                 "duration": "4 weeks or 2 doses, repeat as needed",
                 "target": "B-cell depletion, reduce immunoglobulin production",
-                "rationale": "For cases associated with autoimmune disease (Sjögren's, SLE) rather than monoclonal gammopathy",
+                "rationale": "For cases associated with autoimmune disease (SjÃ¶gren's, SLE) rather than monoclonal gammopathy",
                 "evidence_grade": "OP",
             },
         ],
         "rescue_therapy": [],
         "contraindicated": [],
         "monitoring": [
-            {"parameter": "UPCR", "interval": "every 1-3 months", "target": "<0.5g/day", "action_threshold": "Persistent nephrotic range"},
+            {"parameter": "24h UTP (g/day)", "interval": "every 1-3 months", "target": "<0.5g/day", "action_threshold": "Persistent nephrotic range"},
             {"parameter": "Serum creatinine/eGFR", "interval": "every 1-3 months", "target": "Stable", "action_threshold": ">20% decline"},
             {"parameter": "Hematologic workup (SPEP, UPEP, FLC, CBC)", "interval": "every 3-6 months", "target": "No monoclonal spike, normal FLC ratio", "action_threshold": "New or progressive monoclonal gammopathy"},
         ],
@@ -801,7 +801,7 @@ DISEASE_TREATMENT_PROFILES: dict[str, dict[str, Any]] = {
             },
             {
                 "drug": "Rituximab (progressive disease)",
-                "dose": "375mg/m² × 4 weekly doses or 1000mg × 2 doses",
+                "dose": "375mg/mÂ² Ã— 4 weekly doses or 1000mg Ã— 2 doses",
                 "duration": "4 weeks or 2 doses; repeat based on response",
                 "target": "Stabilize or improve eGFR, reduce proteinuria",
                 "rationale": "Emerging evidence for rituximab in progressive fibrillary GN; may stabilize renal function in subset of patients",
@@ -822,7 +822,7 @@ DISEASE_TREATMENT_PROFILES: dict[str, dict[str, Any]] = {
         "rescue_therapy": [],
         "contraindicated": ["Corticosteroids alone (no disease-modifying benefit; risk of steroid toxicity without efficacy)"],
         "monitoring": [
-            {"parameter": "UPCR", "interval": "every 1-3 months", "target": "<0.5g/day", "action_threshold": "Persistent nephrotic range"},
+            {"parameter": "24h UTP (g/day)", "interval": "every 1-3 months", "target": "<0.5g/day", "action_threshold": "Persistent nephrotic range"},
             {"parameter": "Serum creatinine/eGFR", "interval": "every 1-3 months", "target": "Stable", "action_threshold": ">20% decline"},
         ],
         "follow_up": {
@@ -832,7 +832,7 @@ DISEASE_TREATMENT_PROFILES: dict[str, dict[str, Any]] = {
         },
     },
     # -----------------------------------------------------------------------
-    # Phase D — Hereditary diseases
+    # Phase D â€” Hereditary diseases
     # -----------------------------------------------------------------------
     "alport": {
         "disease_name": "Alport Syndrome",
@@ -876,7 +876,7 @@ DISEASE_TREATMENT_PROFILES: dict[str, dict[str, Any]] = {
         ],
         "contraindicated": ["NSAIDs (accelerate CKD progression)"],
         "monitoring": [
-            {"parameter": "Proteinuria (UPCR)", "interval": "every 3-6 months", "target": "<0.5g/day", "action_threshold": "Rising proteinuria despite RAS blockade"},
+            {"parameter": "24h UTP (g/day)", "interval": "every 3-6 months", "target": "<0.5g/day", "action_threshold": "Rising proteinuria despite RAS blockade"},
             {"parameter": "Serum creatinine/eGFR", "interval": "every 3-6 months", "target": "Stable eGFR", "action_threshold": ">20% decline"},
             {"parameter": "Hearing assessment", "interval": "every 6-12 months", "target": "Stable hearing", "action_threshold": "New sensorineural hearing loss"},
             {"parameter": "Blood pressure", "interval": "every visit", "target": "<130/80 mmHg", "action_threshold": ">140/90 mmHg"},
@@ -933,7 +933,7 @@ DISEASE_TREATMENT_PROFILES: dict[str, dict[str, Any]] = {
             },
             {
                 "drug": "Eculizumab (terminal complement inhibitor)",
-                "dose": "900mg IV weekly × 4, then 1200mg every 2 weeks",
+                "dose": "900mg IV weekly Ã— 4, then 1200mg every 2 weeks",
                 "duration": "Ongoing if responsive",
                 "target": "Stabilize or improve eGFR, reduce proteinuria",
                 "rationale": "Blocks terminal complement activation; may benefit patients with progressive disease and documented alternative pathway dysregulation",
@@ -964,7 +964,7 @@ DISEASE_TREATMENT_PROFILES: dict[str, dict[str, Any]] = {
         "contraindicated": [],
         "monitoring": [
             {"parameter": "C3 level", "interval": "every 1-3 months", "target": "Normal range", "action_threshold": "Persistent low C3"},
-            {"parameter": "Proteinuria (UPCR)", "interval": "every 1-3 months", "target": "<0.5g/day", "action_threshold": "Persistent nephrotic range"},
+            {"parameter": "24h UTP (g/day)", "interval": "every 1-3 months", "target": "<0.5g/day", "action_threshold": "Persistent nephrotic range"},
             {"parameter": "Serum creatinine/eGFR", "interval": "every 1-3 months", "target": "Stable", "action_threshold": ">20% decline"},
         ],
         "follow_up": {
@@ -1017,7 +1017,7 @@ DISEASE_TREATMENT_PROFILES: dict[str, dict[str, Any]] = {
         "contraindicated": [],
         "monitoring": [
             {"parameter": "Lyso-Gb3 (globotriaosylsphingosine)", "interval": "every 6-12 months", "target": "Reduction toward normal on ERT", "action_threshold": "Rising Lyso-Gb3 despite ERT"},
-            {"parameter": "Proteinuria (UPCR)", "interval": "every 3-6 months", "target": "<0.5g/day", "action_threshold": "Persistent nephrotic range"},
+            {"parameter": "24h UTP (g/day)", "interval": "every 3-6 months", "target": "<0.5g/day", "action_threshold": "Persistent nephrotic range"},
             {"parameter": "Serum creatinine/eGFR", "interval": "every 3-6 months", "target": "Stable eGFR", "action_threshold": ">20% decline"},
             {"parameter": "Cardiac assessment (ECG, echo)", "interval": "every 12 months", "target": "No LVH progression, normal conduction", "action_threshold": "New LVH, conduction abnormality, arrhythmia"},
             {"parameter": "Pain symptoms (neuropathic pain score)", "interval": "every 6-12 months", "target": "Controlled pain", "action_threshold": "Worsening neuropathic pain"},
@@ -1029,7 +1029,7 @@ DISEASE_TREATMENT_PROFILES: dict[str, dict[str, Any]] = {
         },
     },
     # -----------------------------------------------------------------------
-    # Phase E — Secondary glomerular diseases
+    # Phase E â€” Secondary glomerular diseases
     # -----------------------------------------------------------------------
     "diabeticNephropathy": {
         "disease_name": "Diabetic Kidney Disease",
@@ -1070,12 +1070,12 @@ DISEASE_TREATMENT_PROFILES: dict[str, dict[str, Any]] = {
         "second_line": [
             {
                 "drug": "Finerenone (non-steroidal MRA)",
-                "dose": "10mg daily (eGFR ≥60) or 20mg daily (eGFR 25-59)",
+                "dose": "10mg daily (eGFR â‰¥60) or 20mg daily (eGFR 25-59)",
                 "duration": "Lifelong",
                 "target": "Reduce residual albuminuria, slow CKD progression",
                 "rationale": "FIDELIO-DKD and FIGARO-DKD: finerenone reduces kidney and cardiovascular events in DKD with residual albuminuria on RAS blockade",
                 "evidence_grade": "1",
-                "conditions": "Persistent albuminuria (UACR ≥30 mg/g) despite maximum tolerated RAS blockade + SGLT2 inhibitor, serum K+ ≤5.0 mEq/L",
+                "conditions": "Persistent albuminuria (UACR â‰¥30 mg/g) despite maximum tolerated RAS blockade + SGLT2 inhibitor, serum K+ â‰¤5.0 mEq/L",
             },
         ],
         "rescue_therapy": [
@@ -1185,7 +1185,7 @@ DISEASE_TREATMENT_PROFILES: dict[str, dict[str, Any]] = {
                 "target": "Refractory nephrotic syndrome despite viral suppression",
                 "rationale": "Immunosuppression may be considered if severe nephrotic syndrome persists despite adequate viral suppression; risk of viral reactivation",
                 "evidence_grade": "OP",
-                "conditions": "Documented viral suppression (undetectable HBV DNA) for ≥6 months; severe nephrotic syndrome refractory to antiviral therapy",
+                "conditions": "Documented viral suppression (undetectable HBV DNA) for â‰¥6 months; severe nephrotic syndrome refractory to antiviral therapy",
             },
         ],
         "contraindicated": [
@@ -1194,8 +1194,8 @@ DISEASE_TREATMENT_PROFILES: dict[str, dict[str, Any]] = {
         ],
         "monitoring": [
             {"parameter": "HBV DNA viral load", "interval": "every 1-3 months", "target": "Undetectable", "action_threshold": "Detectable or rising viral load"},
-            {"parameter": "Liver function tests (ALT, AST, bilirubin)", "interval": "every 1-3 months", "target": "Normal ALT/AST", "action_threshold": "ALT >2× ULN or hepatitis flare"},
-            {"parameter": "Proteinuria (UPCR)", "interval": "every 1-3 months", "target": "<0.5g/day", "action_threshold": "Persistent nephrotic range"},
+            {"parameter": "Liver function tests (ALT, AST, bilirubin)", "interval": "every 1-3 months", "target": "Normal ALT/AST", "action_threshold": "ALT >2Ã— ULN or hepatitis flare"},
+            {"parameter": "24h UTP (g/day)", "interval": "every 1-3 months", "target": "<0.5g/day", "action_threshold": "Persistent nephrotic range"},
             {"parameter": "Serum creatinine/eGFR", "interval": "every 1-3 months", "target": "Stable", "action_threshold": ">20% decline"},
         ],
         "follow_up": {
@@ -1227,7 +1227,7 @@ DISEASE_TREATMENT_PROFILES: dict[str, dict[str, Any]] = {
         "second_line": [
             {
                 "drug": "Rituximab for cryoglobulinemic vasculitis",
-                "dose": "375mg/m² × 4 weekly doses or 1000mg × 2 doses",
+                "dose": "375mg/mÂ² Ã— 4 weekly doses or 1000mg Ã— 2 doses",
                 "duration": "4 weeks or 2 doses; repeat based on response",
                 "target": "Resolution of cryoglobulinemic vasculitis symptoms",
                 "rationale": "For persistent cryoglobulinemic manifestations (vasculitis, neuropathy, hypocomplementemia) despite DAA-induced SVR",
@@ -1235,7 +1235,7 @@ DISEASE_TREATMENT_PROFILES: dict[str, dict[str, Any]] = {
             },
             {
                 "drug": "Plasmapheresis for severe cryoglobulinemic disease",
-                "dose": "1-1.5 plasma volumes × 3-5 sessions",
+                "dose": "1-1.5 plasma volumes Ã— 3-5 sessions",
                 "duration": "2-3 weeks",
                 "target": "Reduce circulating cryoglobulins, control severe manifestations",
                 "rationale": "Acute rescue for severe cryoglobulinemic vasculitis with organ-threatening manifestations",
@@ -1260,7 +1260,7 @@ DISEASE_TREATMENT_PROFILES: dict[str, dict[str, Any]] = {
             {"parameter": "HCV RNA", "interval": "during and 12 weeks post-DAA, then every 6-12 months", "target": "Undetectable (SVR)", "action_threshold": "Detectable HCV RNA (treatment failure or relapse)"},
             {"parameter": "C4 complement level", "interval": "every 3-6 months", "target": "Normal C4", "action_threshold": "Persistent low C4 (cryoglobulinemia activity)"},
             {"parameter": "Cryocrit (if applicable)", "interval": "every 3-6 months during active cryoglobulinemia", "target": "Undetectable", "action_threshold": "Detectable or rising cryocrit"},
-            {"parameter": "Proteinuria (UPCR)", "interval": "every 1-3 months", "target": "<0.5g/day", "action_threshold": "Persistent nephrotic range"},
+            {"parameter": "24h UTP (g/day)", "interval": "every 1-3 months", "target": "<0.5g/day", "action_threshold": "Persistent nephrotic range"},
             {"parameter": "Serum creatinine/eGFR", "interval": "every 1-3 months", "target": "Stable", "action_threshold": ">20% decline"},
         ],
         "follow_up": {
@@ -1292,7 +1292,7 @@ DISEASE_TREATMENT_PROFILES: dict[str, dict[str, Any]] = {
             },
             {
                 "drug": "Rituximab as steroid-sparing agent",
-                "dose": "375mg/m² × 4 weekly doses or 1000mg × 2 doses",
+                "dose": "375mg/mÂ² Ã— 4 weekly doses or 1000mg Ã— 2 doses",
                 "duration": "2 doses; repeat based on relapse pattern",
                 "target": "B-cell depletion, maintain remission",
                 "rationale": "Emerging evidence for rituximab as steroid-sparing or relapse-prevention therapy in IgG4-RD",
@@ -1302,7 +1302,7 @@ DISEASE_TREATMENT_PROFILES: dict[str, dict[str, Any]] = {
         "rescue_therapy": [
             {
                 "drug": "Rituximab for refractory disease",
-                "dose": "375mg/m² × 4 weekly doses or 1000mg × 2 doses",
+                "dose": "375mg/mÂ² Ã— 4 weekly doses or 1000mg Ã— 2 doses",
                 "duration": "Repeat based on relapse",
                 "target": "Remission in steroid-refractory or relapsing IgG4-RD",
                 "rationale": "Rituximab targets CD20+ B cells involved in IgG4 production; effective in refractory IgG4-RD",
@@ -1313,7 +1313,7 @@ DISEASE_TREATMENT_PROFILES: dict[str, dict[str, Any]] = {
         "monitoring": [
             {"parameter": "Serum IgG4 level", "interval": "every 3-6 months", "target": "Normal IgG4 (<135 mg/dL)", "action_threshold": "Rising IgG4 despite treatment"},
             {"parameter": "Serum creatinine/eGFR", "interval": "every 1-3 months", "target": "Stable eGFR", "action_threshold": ">20% decline"},
-            {"parameter": "Proteinuria (UPCR)", "interval": "every 1-3 months", "target": "<0.5g/day", "action_threshold": "New or worsening proteinuria"},
+            {"parameter": "24h UTP (g/day)", "interval": "every 1-3 months", "target": "<0.5g/day", "action_threshold": "New or worsening proteinuria"},
             {"parameter": "Extra-renal IgG4-RD assessment (imaging, clinical)", "interval": "every 6-12 months", "target": "No new organ involvement", "action_threshold": "New or worsening extra-renal disease"},
         ],
         "follow_up": {
@@ -1367,7 +1367,7 @@ DISEASE_TREATMENT_PROFILES: dict[str, dict[str, Any]] = {
         "contraindicated": ["Immunosuppression without treating the underlying malignancy (ineffective, delays cancer treatment)"],
         "monitoring": [
             {"parameter": "Tumor markers (type-specific)", "interval": "per oncology protocol", "target": "Normal/negative", "action_threshold": "Rising tumor markers (disease recurrence)"},
-            {"parameter": "Proteinuria (UPCR)", "interval": "every 1-3 months", "target": "<0.5g/day", "action_threshold": "Persistent nephrotic range"},
+            {"parameter": "24h UTP (g/day)", "interval": "every 1-3 months", "target": "<0.5g/day", "action_threshold": "Persistent nephrotic range"},
             {"parameter": "Serum creatinine/eGFR", "interval": "every 1-3 months", "target": "Stable", "action_threshold": ">20% decline"},
             {"parameter": "Cancer surveillance", "interval": "per oncology guidelines", "target": "No evidence of recurrence", "action_threshold": "New malignancy findings"},
         ],
@@ -1423,7 +1423,7 @@ DISEASE_TREATMENT_PROFILES: dict[str, dict[str, Any]] = {
         "monitoring": [
             {"parameter": "ACE level and lysozyme", "interval": "every 3-6 months", "target": "Normal ACE and lysozyme", "action_threshold": "Rising ACE or lysozyme (disease activity)"},
             {"parameter": "Serum creatinine/eGFR", "interval": "every 1-3 months", "target": "Stable eGFR", "action_threshold": ">20% decline"},
-            {"parameter": "Proteinuria (UPCR)", "interval": "every 1-3 months", "target": "<0.5g/day", "action_threshold": "Persistent nephrotic range"},
+            {"parameter": "24h UTP (g/day)", "interval": "every 1-3 months", "target": "<0.5g/day", "action_threshold": "Persistent nephrotic range"},
             {"parameter": "Serum calcium and 1,25-vitamin D", "interval": "every 3-6 months", "target": "Normal calcium", "action_threshold": "Hypercalcemia (active sarcoidosis)"},
             {"parameter": "Extra-renal sarcoidosis assessment (pulmonary, ocular, skin)", "interval": "every 6-12 months", "target": "No active disease", "action_threshold": "New or worsening extra-renal manifestations"},
         ],
@@ -1470,7 +1470,7 @@ DISEASE_TREATMENT_PROFILES: dict[str, dict[str, Any]] = {
         ],
         "monitoring": [
             {"parameter": "HIV viral load & CD4 count", "interval": "every 1-3 months", "target": "Undetectable VL, CD4 >200", "action_threshold": "Detectable VL or CD4 decline"},
-            {"parameter": "Proteinuria (UACR or UPCR)", "interval": "every 1-3 months", "target": "<300 mg/g", "action_threshold": "Increasing proteinuria"},
+            {"parameter": "24h UTP (g/day)", "interval": "every 1-3 months", "target": "<300 mg/g", "action_threshold": "Increasing proteinuria"},
             {"parameter": "eGFR", "interval": "every 1-3 months", "target": "Stable or improving", "action_threshold": "Decline >25% or >5 mL/min/1.73m2/year"},
             {"parameter": "ART adherence & tolerability", "interval": "at every visit", "target": "Full adherence", "action_threshold": "Non-adherence or drug toxicity"},
         ],
@@ -1485,7 +1485,7 @@ DISEASE_TREATMENT_PROFILES: dict[str, dict[str, Any]] = {
             "maintenance_phase": "Every 3-6 months once stable",
             "long_term": "Lifelong nephrology and infectious disease follow-up",
         },
-        "kdigo_reference": "KDIGO 2021 Glomerular Diseases Guideline — Chapter 11: HIV-Associated Nephropathy; KDIGO 2024 Diabetes Management in CKD Guideline (RAS blockade)",
+        "kdigo_reference": "KDIGO 2021 Glomerular Diseases Guideline â€” Chapter 11: HIV-Associated Nephropathy; KDIGO 2024 Diabetes Management in CKD Guideline (RAS blockade)",
     },
     "drugInducedGn": {
         "disease_name": "Drug-Induced Glomerular Disease",
@@ -1523,7 +1523,7 @@ DISEASE_TREATMENT_PROFILES: dict[str, dict[str, Any]] = {
             "NSAIDs (if drug-induced disease, avoid all NSAIDs)",
         ],
         "monitoring": [
-            {"parameter": "Proteinuria (UACR or UPCR)", "interval": "every 2-4 weeks initially, then monthly", "target": "Progressive reduction after drug withdrawal", "action_threshold": "No improvement at 4 weeks"},
+            {"parameter": "24h UTP (g/day)", "interval": "every 2-4 weeks initially, then monthly", "target": "Progressive reduction after drug withdrawal", "action_threshold": "No improvement at 4 weeks"},
             {"parameter": "eGFR", "interval": "every 2-4 weeks", "target": "Stable or improving", "action_threshold": "Continued decline after drug withdrawal"},
             {"parameter": "Blood pressure", "interval": "at each visit", "target": "<130/80 mmHg", "action_threshold": "Uncontrolled hypertension"},
         ],
@@ -1538,10 +1538,10 @@ DISEASE_TREATMENT_PROFILES: dict[str, dict[str, Any]] = {
             "maintenance_phase": "Every 3 months for 1 year",
             "long_term": "Annual monitoring if residual CKD",
         },
-        "kdigo_reference": "KDIGO 2021 Glomerular Diseases Guideline — Chapter 16: Drug-Induced Glomerular Disease; KDIGO 2024 Clinical Practice Guidelines for Drug-Induced Kidney Injury",
+        "kdigo_reference": "KDIGO 2021 Glomerular Diseases Guideline â€” Chapter 16: Drug-Induced Glomerular Disease; KDIGO 2024 Clinical Practice Guidelines for Drug-Induced Kidney Injury",
     },
     # -----------------------------------------------------------------------
-    # Phase F — Transplant-related diseases
+    # Phase F â€” Transplant-related diseases
     # -----------------------------------------------------------------------
     "recurrentIgaNephropathy": {
         "disease_name": "Recurrent IgA Nephropathy Post-Transplant",
@@ -1556,7 +1556,7 @@ DISEASE_TREATMENT_PROFILES: dict[str, dict[str, Any]] = {
             },
             {
                 "drug": "Steroid pulse for progressive disease",
-                "dose": "IV methylprednisolone 250-500mg/day × 3 days, then oral prednisolone taper",
+                "dose": "IV methylprednisolone 250-500mg/day Ã— 3 days, then oral prednisolone taper",
                 "duration": "3 days IV, then oral taper over 3-6 months",
                 "target": "Stabilize graft function, reduce proteinuria",
                 "rationale": "May stabilize or improve graft function in progressive recurrent IgAN; often combined with optimization of immunosuppression",
@@ -1577,7 +1577,7 @@ DISEASE_TREATMENT_PROFILES: dict[str, dict[str, Any]] = {
         "rescue_therapy": [],
         "contraindicated": ["Excessive immunosuppression without biopsy confirmation of recurrence"],
         "monitoring": [
-            {"parameter": "Proteinuria (UPCR)", "interval": "every 1-3 months post-transplant", "target": "<0.5g/day", "action_threshold": "Rising proteinuria"},
+            {"parameter": "24h UTP (g/day)", "interval": "every 1-3 months post-transplant", "target": "<0.5g/day", "action_threshold": "Rising proteinuria"},
             {"parameter": "Serum creatinine/eGFR", "interval": "every 1-3 months post-transplant", "target": "Stable graft function", "action_threshold": ">20% decline or rising trend"},
             {"parameter": "Urinalysis (hematuria)", "interval": "every 1-3 months post-transplant", "target": "No hematuria", "action_threshold": "New microscopic hematuria"},
         ],
@@ -1611,7 +1611,7 @@ DISEASE_TREATMENT_PROFILES: dict[str, dict[str, Any]] = {
         "second_line": [
             {
                 "drug": "Rituximab (if plasmapheresis response incomplete)",
-                "dose": "375mg/m² × 4 weekly doses or 1000mg × 2 doses",
+                "dose": "375mg/mÂ² Ã— 4 weekly doses or 1000mg Ã— 2 doses",
                 "duration": "4 weeks or 2 doses; repeat based on response",
                 "target": "B-cell depletion, complete remission",
                 "rationale": "Added when plasmapheresis alone achieves only partial response; may reduce circulating permeability factors",
@@ -1630,7 +1630,7 @@ DISEASE_TREATMENT_PROFILES: dict[str, dict[str, Any]] = {
         ],
         "contraindicated": ["Delaying plasmapheresis in sudden severe recurrence (worsens graft outcomes)"],
         "monitoring": [
-            {"parameter": "Proteinuria (UPCR, daily during acute phase)", "interval": "daily during acute phase, then weekly → monthly", "target": "<0.5g/day", "action_threshold": "Nephrotic range proteinuria"},
+            {"parameter": "24h UTP (g/day, daily during acute phase)", "interval": "daily during acute phase, then weekly â†’ monthly", "target": "<0.5g/day", "action_threshold": "Nephrotic range proteinuria"},
             {"parameter": "Serum creatinine/eGFR", "interval": "every 1-3 months", "target": "Stable graft function", "action_threshold": ">20% decline"},
             {"parameter": "Serum albumin", "interval": "weekly during acute phase", "target": ">3.5 g/dL", "action_threshold": "<3.0 g/dL (nephrotic hypoalbuminemia)"},
         ],
@@ -1684,7 +1684,7 @@ DISEASE_TREATMENT_PROFILES: dict[str, dict[str, Any]] = {
         "contraindicated": [],
         "monitoring": [
             {"parameter": "PLA2R antibody titer", "interval": "every 1-3 months", "target": "Undetectable or declining", "action_threshold": "Rising PLA2R titer (disease activity)"},
-            {"parameter": "Proteinuria (UPCR)", "interval": "every 1-3 months", "target": "<0.3g/day", "action_threshold": "Nephrotic range proteinuria"},
+            {"parameter": "24h UTP (g/day)", "interval": "every 1-3 months", "target": "<0.3g/day", "action_threshold": "Nephrotic range proteinuria"},
             {"parameter": "Serum creatinine/eGFR", "interval": "every 1-3 months", "target": "Stable graft function", "action_threshold": ">20% decline"},
         ],
         "follow_up": {
@@ -1724,7 +1724,7 @@ DISEASE_TREATMENT_PROFILES: dict[str, dict[str, Any]] = {
             },
             {
                 "drug": "Eculizumab for C4d+ with DSA (experimental)",
-                "dose": "900mg IV weekly × 4, then 1200mg every 2 weeks",
+                "dose": "900mg IV weekly Ã— 4, then 1200mg every 2 weeks",
                 "duration": "Ongoing if responsive",
                 "target": "Block complement-mediated graft injury",
                 "rationale": "Experimental approach for C4d-positive transplant glomerulopathy with DSA; limited evidence",
@@ -1737,7 +1737,7 @@ DISEASE_TREATMENT_PROFILES: dict[str, dict[str, Any]] = {
         "monitoring": [
             {"parameter": "DSA (donor-specific antibodies)", "interval": "every 1-3 months", "target": "Low or negative MFI", "action_threshold": "Rising DSA MFI or new DSA"},
             {"parameter": "C4d staining (protocol biopsy if indicated)", "interval": "per protocol or if clinically indicated", "target": "C4d negative", "action_threshold": "C4d positivity on biopsy"},
-            {"parameter": "Proteinuria (UPCR)", "interval": "every 1-3 months", "target": "<0.5g/day", "action_threshold": "Rising proteinuria"},
+            {"parameter": "24h UTP (g/day)", "interval": "every 1-3 months", "target": "<0.5g/day", "action_threshold": "Rising proteinuria"},
             {"parameter": "Serum creatinine/eGFR", "interval": "every 1-3 months", "target": "Stable graft function", "action_threshold": ">20% decline"},
         ],
         "follow_up": {
@@ -1751,7 +1751,7 @@ DISEASE_TREATMENT_PROFILES: dict[str, dict[str, Any]] = {
         "first_line": [
             {
                 "drug": "Plasmapheresis + IVIG + pulse methylprednisolone",
-                "dose": "Plasmapheresis 1-1.5 plasma volumes × 5-7 sessions; IVIG 100mg/kg after each PP session; methylprednisolone 250-500mg IV × 3 days",
+                "dose": "Plasmapheresis 1-1.5 plasma volumes Ã— 5-7 sessions; IVIG 100mg/kg after each PP session; methylprednisolone 250-500mg IV Ã— 3 days",
                 "duration": "5-7 plasmapheresis sessions over 2-3 weeks",
                 "target": "Reduce DSA titers, stabilize graft function",
                 "rationale": "Standard first-line for acute AMR: plasmapheresis removes DSA, IVIG modulates immune response, steroids reduce inflammation",
@@ -1761,7 +1761,7 @@ DISEASE_TREATMENT_PROFILES: dict[str, dict[str, Any]] = {
         "second_line": [
             {
                 "drug": "Rituximab for persistent DSA",
-                "dose": "375mg/m² × 4 weekly doses or 1000mg × 2 doses",
+                "dose": "375mg/mÂ² Ã— 4 weekly doses or 1000mg Ã— 2 doses",
                 "duration": "4 weeks or 2 doses; repeat based on DSA response",
                 "target": "B-cell depletion, reduce DSA production",
                 "rationale": "Added when DSA persists despite plasmapheresis and IVIG; targets B-cell antibody production",
@@ -1769,7 +1769,7 @@ DISEASE_TREATMENT_PROFILES: dict[str, dict[str, Any]] = {
             },
             {
                 "drug": "Eculizumab for severe AMR",
-                "dose": "900mg IV weekly × 4, then 1200mg every 2 weeks",
+                "dose": "900mg IV weekly Ã— 4, then 1200mg every 2 weeks",
                 "duration": "Ongoing if responsive",
                 "target": "Block complement-mediated graft injury",
                 "rationale": "For severe AMR with complement activation (C4d+); blocks terminal complement pathway",
@@ -1780,7 +1780,7 @@ DISEASE_TREATMENT_PROFILES: dict[str, dict[str, Any]] = {
         "rescue_therapy": [
             {
                 "drug": "Bortezomib (plasma cell depletion) for refractory AMR",
-                "dose": "1.3mg/m² SC on days 1, 4, 8, 11 of 21-day cycle",
+                "dose": "1.3mg/mÂ² SC on days 1, 4, 8, 11 of 21-day cycle",
                 "duration": "2-4 cycles",
                 "target": "Plasma cell depletion, reduce antibody production",
                 "rationale": "Bortezomib targets proteasome-dependent plasma cells; for refractory AMR with high DSA despite standard therapy",
@@ -1788,12 +1788,12 @@ DISEASE_TREATMENT_PROFILES: dict[str, dict[str, Any]] = {
                 "conditions": "Refractory AMR with high DSA despite plasmapheresis + IVIG + rituximab",
             },
         ],
-        "contraindicated": ["T cell-depleting agents alone (e.g., ATG alone) — insufficient for antibody-mediated process"],
+        "contraindicated": ["T cell-depleting agents alone (e.g., ATG alone) â€” insufficient for antibody-mediated process"],
         "monitoring": [
             {"parameter": "DSA titers (MFI)", "interval": "weekly during acute phase, then monthly", "target": "Declining or negative MFI", "action_threshold": "Rising or persistent high MFI DSA"},
             {"parameter": "C4d staining (biopsy)", "interval": "as indicated clinically", "target": "C4d negative", "action_threshold": "Persistent C4d positivity"},
             {"parameter": "Serum creatinine/eGFR", "interval": "weekly during acute phase, then monthly", "target": "Stable or improving graft function", "action_threshold": "Further decline despite treatment"},
-            {"parameter": "Proteinuria (UPCR)", "interval": "every 1-3 months", "target": "<0.5g/day", "action_threshold": "Rising proteinuria"},
+            {"parameter": "24h UTP (g/day)", "interval": "every 1-3 months", "target": "<0.5g/day", "action_threshold": "Rising proteinuria"},
             {"parameter": "Graft biopsy", "interval": "as indicated (repeat biopsy to assess treatment response)", "target": "Resolution of microvascular inflammation and C4d", "action_threshold": "Persistent histologic AMR features"},
         ],
         "follow_up": {
@@ -1807,28 +1807,28 @@ DISEASE_TREATMENT_PROFILES: dict[str, dict[str, Any]] = {
         "first_line": [
             {
                 "drug": "Pulse methylprednisolone",
-                "dose": "250-500mg IV daily × 3 days",
+                "dose": "250-500mg IV daily Ã— 3 days",
                 "duration": "3 days, followed by oral prednisolone taper",
                 "target": "Resolution of Banff inflammatory lesions, stabilize graft function",
-                "rationale": "Standard first-line for acute TCMR (Banff ≥IA); pulse steroids reduce T-cell-mediated graft inflammation",
+                "rationale": "Standard first-line for acute TCMR (Banff â‰¥IA); pulse steroids reduce T-cell-mediated graft inflammation",
                 "evidence_grade": "1",
             },
         ],
         "second_line": [
             {
                 "drug": "Anti-thymocyte globulin (rATG) for steroid-resistant TCMR",
-                "dose": "1.5mg/kg/day IV × 7-14 days",
+                "dose": "1.5mg/kg/day IV Ã— 7-14 days",
                 "duration": "7-14 days",
-                "target": "Resolution of rejection in steroid-resistant Banff ≥IIA TCMR",
-                "rationale": "For Banff ≥IIA TCMR refractory to pulse steroids; depletes T cells to halt rejection",
+                "target": "Resolution of rejection in steroid-resistant Banff â‰¥IIA TCMR",
+                "rationale": "For Banff â‰¥IIA TCMR refractory to pulse steroids; depletes T cells to halt rejection",
                 "evidence_grade": "1",
-                "conditions": "Steroid-resistant Banff ≥IIA TCMR on protocol or for-cause biopsy",
+                "conditions": "Steroid-resistant Banff â‰¥IIA TCMR on protocol or for-cause biopsy",
             },
         ],
         "rescue_therapy": [
             {
                 "drug": "Basiliximab or alemtuzumab for refractory TCMR (rare)",
-                "dose": "Basiliximab 20mg IV on days 0 and 4; alemtuzumab 30mg IV × 1-2 doses",
+                "dose": "Basiliximab 20mg IV on days 0 and 4; alemtuzumab 30mg IV Ã— 1-2 doses",
                 "duration": "1-2 doses",
                 "target": "Resolution of refractory TCMR",
                 "rationale": "For TCMR refractory to both steroids and rATG; rarely needed",
@@ -1837,7 +1837,7 @@ DISEASE_TREATMENT_PROFILES: dict[str, dict[str, Any]] = {
         ],
         "contraindicated": ["Steroid minimization or withdrawal during acute TCMR (worsens rejection)"],
         "monitoring": [
-            {"parameter": "Serum creatinine/eGFR", "interval": "daily during acute phase, then weekly → monthly", "target": "Stable or improving graft function", "action_threshold": "Further decline despite treatment"},
+            {"parameter": "Serum creatinine/eGFR", "interval": "daily during acute phase, then weekly â†’ monthly", "target": "Stable or improving graft function", "action_threshold": "Further decline despite treatment"},
             {"parameter": "Graft biopsy (if indicated)", "interval": "repeat biopsy to assess response if no improvement by day 7", "target": "Resolution of interstitial inflammation and tubulitis", "action_threshold": "Persistent Banff lesions"},
             {"parameter": "DSA (rule out concurrent AMR)", "interval": "at time of rejection diagnosis", "target": "Negative or stable DSA", "action_threshold": "Concurrent DSA positivity (mixed rejection)"},
         ],
@@ -1870,11 +1870,11 @@ DISEASE_TREATMENT_PROFILES: dict[str, dict[str, Any]] = {
             },
         ],
         "rescue_therapy": [],
-        "contraindicated": ["mTOR inhibitor (everolimus/sirolimus) if significant proteinuria (>1 g/d) — may worsen proteinuria"],
+        "contraindicated": ["mTOR inhibitor (everolimus/sirolimus) if significant proteinuria (>1 g/d) â€” may worsen proteinuria"],
         "monitoring": [
             {"parameter": "CNI trough levels (tacrolimus/cyclosporine)", "interval": "weekly during dose adjustment, then monthly", "target": "Lowest effective trough (e.g., tacrolimus 3-5 ng/mL for CNI minimization)", "action_threshold": "Trough above target or subtherapeutic levels"},
             {"parameter": "Serum creatinine/eGFR", "interval": "every 1-3 months", "target": "Stable or improving eGFR after CNI reduction", "action_threshold": "Continued decline despite CNI reduction"},
-            {"parameter": "Proteinuria (UPCR)", "interval": "every 1-3 months", "target": "<0.5g/day", "action_threshold": "Rising proteinuria (especially on mTOR inhibitor)"},
+            {"parameter": "24h UTP (g/day)", "interval": "every 1-3 months", "target": "<0.5g/day", "action_threshold": "Rising proteinuria (especially on mTOR inhibitor)"},
             {"parameter": "Graft biopsy for chronic changes (if indicated)", "interval": "as clinically indicated", "target": "Assess for CNI arteriolopathy, IF/TA", "action_threshold": "Progressive chronic allograft nephropathy"},
         ],
         "follow_up": {
@@ -1898,7 +1898,7 @@ DISEASE_TREATMENT_PROFILES: dict[str, dict[str, Any]] = {
         "second_line": [
             {
                 "drug": "Leflunomide (if viral load persists after immunosuppression reduction)",
-                "dose": "Loading dose 100mg daily × 3 days, then 20-60mg daily (target teriflunomide level 50-100 mcg/mL)",
+                "dose": "Loading dose 100mg daily Ã— 3 days, then 20-60mg daily (target teriflunomide level 50-100 mcg/mL)",
                 "duration": "3-6 months",
                 "target": "BK viral load clearance",
                 "rationale": "Leflunomide has both immunosuppressive and antiviral properties; alternative when immunosuppression reduction alone fails",
@@ -2153,7 +2153,7 @@ def _add_ckd_modifications(plan: ManagementPlan, features: dict) -> ManagementPl
     plan.monitoring.append({
         "parameter": "CKD-MBD screening (calcium, phosphate, PTH, vitamin D)",
         "interval": "every 3-6 months (eGFR <45)",
-        "target": "Calcium 8.5-10.5, phosphate <4.5, PTH 2-9× ULN",
+        "target": "Calcium 8.5-10.5, phosphate <4.5, PTH 2-9Ã— ULN",
         "action_threshold": "CKD-MBD detected",
     })
     plan.monitoring.append({
@@ -2193,3 +2193,4 @@ def _build_default_plan(patient, disease_id: str) -> ManagementPlan:
         safety_checks=_build_safety_checks(patient, disease_id, {}),
         patient_education=_build_patient_education(disease_id),
     )
+

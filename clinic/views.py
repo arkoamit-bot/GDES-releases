@@ -1219,6 +1219,37 @@ def drug_intelligence_detail(request, drug_id):
 
 
 @login_required(login_url=LOGIN)
+def recommendation_feedback(request, pk):
+    """V8 Layer 10 — capture a nephrologist's Accept/Modify/Reject on a CDS
+    recommendation as structured learning data. NEVER auto-applied to the
+    production knowledge base (governance: expert review required)."""
+    patient = get_object_or_404(Patient, pk=pk)
+    if request.method == "POST":
+        from feedback.models import WorkflowFeedback
+
+        action = request.POST.get("action", "")
+        area = request.POST.get("area", "clinical_reasoning")
+        valid_areas = dict(WorkflowFeedback.FEEDBACK_TYPES)
+        if action in ("accept", "modify", "reject"):
+            WorkflowFeedback.objects.create(
+                user=request.user if request.user.is_authenticated else None,
+                patient=patient,
+                feedback_type=area if area in valid_areas else "clinical_reasoning",
+                action=action,
+                recommendation_ref=(request.POST.get("ref") or "")[:120],
+                rating={"accept": 5, "modify": 3, "reject": 1}.get(action, 0),
+                comments=(request.POST.get("comments") or "").strip(),
+            )
+            messages.success(
+                request,
+                f"Recommendation {action}ed — thank you. Your feedback becomes "
+                "structured learning data (applied only after expert review).")
+        else:
+            messages.error(request, "Please choose Accept, Modify, or Reject.")
+    return redirect("clinic:patient_detail", pk=patient.pk)
+
+
+@login_required(login_url=LOGIN)
 def safety_page(request):
     group_by = request.GET.get("group_by", "diabetes")
     ctx = {"active": "safety", "group_by": group_by,

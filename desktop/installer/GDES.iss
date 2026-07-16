@@ -102,7 +102,7 @@ var
   ConfigPath: String;
   Json: String;
 begin
-  ConfigPath := ExpandConstant('{app}\bgddr_paths.json');
+  ConfigPath := ExpandConstant('{app}\Data\bgddr_paths.json');
   if FileExists(ConfigPath) then
     exit;
 
