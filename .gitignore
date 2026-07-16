@@ -73,3 +73,8 @@ test_output.txt
 test_results_fixed.txt
 validation_output.txt
 *_output.txt
+
+# Patient-data exports must never be tracked
+patient_issues.csv
+*_issues.csv
+PATIENT_*.csv
