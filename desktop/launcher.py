@@ -293,7 +293,10 @@ def configure_data_paths(root: Path, interactive: bool = True) -> None:
 # --------------------------------------------------------------------------- #
 # In-app update (from the OneDrive update folder or GitHub Releases)
 # --------------------------------------------------------------------------- #
-_GITHUB_REPO = os.environ.get("BGDDR_GITHUB_REPO", "arkoamit-bot/GDES").strip()
+# Default update source is the PUBLIC releases-only repo (holds only the built
+# zips, no source) so clinic PCs self-update with no token and the private source
+# repo stays private. Override per-PC with BGDDR_GITHUB_REPO if needed.
+_GITHUB_REPO = os.environ.get("BGDDR_GITHUB_REPO", "arkoamit-bot/GDES-releases").strip()
 # Optional read-only token for a PRIVATE releases repo. Prefer a PUBLIC releases
 # repo (no token needed, no token shipped to clinic PCs). If you must use a
 # private repo, set BGDDR_GITHUB_TOKEN to a fine-grained token with read-only
