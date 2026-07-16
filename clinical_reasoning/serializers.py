@@ -1,4 +1,5 @@
 from rest_framework import serializers
+from knowledge.models import RecommendationAudit
 from .models import ClinicalProfile, ClinicalInsight
 
 
@@ -24,6 +25,45 @@ class ClinicalInsightSerializer(serializers.ModelSerializer):
 class ReasoningRequestSerializer(serializers.Serializer):
     patient_id = serializers.IntegerField(help_text="Patient PK to reason about")
     force = serializers.BooleanField(default=False, help_text="Force recomputation")
+
+
+class RecommendationAuditSerializer(serializers.ModelSerializer):
+    patient_id_display = serializers.CharField(source="patient.patient_id", read_only=True)
+    patient_name = serializers.CharField(source="patient.name", read_only=True)
+    clinician_name = serializers.CharField(source="clinician.get_full_name", read_only=True, default="")
+
+    class Meta:
+        model = RecommendationAudit
+        fields = [
+            "recommendation_id", "recommendation_type", "patient", "patient_id_display",
+            "patient_name", "clinician", "clinician_name", "disease_id",
+            "recommendation_text", "clinical_rationale", "guideline",
+            "guideline_version", "guideline_section", "evidence_grade",
+            "confidence_score", "kb_rule_id", "kb_version",
+            "approval_status", "override_allowed", "override_reason",
+            "explanation", "issued_at", "reviewed_at",
+        ]
+        read_only_fields = [
+            "recommendation_id", "issued_at", "reviewed_at",
+        ]
+
+
+class ReviewRecommendationSerializer(serializers.Serializer):
+    approval_status = serializers.ChoiceField(
+        choices=["approved", "rejected", "overridden"],
+        help_text="Clinician decision on this recommendation",
+    )
+    override_reason = serializers.CharField(
+        required=False, allow_blank=True,
+        help_text="Reason for rejection/override (required if rejected)",
+    )
+
+    def validate(self, data):
+        if data["approval_status"] in ("rejected", "overridden") and not data.get("override_reason"):
+            raise serializers.ValidationError(
+                "override_reason is required when rejecting or overriding a recommendation"
+            )
+        return data
 
 
 class ExplainabilityRequestSerializer(serializers.Serializer):

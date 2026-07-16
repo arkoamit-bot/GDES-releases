@@ -105,6 +105,8 @@ INSTALLED_APPS = [
     "clinical_reasoning",
     # Phase 5.1 — Follow-up Engine
     "followup",
+    # V8 — Field Error Reporting & Continuous Improvement
+    "feedback",
 ]
 
 # --- Django REST Framework --------------------------------------------------
@@ -137,6 +139,8 @@ MIDDLEWARE = [
     "django.middleware.clickjacking.XFrameOptionsMiddleware",
     # Attributes audited changes to request.user (must follow AuthenticationMiddleware).
     "audit.middleware.AuditMiddleware",
+    # V8 — Field Error Reporting & Performance Monitoring
+    "feedback.middleware.FeedbackMiddleware",
 ]
 
 ROOT_URLCONF = "bgddr.urls"

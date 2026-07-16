@@ -175,7 +175,13 @@ document.addEventListener('DOMContentLoaded', function() {
       <p class="px-3 pt-4 pb-1 text-[11px] font-semibold uppercase tracking-wide text-slate-400">Clinical Intelligence</p>
       {% include "_navlink.html" with url="clinic:patients" icon="fa-brain" label="Clinical Reasoning" on=a key="reasoning" %}
       {% include "_navlink.html" with url="clinic:worklist" icon="fa-calendar-check" label="Follow-up" on=a key="followup" %}
+      {% include "_navlink.html" with url="reminders:log" icon="fa-bell" label="Reminder Log" on=a key="reminders" %}
       {% include "_navlink.html" with href="/admin/knowledge/" icon="fa-book-medical" label="Knowledge Base" on=a key="knowledge" %}
+      <p class="px-3 pt-4 pb-1 text-[11px] font-semibold uppercase tracking-wide text-slate-400">Feedback</p>
+      {% include "_navlink.html" with url="feedback:feedback_dashboard" icon="fa-chart-simple" label="Feedback Dashboard" on=a key="feedback_dashboard" %}
+      {% include "_navlink.html" with url="feedback:conflict_list" icon="fa-scale-balanced" label="AI Conflicts" on=a key="feedback_conflicts" %}
+      {% include "_navlink.html" with url="feedback:improvement_suggestions" icon="fa-lightbulb" label="Improvements" on=a key="feedback_improvements" %}
+      {% include "_navlink.html" with url="feedback:workflow_feedback" icon="fa-star" label="Rate Suggestions" on=a key="feedback_workflow" %}
       <a href="https://www.verahealth.ai/" target="_blank" rel="noopener noreferrer"
          title="Open Vera Health evidence search in a new tab (external)"
          class="flex items-center gap-3 px-3 py-2 rounded-lg font-medium no-underline text-slate-600 hover:bg-slate-100 hover:text-slate-900">
@@ -193,6 +199,7 @@ document.addEventListener('DOMContentLoaded', function() {
       {% include "_navlink.html" with url="clinic:export" icon="fa-file-export" label="Export" on=a key="export" %}
       <p class="px-3 pt-4 pb-1 text-[11px] font-semibold uppercase tracking-wide text-slate-400">System</p>
       {% include "_navlink.html" with url="clinic:help" icon="fa-circle-question" label="Help &amp; Guides" on=a key="help" %}
+      {% include "_navlink.html" with url="feedback:report_problem" icon="fa-bug" label="Report Problem" on=a key="report_problem" %}
       {% include "_navlink.html" with href="/admin/" icon="fa-gear" label="Admin" on=a key="admin" %}
       {% endwith %}
     </nav>

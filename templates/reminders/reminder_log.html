@@ -1,0 +1,116 @@
+{% extends "base.html" %}
+{% block title %}Reminder Log — GDES{% endblock %}
+{% block heading %}Reminder Log{% endblock %}
+{% block content %}
+
+<div class="page-nav">
+  <div class="page-nav-left">
+    <a class="btn ghost sm" href="/"><i class="fas fa-arrow-left"></i> Dashboard</a>
+  </div>
+</div>
+
+<div class="grid2" style="display:grid;grid-template-columns:1fr 1fr;gap:16px;align-items:start">
+
+  <!-- Left: Active reminders -->
+  <div>
+    <div class="section-title"><i class="fas fa-bell mr-1"></i> Active reminders</div>
+    <div class="card">
+      <div class="card-body" style="padding:0">
+        {% if reminders_active %}
+        <div class="overflow-x-auto">
+          <table class="grid">
+            <thead><tr><th>Patient</th><th>Reminder</th><th>Type</th><th>Created</th><th></th></tr></thead>
+            <tbody>
+              {% for r in reminders_active %}
+              <tr>
+                <td><a href="{% url 'clinic:patient_detail' r.patient.pk %}" class="font-semibold text-primary-600">{{ r.patient.patient_id }}</a> {{ r.patient.name }}</td>
+                <td>
+                  <div class="font-medium">{{ r.title }}</div>
+                  {% if r.message %}<div class="text-slate-500 text-xs mt-1">{{ r.message|truncatewords:20 }}</div>{% endif %}
+                </td>
+                <td><span class="badge neutral">{{ r.get_reminder_type_display }}</span></td>
+                <td class="text-slate-500 text-xs">{{ r.created_at|date:"d M Y" }}</td>
+                <td class="text-right" style="white-space:nowrap">
+                  <a class="btn ghost sm" href="{% url 'reminders:done' r.pk %}" title="Mark done"><i class="fas fa-check text-green-600"></i></a>
+                  <a class="btn ghost sm" href="{% url 'reminders:cancel' r.pk %}" title="Cancel"><i class="fas fa-xmark text-red-500"></i></a>
+                </td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+        {% else %}
+        <div class="empty-state">
+          <div class="icon"><i class="fas fa-bell"></i></div>
+          <div class="title">No active reminders</div>
+          <div class="desc">Reminders logged during consults will appear here.</div>
+        </div>
+        {% endif %}
+      </div>
+    </div>
+
+    <!-- Completed -->
+    {% if reminders_completed %}
+    <div class="section-title" style="margin-top:24px"><i class="fas fa-check-circle mr-1"></i> Recently completed</div>
+    <div class="card">
+      <div class="card-body" style="padding:0">
+        <div class="overflow-x-auto">
+          <table class="grid">
+            <thead><tr><th>Patient</th><th>Reminder</th><th>Status</th><th>Completed</th></tr></thead>
+            <tbody>
+              {% for r in reminders_completed %}
+              <tr class="text-slate-400">
+                <td>{{ r.patient.patient_id }} {{ r.patient.name }}</td>
+                <td>{{ r.title }}</td>
+                <td><span class="badge {% if r.status == 'sent' %}ok{% else %}neutral{% endif %}">{{ r.get_status_display }}</span></td>
+                <td class="text-xs">{{ r.sent_at|date:"d M Y"|default:r.created_at|date:"d M Y" }}</td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+    {% endif %}
+  </div>
+
+  <!-- Right: New reminder form -->
+  <div>
+    <div class="section-title"><i class="fas fa-plus mr-1"></i> Log a reminder</div>
+    <div class="form-card">
+      <form method="post">
+        {% csrf_token %}
+        <div class="form-group">
+          <label for="id_patient">Patient *</label>
+          <select name="patient" id="id_patient" class="form-control" required>
+            <option value="">— Select patient —</option>
+            {% for p in patients %}
+            <option value="{{ p.pk }}">{{ p.patient_id }} — {{ p.name }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div class="form-group">
+          <label for="id_type">Reminder type</label>
+          <select name="reminder_type" id="id_type" class="form-control">
+            {% for val, label in reminder_types %}
+            <option value="{{ val }}" {% if val == 'general' %}selected{% endif %}>{{ label }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div class="form-group">
+          <label for="id_title">Title *</label>
+          <input type="text" name="title" id="id_title" class="form-control" placeholder="e.g. Recall for HbA1c" required maxlength="200">
+        </div>
+        <div class="form-group">
+          <label for="id_message">Notes</label>
+          <textarea name="message" id="id_message" class="form-control" placeholder="Optional details…" rows="3"></textarea>
+        </div>
+        <div class="form-actions">
+          <button class="btn" type="submit"><i class="fas fa-plus"></i> Log reminder</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+</div>
+{% endblock %}

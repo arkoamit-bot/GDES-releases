@@ -18,7 +18,7 @@ def detect_care_gaps(patient, features: dict) -> list[dict]:
     disease_phase = features.get("disease_phase", "")
 
     # Core investigations
-    gaps.extend(_check_core_investigations(features))
+    gaps.extend(_check_core_investigations(patient, features))
 
     # Monitoring gaps
     gaps.extend(_check_monitoring_gaps(patient, features, disease_phase))
@@ -29,18 +29,30 @@ def detect_care_gaps(patient, features: dict) -> list[dict]:
     return gaps
 
 
-def _check_core_investigations(features: dict) -> list[dict]:
+def _check_core_investigations(patient, features: dict) -> list[dict]:
     """Check for missing core diagnostic investigations."""
     gaps = []
     if features.get("proteinuria") == "none":
-        gaps.append({
-            "field": "proteinuria",
-            "importance": "high",
-            "category": "investigation",
-            "message": "Proteinuria not quantified — obtain UPCR or ACR",
-            "recommendation": "Order spot UPCR or 24h urine protein",
-        })
-    if features.get("egfrTrend") == "normal" and features.get("latest_egfr") is None:
+        # Only flag proteinuria quantification for suspected lupus nephritis,
+        # where UTP is specifically recommended for remission evaluation.
+        biopsy_flags = features.get("biopsy", [])
+        disease_features = features.get("features", [])
+        diagnosis = (getattr(patient, "primary_diagnosis", "") or "").lower()
+        is_lupus = (
+            "fullHouse" in biopsy_flags
+            or "lupus" in diagnosis
+            or "sle" in diagnosis
+            or "lupus" in str(disease_features).lower()
+        )
+        if is_lupus:
+            gaps.append({
+                "field": "proteinuria",
+                "importance": "high",
+                "category": "investigation",
+                "message": "Proteinuria not quantified — obtain UPCR or UTP for lupus nephritis remission assessment",
+                "recommendation": "Order spot UPCR or 24h urine protein",
+            })
+    if features.get("latest_egfr") is None:
         gaps.append({
             "field": "egfr",
             "importance": "high",

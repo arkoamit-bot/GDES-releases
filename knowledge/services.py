@@ -56,6 +56,7 @@ def extract_patient_features(patient: Patient) -> dict:
         "albumin": "normal",
         "sediment": "bland",
         "egfrTrend": "normal",
+        "latest_egfr": None,
         "ageGroup": "adult",
         "disease_phase": patient.current_phase or "",
         "registration_status": patient.registration_status or "",
@@ -208,6 +209,7 @@ def extract_patient_features(patient: Patient) -> dict:
 
     # --- eGFR trend ---
     if patient.latest_egfr:
+        features["latest_egfr"] = float(patient.latest_egfr)
         if patient.latest_egfr < 30:
             features["egfrTrend"] = "rapidDecline"
         elif patient.latest_egfr < 60:
@@ -265,11 +267,22 @@ def _evaluate_condition(condition: dict, features: dict) -> bool:
     operator = condition.get("operator", "eq")
     value = condition.get("value")
 
+    # Map legacy singular field names to the actual features dict keys.
+    _FIELD_ALIASES = {
+        "feature": "features",
+        "lab": "labs",
+    }
+    field_name = _FIELD_ALIASES.get(field_name, field_name)
+
     # Get the patient value
-    if field_name in features:
-        patient_value = features[field_name]
-    else:
-        patient_value = None
+    patient_value = features.get(field_name)
+
+    # "genetic" rules: map the value to a features-list check
+    if field_name == "genetic" and patient_value is None:
+        genetic = value  # e.g. "col4aMutation"
+        patient_value = [v for v in features.get("features", []) if "genetic" in str(v).lower() or str(v) == genetic]
+        if not patient_value:
+            patient_value = None
 
     # Evaluate based on operator
     if operator == "eq":

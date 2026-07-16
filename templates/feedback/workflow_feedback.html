@@ -1,0 +1,53 @@
+{% extends "base.html" %}{% load static %}
+{% block title %}Workflow Feedback — GDES{% endblock %}
+{% block heading %}Rate Clinical Suggestions{% endblock %}
+{% block content %}
+
+<div class="max-w-2xl mx-auto">
+  <form method="post" class="form-card">
+    {% csrf_token %}
+    <div class="form-group">
+      <label class="form-label">Feedback Type</label>
+      <select name="feedback_type" class="form-control" required>
+        <option value="diagnosis">Diagnosis Suggestions</option>
+        <option value="treatment_plan">Treatment Plans</option>
+        <option value="followup_plan">Follow-up Plans</option>
+        <option value="investigation_plan">Investigation Plans</option>
+        <option value="clinical_reasoning">Clinical Reasoning</option>
+      </select>
+    </div>
+    <div class="form-group">
+      <label class="form-label">Rating</label>
+      <div class="flex gap-2 text-2xl" id="star-rating">
+        {% for i in "12345" %}
+        <button type="button" class="star-btn text-slate-300 hover:text-amber-400 transition" data-value="{{ i }}">&#9733;</button>
+        {% endfor %}
+        <input type="hidden" name="rating" id="rating-value" value="3">
+      </div>
+    </div>
+    <div class="form-group">
+      <label class="form-label">Comments (optional)</label>
+      <textarea name="comments" class="form-control" rows="4" placeholder="What worked well? What could be improved?"></textarea>
+    </div>
+    <div class="form-actions">
+      <button type="submit" class="btn btn-primary">Submit Feedback</button>
+      <a href="{% url 'feedback:feedback_dashboard' %}" class="btn btn-secondary">Cancel</a>
+    </div>
+  </form>
+</div>
+
+{% endblock %}
+{% block scripts %}
+<script>
+document.querySelectorAll('.star-btn').forEach(btn => {
+  btn.addEventListener('click', function() {
+    const val = parseInt(this.dataset.value);
+    document.getElementById('rating-value').value = val;
+    document.querySelectorAll('.star-btn').forEach((b, i) => {
+      b.classList.toggle('text-amber-400', i < val);
+      b.classList.toggle('text-slate-300', i >= val);
+    });
+  });
+});
+</script>
+{% endblock %}

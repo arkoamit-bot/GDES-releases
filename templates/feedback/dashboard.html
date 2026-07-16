@@ -1,0 +1,126 @@
+{% extends "base.html" %}{% load static %}
+{% block title %}Feedback Dashboard — GDES{% endblock %}
+{% block heading %}Field Feedback Dashboard{% endblock %}
+{% block content %}
+
+<div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+  <div class="card"><div class="card-body text-center">
+    <div class="text-3xl font-bold text-red-600">{{ total_errors }}</div>
+    <div class="text-sm text-slate-500">Total Errors</div>
+    <div class="text-xs text-slate-400">{{ errors_30d }} in last 30d</div>
+  </div></div>
+  <div class="card"><div class="card-body text-center">
+    <div class="text-3xl font-bold text-orange-600">{{ total_crashes }}</div>
+    <div class="text-sm text-slate-500">Crash Reports</div>
+    <div class="text-xs text-slate-400">{{ crashes_30d }} in last 30d</div>
+  </div></div>
+  <div class="card"><div class="card-body text-center">
+    <div class="text-3xl font-bold text-amber-600">{{ unresolved_conflicts }}</div>
+    <div class="text-sm text-slate-500">Unresolved AI Conflicts</div>
+    <div class="text-xs text-slate-400">{{ total_conflicts }} total</div>
+  </div></div>
+  <div class="card"><div class="card-body text-center">
+    <div class="text-3xl font-bold text-purple-600">{{ pending_feedback }}</div>
+    <div class="text-sm text-slate-500">Pending User Feedback</div>
+    <div class="text-xs text-slate-400">{{ total_workflow_feedback }} workflow ratings</div>
+  </div></div>
+</div>
+
+<div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
+  <div class="card"><div class="card-body">
+    <h3 class="section-title">Errors by Type</h3>
+    {% for item in error_by_type %}
+    <div class="flex justify-between py-1">
+      <span>{{ item.error_type|default:"Unknown" }}</span>
+      <span class="font-semibold">{{ item.count }}</span>
+    </div>
+    {% empty %}<p class="empty-state">No errors recorded</p>{% endfor %}
+  </div></div>
+
+  <div class="card"><div class="card-body">
+    <h3 class="section-title">Severity Breakdown</h3>
+    {% for item in severity_breakdown %}
+    <div class="flex justify-between py-1">
+      <span class="capitalize">{{ item.severity }}</span>
+      <span class="font-semibold">{{ item.count }}</span>
+    </div>
+    {% empty %}<p class="empty-state">No errors recorded</p>{% endfor %}
+  </div></div>
+</div>
+
+<div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
+  <div class="card"><div class="card-body">
+    <h3 class="section-title">AI Disagreements by Disease</h3>
+    {% for item in conflict_by_disease %}
+    <div class="flex justify-between py-1">
+      <span>{{ item.disease|default:"Unknown" }}</span>
+      <span class="font-semibold">{{ item.count }}</span>
+    </div>
+    {% empty %}<p class="empty-state">No disagreements recorded</p>{% endfor %}
+  </div></div>
+
+  <div class="card"><div class="card-body">
+    <h3 class="section-title">Knowledge Conflicts by Type</h3>
+    {% for item in knowledge_conflict_by_type %}
+    <div class="flex justify-between py-1">
+      <span>{{ item.conflict_type|title }}</span>
+      <span class="font-semibold">{{ item.count }}</span>
+    </div>
+    {% empty %}<p class="empty-state">No conflicts detected</p>{% endfor %}
+  </div></div>
+</div>
+
+<div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
+  <div class="card"><div class="card-body">
+    <h3 class="section-title">AI Failures by Type</h3>
+    {% for item in ai_failures_by_type %}
+    <div class="flex justify-between py-1">
+      <span class="capitalize">{{ item.failure_type }}</span>
+      <span class="font-semibold">{{ item.count }}</span>
+    </div>
+    {% empty %}<p class="empty-state">No AI failures recorded</p>{% endfor %}
+  </div></div>
+
+  <div class="card"><div class="card-body">
+    <h3 class="section-title">Top Failing Rules</h3>
+    {% for item in top_failing_rules %}
+    <div class="flex justify-between py-1">
+      <span><code>{{ item.rule_id }}</code> ({{ item.disease }})</span>
+      <span class="font-semibold">{{ item.count }}</span>
+    </div>
+    {% empty %}<p class="empty-state">No rule failures recorded</p>{% endfor %}
+  </div></div>
+</div>
+
+<div class="card mb-6"><div class="card-body">
+  <h3 class="section-title">User Feedback by Type</h3>
+  {% for item in feedback_by_type %}
+  <div class="flex justify-between py-1">
+    <span>{{ item.feedback_type|title }}</span>
+    <span class="font-semibold">{{ item.count }}</span>
+  </div>
+  {% empty %}<p class="empty-state">No user feedback</p>{% endfor %}
+</div></div>
+
+<div class="card mb-6"><div class="card-body">
+  <h3 class="section-title">Slow Pages (last 30 days)</h3>
+  {% if slow_pages %}
+  <div class="overflow-x-auto"><table class="min-w-full text-sm">
+    <thead><tr class="text-left text-slate-500"><th class="py-2">Page</th><th class="py-2">Avg (ms)</th><th class="py-2">Count</th></tr></thead>
+    <tbody>{% for item in slow_pages %}
+    <tr class="border-t"><td class="py-1"><code>{{ item.page|truncatechars:60 }}</code></td><td class="py-1">{{ item.avg_ms|floatformat:0 }}</td><td class="py-1">{{ item.count }}</td></tr>
+    {% endfor %}</tbody>
+  </table></div>
+  {% else %}<p class="empty-state">No slow pages recorded</p>{% endif %}
+</div></div>
+
+<div class="card mb-6"><div class="card-body">
+  <h3 class="section-title">Improvement Suggestions</h3>
+  <div class="flex gap-4 mb-4">
+    <span><strong>{{ pending_suggestions }}</strong> pending</span>
+    <span><strong>{{ total_suggestions }}</strong> total suggestions</span>
+  </div>
+  <p class="text-xs text-slate-400">Suggestions are auto-generated when a recommendation is overridden 3+ times.</p>
+</div></div>
+
+{% endblock %}

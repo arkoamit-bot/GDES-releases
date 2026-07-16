@@ -60,8 +60,8 @@ except Exception:
 import os
 from pathlib import Path
 
-from PyInstaller.utils.hooks import (collect_submodules, collect_data_files,
-                                     collect_dynamic_libs)
+from PyInstaller.utils.hooks import (collect_data_files, collect_dynamic_libs,
+                                     collect_all as _collect_all)
 
 # Build with the desktop settings so any settings-driven collection is correct.
 os.environ.setdefault("DJANGO_SETTINGS_MODULE", "bgddr.settings_desktop")
@@ -80,6 +80,7 @@ LOCAL_APPS = [
     # GDES clinical decision support + later phases
     "clinical", "knowledge", "timeline", "reminders", "fhir", "events",
     "clinical_reasoning", "followup",
+    "feedback",
 ]
 
 # Third-party packages whose Python submodules must be fully bundled.
@@ -92,21 +93,25 @@ THIRD_PARTY = [
     "celery", "kombu", "billiard", "vine",
 ]
 
+# Collect everything: modules, data files, and binaries for all packages.
 hiddenimports = []
+datas = []
+binaries = []
 for pkg in THIRD_PARTY + LOCAL_APPS:
-    hiddenimports += collect_submodules(pkg)
+    app_datas, app_bins, app_his = _collect_all(pkg)
+    hiddenimports += app_his
+    datas += app_datas
+    binaries += app_bins
 # Database backends + management are imported lazily by name.
 hiddenimports += [
     "django.db.backends.sqlite3",
     "django.db.backends.sqlite3.base",
     "django.db.backends.postgresql",
+    "bgddr.settings_desktop",
 ]
 
 # pyreadstat ships compiled .pyd/.dll binaries that must be collected explicitly.
-binaries = collect_dynamic_libs("pyreadstat")
-
-# --- Data files (templates, static, locale, migrations as data too) --------
-datas = []
+binaries += collect_dynamic_libs("pyreadstat")
 datas += collect_data_files("django")        # admin/auth templates & static
 datas += collect_data_files("rest_framework")
 datas += collect_data_files("jazzmin")
@@ -129,6 +134,23 @@ for rel in ("docs",):
     src = PROJECT / rel
     if src.is_dir():
         datas.append((str(src), rel))
+
+# settings_desktop is now synthesised at runtime by launcher._ensure_settings_desktop()
+# — no need to bundle the .py file, which caused import conflicts in the PYZ.
+
+# NUCLEAR OPTION: copy every .py file from each local app into _internal/ so
+# Django can find them at runtime even if PyInstaller's PYZ analysis dropped
+# the compiled bytecode.  This costs ~5 MB extra and guarantees availability.
+import fnmatch as _fnmatch
+for app in LOCAL_APPS:
+    app_dir = PROJECT / app
+    if not app_dir.is_dir():
+        continue
+    for py_file in app_dir.rglob("*.py"):
+        if "__pycache__" in str(py_file):
+            continue
+        rel = py_file.relative_to(PROJECT)
+        datas.append((str(py_file), str(rel.parent)))
 
 block_cipher = None
 

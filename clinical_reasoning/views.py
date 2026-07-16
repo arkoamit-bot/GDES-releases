@@ -1,9 +1,11 @@
+from django.utils import timezone
 from rest_framework import status
 from rest_framework.decorators import action
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 
 from api.base import AuditedModelViewSet
+from knowledge.models import RecommendationAudit
 from patients.models import Patient
 
 from .models import ClinicalProfile, ClinicalInsight
@@ -345,3 +347,69 @@ class ClinicalInsightViewSet(AuditedModelViewSet):
         insight.dismissed = True
         insight.save()
         return Response(s.ClinicalInsightSerializer(insight).data)
+
+
+class RecommendationAuditViewSet(AuditedModelViewSet):
+    queryset = RecommendationAudit.objects.select_related("patient", "clinician").all()
+    serializer_class = s.RecommendationAuditSerializer
+    filterset_fields = ["patient", "recommendation_type", "approval_status", "disease_id"]
+
+    @action(detail=False, methods=["get"])
+    def by_patient(self, request):
+        patient_id = request.query_params.get("patient_id")
+        if not patient_id:
+            return Response(
+                {"error": "patient_id query parameter is required"},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        audits = self.get_queryset().filter(patient_id=patient_id).order_by("-issued_at")[:50]
+        serializer = self.get_serializer(audits, many=True)
+        return Response(serializer.data)
+
+    @action(detail=True, methods=["post"], serializer_class=s.ReviewRecommendationSerializer)
+    def review(self, request, pk=None):
+        audit = self.get_object()
+        ser = s.ReviewRecommendationSerializer(data=request.data)
+        ser.is_valid(raise_exception=True)
+
+        audit.approval_status = ser.validated_data["approval_status"]
+        audit.override_reason = ser.validated_data.get("override_reason", "")
+        audit.expert_reviewer = request.user
+        audit.reviewed_at = timezone.now()
+        audit.save()
+
+        return Response(s.RecommendationAuditSerializer(audit).data)
+
+    @action(detail=False, methods=["get"])
+    def comparison(self, request):
+        """AI-vs-Expert comparison summary (Layer 1 — Clinical Memory Engine).
+
+        Returns aggregate statistics comparing AI recommendations against
+        clinician decisions for a given period or disease.
+        """
+        disease = request.query_params.get("disease_id")
+        days = int(request.query_params.get("days", 90))
+
+        from datetime import timedelta
+        cutoff = timezone.now() - timedelta(days=days)
+        qs = self.get_queryset().filter(issued_at__gte=cutoff)
+        if disease:
+            qs = qs.filter(disease_id=disease)
+
+        total = qs.count()
+        reviewed = qs.exclude(approval_status="pending").count()
+        approved = qs.filter(approval_status="approved").count()
+        rejected = qs.filter(approval_status="rejected").count()
+        overridden = qs.filter(approval_status="overridden").count()
+
+        return Response({
+            "period_days": days,
+            "disease_id": disease or "all",
+            "total_recommendations": total,
+            "reviewed": reviewed,
+            "approved": approved,
+            "rejected": rejected,
+            "overridden": overridden,
+            "acceptance_rate": round(approved / total * 100, 1) if total else 0.0,
+            "review_rate": round(reviewed / total * 100, 1) if total else 0.0,
+        })
