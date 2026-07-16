@@ -294,7 +294,19 @@ def configure_data_paths(root: Path, interactive: bool = True) -> None:
 # In-app update (from the OneDrive update folder or GitHub Releases)
 # --------------------------------------------------------------------------- #
 _GITHUB_REPO = os.environ.get("BGDDR_GITHUB_REPO", "arkoamit-bot/GDES").strip()
+# Optional read-only token for a PRIVATE releases repo. Prefer a PUBLIC releases
+# repo (no token needed, no token shipped to clinic PCs). If you must use a
+# private repo, set BGDDR_GITHUB_TOKEN to a fine-grained token with read-only
+# access to that repo's Contents/Releases.
+_GITHUB_TOKEN = os.environ.get("BGDDR_GITHUB_TOKEN", "").strip()
 _GITHUB_API = "https://api.github.com/repos/{repo}/releases/latest"
+
+
+def _github_headers(accept: str = "application/vnd.github+json") -> dict:
+    h = {"Accept": accept, "User-Agent": "GDES-Updater"}
+    if _GITHUB_TOKEN:
+        h["Authorization"] = f"Bearer {_GITHUB_TOKEN}"
+    return h
 
 
 def _resolve_update_dir(root: Path) -> str | None:
@@ -337,13 +349,7 @@ def _github_update_available(current: str) -> dict | None:
         from bgddr.updater import is_newer
 
         url = _GITHUB_API.format(repo=_GITHUB_REPO)
-        req = urllib.request.Request(
-            url,
-            headers={
-                "Accept": "application/vnd.github+json",
-                "User-Agent": "GDES-Updater",
-            },
-        )
+        req = urllib.request.Request(url, headers=_github_headers())
         with urllib.request.urlopen(req, timeout=15) as resp:
             data = json.loads(resp.read().decode("utf-8"))
 
@@ -377,6 +383,7 @@ def _github_update_available(current: str) -> dict | None:
             "version": version,
             "file": asset["name"],
             "url": asset["browser_download_url"],
+            "api_url": asset.get("url", ""),  # asset API URL — used for private repos
             "sha256": sha256,
             "notes": data.get("body") or "",
         }
@@ -392,7 +399,15 @@ def _github_update_available(current: str) -> dict | None:
 
 def _github_download_and_stage(manifest: dict, log=print) -> Path | None:
     """Download a GitHub release asset, then reuse the normal verifier/stager."""
-    url = manifest.get("url")
+    # For a PRIVATE repo the browser_download_url 404s without a session; the
+    # asset API URL + an octet-stream Accept + token works. Public repos use the
+    # plain browser_download_url (no token needed).
+    if _GITHUB_TOKEN and manifest.get("api_url"):
+        url = manifest["api_url"]
+        headers = _github_headers(accept="application/octet-stream")
+    else:
+        url = manifest.get("url")
+        headers = {"User-Agent": "GDES-Updater"}
     if not url:
         log("No download URL in GitHub update manifest.")
         return None
@@ -403,7 +418,7 @@ def _github_download_and_stage(manifest: dict, log=print) -> Path | None:
 
         download_dir = Path(tempfile.mkdtemp(prefix="gdes-gh-update-"))
         zip_path = download_dir / manifest["file"]
-        req = urllib.request.Request(url, headers={"User-Agent": "GDES-Updater"})
+        req = urllib.request.Request(url, headers=headers)
         log(f"Downloading {manifest['file']} from GitHub ...")
         with urllib.request.urlopen(req, timeout=120) as resp:
             with open(zip_path, "wb") as out:
