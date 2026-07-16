@@ -67,3 +67,9 @@ Thumbs.db
 
 # Build logs
 build_pyinstaller.log
+
+# Stray test/validation output dumps
+test_output.txt
+test_results_fixed.txt
+validation_output.txt
+*_output.txt
