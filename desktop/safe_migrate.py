@@ -113,17 +113,17 @@ def safe_migrate(
         _log_line(log_path, msg)
         say(msg)
 
+    if not integrity_ok(db_path):
+        record("ABORT: live DB failed integrity_check. Restore a backup.")
+        raise RuntimeError(
+            "Database integrity check failed. "
+            "Do not migrate a corrupt database — restore a known-good backup first."
+        )
+
     plan = list(plan_fn())
     if not plan:
         record("No unapplied migrations; skipping migrate.")
         return {"skipped": True, "migrated": 0, "snapshot": None}
-
-    if not integrity_ok(db_path):
-        record("ABORT: live DB failed integrity_check BEFORE migrate. Restore a backup.")
-        raise RuntimeError(
-            "Database integrity check failed before migration. "
-            "Do not migrate a corrupt database — restore a known-good backup first."
-        )
 
     snapshot = None
     if db_path.exists():
@@ -155,9 +155,16 @@ def django_unapplied_plan() -> list:
     from django.db.migrations.executor import MigrationExecutor
 
     conn = connections["default"]
-    executor = MigrationExecutor(conn)
-    targets = executor.loader.graph.leaf_nodes()
-    return executor.migration_plan(targets)
+    try:
+        executor = MigrationExecutor(conn)
+        targets = executor.loader.graph.leaf_nodes()
+        return executor.migration_plan(targets)
+    except Exception as exc:
+        raise RuntimeError(
+            "Failed to read migration state from database. "
+            "The database may be corrupt or from a newer version. "
+            f"Error: {exc}"
+        ) from exc
 
 
 def run_safe_migrate(*, log_path, notify=None) -> dict:

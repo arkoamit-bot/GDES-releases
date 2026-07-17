@@ -1031,7 +1031,16 @@ def main() -> None:
     if not check and run_update_check(data_dir, interactive=True):
         log("Update in progress; exiting so the helper can swap files.")
         os._exit(0)
-    initialise(data_dir)
+    try:
+        initialise(data_dir)
+    except RuntimeError as exc:
+        msg = str(exc)
+        log(msg)
+        _fatal_dialog("BGDDR — Database error",
+                       f"{msg}\n\n"
+                       "Run Restore from a recent backup, or delete the database file\n"
+                       "(Data\\db.sqlite3) to start fresh (all data will be lost).")
+        os._exit(4)
 
     # P1-3: startup health summary. Log always; block only on CRITICAL failures
     # (empty active KB / unreadable DB) so a minor mismatch never strands the clinic.
