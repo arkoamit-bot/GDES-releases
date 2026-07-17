@@ -284,7 +284,7 @@ def configure_data_paths(root: Path, interactive: bool = True) -> None:
 # --------------------------------------------------------------------------- #
 # In-app update (from OneDrive folder OR GitHub Releases)
 # --------------------------------------------------------------------------- #
-_GITHUB_REPO = "arkoamit-bot/GDES"
+_GITHUB_REPO = "arkoamit-bot/GDES-releases"
 _GITHUB_API = "https://api.github.com/repos/{repo}/releases/latest"
 
 

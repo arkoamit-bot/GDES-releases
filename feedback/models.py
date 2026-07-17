@@ -406,7 +406,7 @@ class TelemetrySettings(models.Model):
     auto_crash_reporting = models.BooleanField(default=True)
     auto_performance_reporting = models.BooleanField(default=False)
     github_repo = models.CharField(
-        max_length=200, default="arkoamit-bot/GDES",
+        max_length=200, default="arkoamit-bot/GDES-releases",
         help_text="GitHub repo for issue reporting (owner/repo)",
     )
     github_token = models.CharField(
