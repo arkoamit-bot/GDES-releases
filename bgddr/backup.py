@@ -144,11 +144,24 @@ def restore_from_backup(backup_path: str | Path) -> bool:
         logger.error("Backup file not found: %s", backup)
         return False
 
+    if not _integrity_ok(backup):
+        logger.error("Restore aborted: backup file failed integrity_check.")
+        return False
+
     # Create a safety backup of current DB before restore
     create_backup(reason="pre_restore")
 
     try:
+        for sidecar in (db_file, Path(str(db_file) + "-wal"), Path(str(db_file) + "-shm")):
+            try:
+                if sidecar.exists():
+                    sidecar.unlink()
+            except OSError:
+                pass
         shutil.copy2(backup, db_file)
+        if not _integrity_ok(db_file):
+            logger.error("Restore FAILED: live DB is corrupt after copy.")
+            return False
         logger.info("Database restored from: %s", backup.name)
         return True
     except Exception as exc:
@@ -306,6 +319,10 @@ def restore_zip_backup(zip_path: str | Path) -> bool:
                 except OSError:
                     pass
             shutil.copy2(extracted, db_file)
+
+            if not _integrity_ok(db_file):
+                logger.error("Restore FAILED: live DB is corrupt after swap.")
+                return False
         logger.info("Database restored from archive: %s", zip_path.name)
         return True
     except Exception as exc:
