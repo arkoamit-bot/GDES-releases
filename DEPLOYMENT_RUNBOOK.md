@@ -205,6 +205,19 @@ $env:GITHUB_TOKEN = "<token with contents:write on the releases repo>"
 ```
 GitHub computes the asset SHA-256 digest automatically; the app verifies it.
 
+**Name the asset `GDES-<ver>.zip`** (the launcher prefers this; a `BGDDR-<ver>.zip`
+name still works as a legacy fallback, but keep the OneDrive and GitHub channels
+consistent).
+
+**If an update is detected + downloaded but nothing installs** (no `.old-<ver>`
+backup, `Data\Logs\update.log` has only the "spawning helper" line): the swap
+helper is being blocked — almost always **antivirus/EDR killing the update
+PowerShell**. The updater now runs the helper in a **visible** console (not
+hidden) and retries the download, which helps, but the reliable fix is to
+**allowlist `%LOCALAPPDATA%\GDES\` in Defender/EDR**. On a locked-down PC, the
+installer (`Setup_GDES_*.exe`) is the fallback. Check Windows Security →
+Protection history for a blocked PowerShell around the update time.
+
 **⚠️ Public vs private — security decision:**
 - **Recommended:** a **PUBLIC "releases-only" repo** (e.g. `arkoamit-bot/GDES-releases`)
   holding just the built zips (no source). Clinic PCs need **no token**; point them

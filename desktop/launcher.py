@@ -381,6 +381,16 @@ def _github_update_available(current: str) -> dict | None:
         digest = str(asset.get("digest") or "").strip()
         if digest.lower().startswith("sha256:"):
             sha256 = digest.split(":", 1)[1].lower()
+        # Fallback: parse SHA-256 from the release body (appended by publish script).
+        if not sha256:
+            body = str(data.get("body") or "")
+            for line in body.splitlines():
+                line = line.strip().lower()
+                if line.startswith("sha256:") and len(line) == 71:
+                    candidate = line.split(":", 1)[1].strip()
+                    if len(candidate) == 64 and all(c in "0123456789abcdef" for c in candidate):
+                        sha256 = candidate
+                        break
 
         return {
             "version": version,
@@ -422,11 +432,34 @@ def _github_download_and_stage(manifest: dict, log=print) -> Path | None:
         download_dir = Path(tempfile.mkdtemp(prefix="gdes-gh-update-"))
         zip_path = download_dir / manifest["file"]
         req = urllib.request.Request(url, headers=headers)
-        log(f"Downloading {manifest['file']} from GitHub ...")
-        with urllib.request.urlopen(req, timeout=120) as resp:
-            with open(zip_path, "wb") as out:
-                shutil.copyfileobj(resp, out)
+
+        # Retry up to 3 times with backoff and a long timeout — the release zip
+        # is ~100 MB and GitHub/CDN occasionally returns a transient 5xx (502).
+        last_err = None
+        backoff = (0, 3, 8)
+        for attempt in (1, 2, 3):
+            if backoff[attempt - 1]:
+                time.sleep(backoff[attempt - 1])
+            try:
+                log(f"Downloading {manifest['file']} from GitHub "
+                    f"(attempt {attempt}/3) ...")
+                with urllib.request.urlopen(req, timeout=300) as resp:
+                    with open(zip_path, "wb") as out:
+                        shutil.copyfileobj(resp, out)
+                last_err = None
+                break
+            except Exception as exc:
+                last_err = exc
+                code = getattr(exc, "code", None)
+                log(f"Download attempt {attempt}/3 failed"
+                    + (f" (HTTP {code})" if code else "") + f": {exc}")
+                continue
+        if last_err:
+            raise last_err
+
         staged = updater.verify_and_stage(download_dir, manifest, log=log)
+        if staged is None:
+            log("verify_and_stage returned None — ZIP may be corrupt or structure wrong.")
         shutil.rmtree(download_dir, ignore_errors=True)
         return staged
     except Exception as exc:
