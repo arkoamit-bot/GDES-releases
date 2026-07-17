@@ -49,6 +49,7 @@ urlpatterns = [
     path("safety/", include("safety.urls")),
     path("scheduling/", include("scheduling.urls")),
     path("api/v1/", include("reminders.urls")),
+    path("", include(("reminders.html_urls", "reminders"))),
     path("pathology/", include("pathology.urls")),
     path("biomarkers/", include("biomarkers.urls")),
     path("exports/", include("exports.urls")),
@@ -65,6 +66,9 @@ urlpatterns = [
     path("api/v1/", include("followup.urls")),
     # Drug intelligence (Phase 3.2)
     path("api/v1/", include("treatments.urls")),
+    # V8 — Field Error Reporting & Continuous Improvement
+    path("api/v1/feedback/", include("feedback.urls")),
+    path("", include(("feedback.html_urls", "feedback"))),
     # FHIR R4 interoperability (Phase 3.3)
     path("fhir/", include("fhir.urls")),
 ]

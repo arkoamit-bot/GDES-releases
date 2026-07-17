@@ -1,5 +1,5 @@
 # =====================================================================
-#  Build the BGDDR single-user Windows desktop package (BGDDR.exe).
+#  Build the GDES single-user Windows desktop package (GDES.exe).
 #  Run from the project root:   .\desktop\build_exe.ps1
 # =====================================================================
 $ErrorActionPreference = "Stop"
@@ -24,12 +24,12 @@ if (Get-Command npm -ErrorAction SilentlyContinue) {
 
 Write-Host "==> Cleaning previous build ..." -ForegroundColor Cyan
 if (Test-Path "$root\build") { Remove-Item "$root\build" -Recurse -Force }
-if (Test-Path "$root\dist\BGDDR") { Remove-Item "$root\dist\BGDDR" -Recurse -Force }
+if (Test-Path "$root\dist\GDES") { Remove-Item "$root\dist\GDES" -Recurse -Force }
 
 Write-Host "==> Running PyInstaller ..." -ForegroundColor Cyan
 python -m PyInstaller "$root\desktop\BGDDR.spec" --noconfirm --distpath "$root\dist" --workpath "$root\build"
 
-$exe = "$root\dist\BGDDR\BGDDR.exe"
+$exe = "$root\dist\GDES\GDES.exe"
 if (-not (Test-Path $exe)) {
     Write-Error "Build failed: $exe not found."
     return
@@ -38,7 +38,7 @@ if (-not (Test-Path $exe)) {
 # ------------------------------------------------------------------ #
 #  Post-build: create runtime directories in the distribution         #
 # ------------------------------------------------------------------ #
-$pkg = "$root\dist\BGDDR"
+$pkg = "$root\dist\GDES"
 Write-Host "==> Creating runtime directories ..." -ForegroundColor Cyan
 foreach ($dir in @("backups", "logs", "config", "media")) {
     $full = Join-Path $pkg $dir
@@ -49,14 +49,14 @@ foreach ($dir in @("backups", "logs", "config", "media")) {
 #  Self-check the packaged build (must pass before we certify it)     #
 # ------------------------------------------------------------------ #
 Write-Host "==> Self-checking the packaged build ..." -ForegroundColor Cyan
-$checkData = Join-Path $root "build\selfcheck-data"
+$checkData = Join-Path ([System.IO.Path]::GetTempPath()) ("gdes-selfcheck-data-" + [guid]::NewGuid().ToString("N"))
 if (Test-Path $checkData) { Remove-Item $checkData -Recurse -Force }
 New-Item -ItemType Directory -Path $checkData | Out-Null
 $oldDataDir = $env:BGDDR_DATA_DIR
 $selfCheckExit = 1
 try {
     $env:BGDDR_DATA_DIR = $checkData
-    # BGDDR.exe is a GUI-subsystem (windowed) binary: the call operator "&" does
+    # GDES.exe is a GUI-subsystem (windowed) binary: the call operator "&" does
     # NOT wait for it and never sets $LASTEXITCODE, so a crashing self-check would
     # slip through unnoticed. Start-Process -Wait -PassThru actually blocks on the
     # process and captures its real exit code.
@@ -96,7 +96,7 @@ if ($versionPy -match '__version__\s*=\s*"([^"]+)"') {
 }
 
 $versionObj = [ordered]@{
-    product        = "BGDDR"
+    product        = "GDES"
     version        = $appVersion
     build_date     = (Get-Date -Format "yyyy-MM-dd")
     knowledge_version = $appVersion
@@ -138,9 +138,9 @@ Write-Host "  version.json: v$($appVersion), $($versionObj.diseases) diseases, $
 Write-Host "==> Generating RELEASE_REPORT.md ..." -ForegroundColor Cyan
 
 $report = @"
-# BGDDR Release Report
+# GDES Release Report
 
-**Product:** BGDDR (Bangladesh Glomerular Disease Data Registry)
+**Product:** GDES (Glomerular Disease Evaluation System)
 **Version:** $appVersion
 **Build Date:** $(Get-Date -Format "yyyy-MM-dd HH:mm")
 **Platform:** Windows (PyInstaller desktop build)
@@ -151,7 +151,7 @@ $report = @"
 
 | Check | Status |
 |-------|--------|
-| Executable | BGDDR.exe ($([math]::Round((Get-Item $exe).Length / 1MB, 1)) MB) |
+| Executable | GDES.exe ($([math]::Round((Get-Item $exe).Length / 1MB, 1)) MB) |
 | PyInstaller | Completed successfully |
 | Self-check | $selfCheckStatus |
 
@@ -190,8 +190,8 @@ $report = @"
 
 ## Deployment Instructions
 
-1. Copy the entire ``dist/BGDDR/`` folder to the target computer.
-2. Double-click ``BGDDR.exe``.
+1. Copy the entire ``dist/GDES/`` folder to the target computer.
+2. Double-click ``GDES.exe``.
 3. On first launch, the app will:
    - Apply database migrations
    - Seed all reference data and knowledge base
@@ -215,12 +215,12 @@ $report | Out-File -FilePath (Join-Path $pkg "RELEASE_REPORT.md") -Encoding utf8
 Write-Host "==> Generating README-FIRST.txt ..." -ForegroundColor Cyan
 $readme = @"
 ==============================================================
- BGDDR Registry  -  How to run this program        (v$appVersion)
+ GDES Registry  -  How to run this program        (v$appVersion)
 ==============================================================
 
 1) START
-   - Double-click  BGDDR.exe
-   - A small window "BGDDR Registry is running" appears - KEEP IT OPEN
+   - Double-click  GDES.exe
+   - A small window "GDES Registry is running" appears - KEEP IT OPEN
      while you use the program.
    - Your web browser opens automatically at:
          http://127.0.0.1:8000/
@@ -253,7 +253,7 @@ $readme = @"
    - Do NOT run two copies at the same time.
    - Do NOT edit or delete the "_internal" folder.
    - Your data (db.sqlite3), Exports and Logs are created next to
-     BGDDR.exe. Backups are taken automatically on start and every
+      GDES.exe. Backups are taken automatically on start and every
      few hours.
 
 6) IF SOMETHING GOES WRONG
@@ -296,7 +296,7 @@ foreach ($dir in $internalDirs) {
 }
 
 # Required files
-$requiredFiles = @("BGDDR.exe", "version.json", "RELEASE_REPORT.md", "README-FIRST.txt")
+$requiredFiles = @("GDES.exe", "version.json", "RELEASE_REPORT.md", "README-FIRST.txt")
 foreach ($file in $requiredFiles) {
     $full = Join-Path $pkg $file
     if (Test-Path $full) {
@@ -328,4 +328,4 @@ if ($validationFailed) {
 
 Write-Host ""
 Write-Host "BUILD COMPLETE (self-check certified) -> $pkg" -ForegroundColor Green
-Write-Host "Copy the 'dist\BGDDR' folder to its final location and run BGDDR.exe." -ForegroundColor Green
+Write-Host "Copy the 'dist\GDES' folder to its final location and run GDES.exe." -ForegroundColor Green

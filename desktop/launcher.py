@@ -24,6 +24,7 @@ import logging
 import os
 import shutil
 import sys
+import tempfile
 import threading
 import time
 import webbrowser
@@ -133,14 +134,14 @@ def _write_paths_config(cfg_path: Path, data: dict) -> None:
 
 
 def _default_folder_suggestions(root: Path) -> tuple[str, str, str]:
-    """Suggest OneDrive\\BGDDR-Backups / -Media / -Update if OneDrive is present,
+    """Suggest OneDrive\\GDES-Backups / -Media / -Update if OneDrive is present,
     else app-folder defaults for backup/media and a blank update folder."""
     onedrive = os.environ.get("OneDrive") or os.environ.get("OneDriveConsumer") \
         or os.environ.get("OneDriveCommercial") or ""
     if onedrive and Path(onedrive).is_dir():
         base = Path(onedrive)
-        return (str(base / "BGDDR-Backups"), str(base / "BGDDR-Media"),
-                str(base / "BGDDR-Update"))
+        return (str(base / "GDES-Backups"), str(base / "GDES-Media"),
+                str(base / "GDES-Update"))
     return str(root / "Backups"), str(root / "Media"), ""
 
 
@@ -269,8 +270,16 @@ def configure_data_paths(root: Path, interactive: bool = True) -> None:
                 saved["update_dir"] = chosen["update_dir"]
             _write_paths_config(cfg_path, saved)
         else:
-            # "Use defaults": remember the choice so we don't ask again.
-            _write_paths_config(cfg_path, {})
+            # "Use defaults": remember the suggested folders so OneDrive remains
+            # the backup target when it is available.
+            def_backup, def_media, def_update = _default_folder_suggestions(root)
+            for folder in (def_backup, def_media, def_update):
+                if folder:
+                    Path(folder).mkdir(parents=True, exist_ok=True)
+            saved = {"backup_dir": def_backup, "media_dir": def_media}
+            if def_update:
+                saved["update_dir"] = def_update
+            _write_paths_config(cfg_path, saved)
 
     if not saved:
         return  # settings.py falls back to app-folder defaults
@@ -282,28 +291,147 @@ def configure_data_paths(root: Path, interactive: bool = True) -> None:
 
 
 # --------------------------------------------------------------------------- #
-# In-app update (from OneDrive folder OR GitHub Releases)
+# In-app update (from the OneDrive update folder or GitHub Releases)
 # --------------------------------------------------------------------------- #
-_GITHUB_REPO = "arkoamit-bot/GDES"
+# Default update source is the PUBLIC releases-only repo (holds only the built
+# zips, no source) so clinic PCs self-update with no token and the private source
+# repo stays private. Override per-PC with BGDDR_GITHUB_REPO if needed.
+_GITHUB_REPO = os.environ.get("BGDDR_GITHUB_REPO", "arkoamit-bot/GDES-releases").strip()
+# Optional read-only token for a PRIVATE releases repo. Prefer a PUBLIC releases
+# repo (no token needed, no token shipped to clinic PCs). If you must use a
+# private repo, set BGDDR_GITHUB_TOKEN to a fine-grained token with read-only
+# access to that repo's Contents/Releases.
+_GITHUB_TOKEN = os.environ.get("BGDDR_GITHUB_TOKEN", "").strip()
 _GITHUB_API = "https://api.github.com/repos/{repo}/releases/latest"
 
 
+def _github_headers(accept: str = "application/vnd.github+json") -> dict:
+    h = {"Accept": accept, "User-Agent": "GDES-Updater"}
+    if _GITHUB_TOKEN:
+        h["Authorization"] = f"Bearer {_GITHUB_TOKEN}"
+    return h
+
+
 def _resolve_update_dir(root: Path) -> str | None:
-    """Where published updates live. Precedence: env var > saved config >
-    <OneDrive>/GDES-Update. Returns None when no update folder is configured."""
+    """Where published updates live. Returns the single best candidate.
+    (Legacy — prefer _collect_update_dirs for multi-dir fallback.)"""
+    dirs = _collect_update_dirs(root)
+    return dirs[0] if dirs else None
+
+
+def _collect_update_dirs(root: Path) -> list[str]:
+    """Return all candidate update directories, highest priority first.
+
+    Env var > saved config > <OneDrive>/GDES-Update > <OneDrive>/BGDDR-Update.
+    The caller tries each in order; the first that has a newer manifest wins.
+    """
+    dirs: list[str] = []
     env = os.environ.get("BGDDR_UPDATE_DIR")
     if env:
-        return env
+        dirs.append(env)
     saved = _read_paths_config(root / _PATHS_CONFIG_NAME) or {}
-    if saved.get("update_dir"):
-        return saved["update_dir"]
+    if saved.get("update_dir") and saved["update_dir"] not in dirs:
+        dirs.append(saved["update_dir"])
     onedrive = os.environ.get("OneDrive") or os.environ.get("OneDriveConsumer") \
         or os.environ.get("OneDriveCommercial") or ""
     if onedrive and Path(onedrive).is_dir():
-        cand = Path(onedrive) / "GDES-Update"
-        if cand.is_dir():
-            return str(cand)
-    return None
+        for name in ("GDES-Update", "BGDDR-Update"):
+            cand = str(Path(onedrive) / name)
+            if cand not in dirs and Path(cand).is_dir():
+                dirs.append(cand)
+    return dirs
+
+
+def _github_update_available(current: str) -> dict | None:
+    """Check GitHub Releases for a newer onedir zip asset."""
+    if not _GITHUB_REPO:
+        return None
+    try:
+        import urllib.request
+
+        from bgddr.updater import is_newer
+
+        url = _GITHUB_API.format(repo=_GITHUB_REPO)
+        req = urllib.request.Request(url, headers=_github_headers())
+        with urllib.request.urlopen(req, timeout=15) as resp:
+            data = json.loads(resp.read().decode("utf-8"))
+
+        version = str(data.get("tag_name") or data.get("name") or "").strip().lstrip("v")
+        if not version or not is_newer(version, current):
+            return None
+
+        assets = data.get("assets") or []
+        preferred = (f"GDES-{version}.zip", f"GDES_{version}.zip", f"BGDDR-{version}.zip")
+        asset = next((a for a in assets if a.get("name") in preferred), None)
+        if asset is None:
+            asset = next(
+                (
+                    a for a in assets
+                    if str(a.get("name", "")).lower().endswith(".zip")
+                    and ("gdes" in str(a.get("name", "")).lower()
+                         or "bgddr" in str(a.get("name", "")).lower())
+                ),
+                None,
+            )
+        if not asset or not asset.get("browser_download_url"):
+            log(f"GitHub release {version} has no GDES zip asset.")
+            return None
+
+        sha256 = ""
+        digest = str(asset.get("digest") or "").strip()
+        if digest.lower().startswith("sha256:"):
+            sha256 = digest.split(":", 1)[1].lower()
+
+        return {
+            "version": version,
+            "file": asset["name"],
+            "url": asset["browser_download_url"],
+            "api_url": asset.get("url", ""),  # asset API URL — used for private repos
+            "sha256": sha256,
+            "notes": data.get("body") or "",
+        }
+    except Exception as exc:
+        code = getattr(exc, "code", None)
+        if code == 404:
+            log(f"GitHub update check: repo '{_GITHUB_REPO}' not found (404). "
+                "Set BGDDR_GITHUB_REPO env var if the repo was moved or renamed.")
+        else:
+            log(f"GitHub update check failed: {exc}")
+        return None
+
+
+def _github_download_and_stage(manifest: dict, log=print) -> Path | None:
+    """Download a GitHub release asset, then reuse the normal verifier/stager."""
+    # For a PRIVATE repo the browser_download_url 404s without a session; the
+    # asset API URL + an octet-stream Accept + token works. Public repos use the
+    # plain browser_download_url (no token needed).
+    if _GITHUB_TOKEN and manifest.get("api_url"):
+        url = manifest["api_url"]
+        headers = _github_headers(accept="application/octet-stream")
+    else:
+        url = manifest.get("url")
+        headers = {"User-Agent": "GDES-Updater"}
+    if not url:
+        log("No download URL in GitHub update manifest.")
+        return None
+    try:
+        import urllib.request
+
+        from bgddr import updater
+
+        download_dir = Path(tempfile.mkdtemp(prefix="gdes-gh-update-"))
+        zip_path = download_dir / manifest["file"]
+        req = urllib.request.Request(url, headers=headers)
+        log(f"Downloading {manifest['file']} from GitHub ...")
+        with urllib.request.urlopen(req, timeout=120) as resp:
+            with open(zip_path, "wb") as out:
+                shutil.copyfileobj(resp, out)
+        staged = updater.verify_and_stage(download_dir, manifest, log=log)
+        shutil.rmtree(download_dir, ignore_errors=True)
+        return staged
+    except Exception as exc:
+        log(f"GitHub download/stage failed: {exc}")
+        return None
 
 
 def _github_update_available(current: str) -> dict | None:
@@ -398,7 +526,7 @@ def _update_prompt(current: str, manifest: dict) -> bool:
             + "\nThe app will close, update itself, and reopen. Your data and "
               "backups are not touched. Install now?")
     root, owned = _tk_root()
-    ok = messagebox.askyesno("GDES — Update available", body, parent=root)
+    ok = messagebox.askyesno("GDES - Update available", body, parent=root)
     if owned:
         root.destroy()
     return bool(ok)
@@ -422,27 +550,23 @@ def run_update_check(root: Path, interactive: bool = True) -> bool:
         return False
 
     manifest = None
+    update_dir = None
     github_mode = False
-
-    # 1. Check local/OneDrive update folder first.
-    update_dir = _resolve_update_dir(root)
-    if update_dir:
+    for candidate in _collect_update_dirs(root):
         try:
-            manifest = updater.check_for_update(Path(update_dir), current)
+            md = updater.check_for_update(Path(candidate), current)
+            if md:
+                manifest = md
+                update_dir = candidate
+                break
         except Exception as exc:
-            log(f"Local update check failed: {exc}")
-
-    # 2. If no local update, check GitHub Releases.
+            log(f"Update check failed for {candidate}: {exc}")
+            continue
     if not manifest:
         manifest = _github_update_available(current)
-        if manifest:
-            github_mode = True
-            log(f"GitHub update available: {manifest['version']}")
-
+        github_mode = bool(manifest)
     if not manifest:
         log(f"Up to date (version {current}).")
-        if interactive:
-            _info_msg("GDES — Up to date", f"You are running the latest version ({current}).")
         return False
 
     log(f"Update available: {current} -> {manifest['version']}")
@@ -454,18 +578,15 @@ def run_update_check(root: Path, interactive: bool = True) -> bool:
         staging = _github_download_and_stage(manifest, log=log)
     else:
         staging = updater.verify_and_stage(Path(update_dir), manifest, log=log)
-
-    if not staging:
-        if interactive:
-            _info_msg("GDES — Update failed",
+            _info_msg("GDES - Update failed",
                       "The update could not be verified or extracted. "
                       "See Logs\\update.log. Your app is unchanged.")
         return False
 
     # A safety snapshot before we hand over to the swap helper.
     try:
-        from bgddr.backup import create_backup
-        create_backup(reason="pre_update")
+        from bgddr.backup import create_tiered_backup
+        create_tiered_backup(reason="pre_update")
     except Exception as exc:
         log(f"pre-update backup warning: {exc}")
 
@@ -476,7 +597,7 @@ def run_update_check(root: Path, interactive: bool = True) -> bool:
         log_path=Path(root) / "Logs" / "update.log", log=log,
     )
     if started and interactive:
-        _info_msg("GDES — Updating",
+        _info_msg("GDES - Updating",
                   f"Updating to {manifest['version']}. GDES will close and reopen "
                   "in a moment.")
     return started
@@ -681,11 +802,18 @@ def create_desktop_shortcut(data_dir: Path) -> None:
 # Server + status window
 # --------------------------------------------------------------------------- #
 def make_server():
+    import time as _t
     from waitress import create_server
     from django.core.wsgi import get_wsgi_application
 
+    log("make_server: starting get_wsgi_application()...")
+    _t0 = _t.time()
     application = get_wsgi_application()  # honours DJANGO_SETTINGS_MODULE
-    return create_server(application, host=HOST, port=PORT, threads=8)
+    log(f"make_server: WSGI app ready in {_t.time()-_t0:.1f}s")
+    _t0 = _t.time()
+    srv = create_server(application, host=HOST, port=PORT, threads=8)
+    log(f"make_server: waitress server created in {_t.time()-_t0:.1f}s")
+    return srv
 
 
 def run(server, root: Path) -> None:
@@ -757,8 +885,8 @@ def _status_window(server, root: Path) -> None:
             win.destroy()
             os._exit(0)
 
-    # Only offer the button when running as a packaged .exe (update dir or GitHub).
-    if getattr(sys, "frozen", False):
+    # Offer the button when a local update folder exists or GitHub is configured.
+    if getattr(sys, "frozen", False) and (_resolve_update_dir(root) or _GITHUB_REPO):
         tk.Button(row, text="Check for updates", width=15,
                   command=check_updates).grid(row=0, column=1, padx=4)
     tk.Button(row, text="Stop", width=9, command=stop).grid(row=0, column=2, padx=4)
@@ -811,12 +939,59 @@ def ensure_webview2(root: Path) -> None:
         log("WebView2 runtime not detected; the app opens in your default browser.")
 
 
+def _ensure_settings_desktop() -> None:
+    """Synthesise ``bgddr.settings_desktop`` in ``sys.modules`` when frozen.
+
+    PyInstaller's PYZ archive bundles compiled bytecode for ``bgddr.settings``
+    but often fails to include ``bgddr.settings_desktop`` because its relative
+    import (``from .settings import *``) can trigger a circular or incomplete
+    analysis at build time.  Rather than fighting PyInstaller's collection, we
+    create the module at runtime: import ``bgddr.settings``, shallow-copy every
+    attribute, apply the desktop overrides, and register the result so Django's
+    ``django.setup()`` can find it as a normal module.
+    """
+    import types, importlib, secrets
+
+    if "bgddr.settings_desktop" in sys.modules:
+        return  # already available (source run or future PyInstaller fix)
+
+    base = importlib.import_module("bgddr.settings")
+    mod = types.ModuleType("bgddr.settings_desktop")
+    mod.__package__ = "bgddr"
+    mod.__path__ = []  # mark as package to satisfy any sub-imports
+    # Shallow-copy every public attribute from settings.
+    for _k in dir(base):
+        if _k.startswith("_"):
+            continue
+        setattr(mod, _k, getattr(base, _k))
+    # Desktop overrides.
+    mod.DEBUG = False
+    mod.ALLOWED_HOSTS = ["127.0.0.1", "localhost"]
+    mod.CSRF_TRUSTED_ORIGINS = [
+        "http://127.0.0.1:8000",
+        "http://localhost:8000",
+    ]
+    # Persist the SECRET_KEY so sessions survive restarts.
+    try:
+        _key_file = base.BGDDR_DATA_DIR / ".secret_key"
+        if _key_file.exists():
+            mod.SECRET_KEY = _key_file.read_text(encoding="utf-8").strip()
+        else:
+            mod.SECRET_KEY = secrets.token_urlsafe(64)
+            _key_file.write_text(mod.SECRET_KEY, encoding="utf-8")
+    except OSError:
+        mod.SECRET_KEY = secrets.token_urlsafe(64)
+
+    sys.modules["bgddr.settings_desktop"] = mod
+
+
 def main() -> None:
     check = "--check" in sys.argv  # headless smoke test of the packaged build
     data_dir = bootstrap_env()
     # Resolve/prompt for Backups & Media locations and export them as env vars
     # BEFORE Django reads settings. Skipped when running the headless self-check.
     configure_data_paths(data_dir, interactive=not check)
+    _ensure_settings_desktop()
     import django
     django.setup()
 
@@ -878,6 +1053,7 @@ def main() -> None:
         log(f"Health summary warning (continuing): {exc}")
 
     ensure_admin(interactive=not check)
+
     if check:
         server = make_server()           # binds the port to prove it works
         server.close()
@@ -893,7 +1069,20 @@ def main() -> None:
         return
     create_desktop_shortcut(data_dir)
     start_backups()
+    log("main: about to call make_server()...")
     server = make_server()
+    # Start error reporting (hook + scheduler) AFTER the server is created.
+    # Moving this after make_server() avoids a PyInstaller frozen-build deadlock
+    # where background-thread imports block get_wsgi_application().
+    if not check:
+        try:
+            from feedback.services.exception_hook import install_hook
+            from feedback.services.scheduler import start_scheduler
+            install_hook()
+            start_scheduler()
+            log("Error reporting system initialised.")
+        except Exception as exc:
+            log(f"Error reporting init warning: {exc}")
     run(server, data_dir)
 
 

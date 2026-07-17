@@ -176,12 +176,21 @@ def _identify_information_gaps(features: dict) -> list[dict]:
             "message": "No biopsy findings — histology is essential for definitive diagnosis",
         })
     if features.get("proteinuria") == "none":
-        gaps.append({
-            "field": "proteinuria",
-            "importance": "high",
-            "message": "Proteinuria not quantified — UPCR/ACR essential for assessment",
-        })
-    if features.get("egfrTrend") == "normal" and features.get("latest_egfr") is None:
+        # Only flag proteinuria quantification for suspected lupus nephritis,
+        # where UPCR is specifically recommended for remission evaluation.
+        biopsy_flags = features.get("biopsy", [])
+        disease_features = features.get("features", [])
+        is_lupus = (
+            "fullHouse" in biopsy_flags
+            or "lupus" in str(disease_features).lower()
+        )
+        if is_lupus:
+            gaps.append({
+                "field": "proteinuria",
+                "importance": "high",
+                "message": "Proteinuria not quantified — UPCR/ACR essential for lupus nephritis assessment and remission monitoring",
+            })
+    if features.get("latest_egfr") is None:
         gaps.append({
             "field": "egfr",
             "importance": "high",

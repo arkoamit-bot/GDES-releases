@@ -133,13 +133,13 @@ def verify_and_stage(update_dir: Path, manifest: dict, log=print) -> Path | None
 # Apply (spawn detached helper)
 # --------------------------------------------------------------------------- #
 _HELPER_PS1 = r"""
-$ErrorActionPreference = "Stop"
+$ErrorActionPreference = "Continue"
 $log = "{log}"
 function Log($m) {{ try {{ Add-Content -Path $log -Value ("[update] " + (Get-Date -Format o) + " " + $m) }} catch {{}} }}
 
 Log "waiting for pid {pid} to exit"
-try {{ Wait-Process -Id {pid} -Timeout 90 }} catch {{}}
-Start-Sleep -Seconds 1
+try {{ Wait-Process -Id {pid} -Timeout 90 -ErrorAction SilentlyContinue }} catch {{}}
+Start-Sleep -Seconds 2
 
 $app        = "{app}"
 $staging    = "{staging}"

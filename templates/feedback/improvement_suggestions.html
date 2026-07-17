@@ -1,0 +1,35 @@
+{% extends "base.html" %}{% load static %}
+{% block title %}Improvement Suggestions — GDES{% endblock %}
+{% block heading %}Knowledge Improvement Suggestions{% endblock %}
+{% block content %}
+
+<div class="card mb-6"><div class="card-body">
+  {% if suggestions %}
+  <div class="overflow-x-auto">
+    <table class="min-w-full text-sm">
+      <thead><tr class="text-left text-slate-500"><th class="py-2">Rule</th><th class="py-2">Disease</th><th class="py-2">Overrides</th><th class="py-2">Common Reason</th><th class="py-2">Status</th><th class="py-2">Review</th></tr></thead>
+      <tbody>{% for s in suggestions %}
+      <tr class="border-t"><td class="py-2"><code>{{ s.rule_id }}</code></td>
+        <td class="py-2">{{ s.disease|default:"—" }}</td>
+        <td class="py-2">{{ s.override_count }}</td>
+        <td class="py-2 max-w-xs truncate">{{ s.common_override_reason|truncatechars:50 }}</td>
+        <td class="py-2"><span class="badge {% if s.status == 'approved' %}badge-success{% elif s.status == 'rejected' %}badge-error{% elif s.status == 'under_review' %}badge-info{% else %}badge-warning{% endif %}">{{ s.get_status_display }}</span></td>
+        <td class="py-2">{% if s.status == 'pending' %}
+          <form method="post" class="inline">{% csrf_token %}
+            <input type="hidden" name="suggestion_id" value="{{ s.id }}">
+            <input type="hidden" name="action" value="approve">
+            <button class="btn btn-sm btn-primary">Approve</button>
+          </form>
+          <form method="post" class="inline">{% csrf_token %}
+            <input type="hidden" name="suggestion_id" value="{{ s.id }}">
+            <input type="hidden" name="action" value="reject">
+            <button class="btn btn-sm btn-secondary">Reject</button>
+          </form>
+        {% endif %}</td>
+      </tr>{% endfor %}</tbody>
+    </table>
+  </div>
+  {% else %}<p class="empty-state">No improvement suggestions yet. Suggestions appear when a recommendation is overridden 3+ times.</p>{% endif %}
+</div></div>
+
+{% endblock %}

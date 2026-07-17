@@ -1,4 +1,4 @@
-"""Seed V4.0 Medical Knowledge Expansion: diseases, guidelines, pathways, and drug knowledge.
+﻿"""Seed V4.0 Medical Knowledge Expansion: diseases, guidelines, pathways, and drug knowledge.
 
 This command is the entry point for the V4.0 knowledge expansion.
 It seeds:
@@ -19,7 +19,7 @@ from knowledge.models import (
 from treatments.models import DrugMaster
 
 
-# ─── GUIDELINE SOURCES ───────────────────────────────────────────────
+# â”€â”€â”€ GUIDELINE SOURCES â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 GUIDELINE_SOURCES = [
     {"abbr": "KDIGO", "year": 2021, "title": "KDIGO 2021 Glomerular Diseases Guideline"},
@@ -45,7 +45,7 @@ GUIDELINE_SOURCES = [
 ]
 
 
-# ─── DISEASE KNOWLEDGE ────────────────────────────────────────────────
+# â”€â”€â”€ DISEASE KNOWLEDGE â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 DISEASES = {
     # === Existing diseases (re-seeded with comprehensive knowledge) ===
@@ -55,7 +55,7 @@ DISEASES = {
         "definition": "IgA nephropathy is a glomerular disease characterized by dominant or codominant mesangial deposits of IgA. It is the most common primary glomerulonephritis worldwide.",
         "epidemiology": "Most common primary GN worldwide. Incidence 2.5/100,000/year. Peak age 20-40. Male:female 2:1. High prevalence in East Asia, moderate in Europe, low in Africa.",
         "etiology": "Aberrantly glycosylated IgA1 with reduced galactose in the hinge region triggers autoantibody formation and mesangial immune complex deposition. Genetic susceptibility (MHC, complement genes). Mucosal infection triggers.",
-        "pathophysiology": "Galactose-deficient IgA1 → anti-glycan IgG/IgA autoantibodies → circulating immune complexes → mesangial deposition → complement activation (lectin pathway) → mesangial cell proliferation → podocyte injury → glomerulosclerosis.",
+        "pathophysiology": "Galactose-deficient IgA1 â†’ anti-glycan IgG/IgA autoantibodies â†’ circulating immune complexes â†’ mesangial deposition â†’ complement activation (lectin pathway) â†’ mesangial cell proliferation â†’ podocyte injury â†’ glomerulosclerosis.",
         "clinical_presentation": "Hematuria (macroscopic or microscopic), often coinciding with mucosal infections. Proteinuria (subnephrotic to nephrotic range). Hypertension. Progressive CKD in 30-40% over 20 years.",
         "diagnostic_criteria": [
             {"criterion": "Mesangial IgA deposition on immunofluorescence", "essential": True, "evidence": "1"},
@@ -84,7 +84,7 @@ DISEASES = {
             {"factor": "Oxford MEST-C T2", "risk": "Progression"},
         ],
         "treatment_overview": "Supportive care (RAASi, SGLT2i, BP control) for all. Immunosuppression for high-risk patients: corticosteroids for those with persistent proteinuria >1g/day after supportive care. Consider targeted therapies (budesonide, sparsentan) in appropriate candidates.",
-        "monitoring_protocol": "3-monthly: BP, eGFR, UPCR/ACR. 6-monthly: serum albumin. Biopsy for unexplained deterioration or new active sediment.",
+        "monitoring_protocol": "3-monthly: BP, eGFR, 24h UTP. 6-monthly: serum albumin. Biopsy for unexplained deterioration or new active sediment.",
         "complications": [
             "Progressive CKD", "ESKD in 15-20% at 10 years", "Hypertension",
             "Relapse post-transplant (recurrent IgAN in 10-50%)",
@@ -98,7 +98,7 @@ DISEASES = {
         "definition": "Membranous nephropathy is an autoimmune glomerular disease characterized by subepithelial immune complex deposits causing nephrotic syndrome.",
         "epidemiology": "Incidence ~1/100,000/year. Peak 40-60 years. Male:female 2:1. Primary ~75%, secondary ~25%.",
         "etiology": "Primary: Autoantibodies against PLA2R (70-80%) or THSD7A (1-5%). Secondary: SLE, hepatitis B, solid tumors, drugs (NSAIDs, penicillamine, gold), infections.",
-        "pathophysiology": "Autoantibodies bind to podocyte antigens (PLA2R, THSD7A) → in situ immune complex formation → complement activation (C5b-9 membrane attack complex) → podocyte injury → subepithelial deposits + spike formation → proteinuria.",
+        "pathophysiology": "Autoantibodies bind to podocyte antigens (PLA2R, THSD7A) â†’ in situ immune complex formation â†’ complement activation (C5b-9 membrane attack complex) â†’ podocyte injury â†’ subepithelial deposits + spike formation â†’ proteinuria.",
         "clinical_presentation": "Nephrotic syndrome (edema, frothy urine, hypoalbuminemia). Hematuria in 30-50% (microscopic). Thrombotic complications (DVT, PE, renal vein thrombosis).",
         "diagnostic_criteria": [
             {"criterion": "Subepithelial deposits on biopsy", "essential": True},
@@ -120,7 +120,7 @@ DISEASES = {
             {"factor": "Proteinuria >8g/day", "risk": "Complications"},
         ],
         "treatment_overview": "Supportive care first (RAASi, SGLT2i, diuretics, anticoagulation if albumin <2.5). Immunosuppression (rituximab first-line, CNI-based, cyclophosphamide+steroids for severe).",
-        "monitoring_protocol": "Monthly: BP, eGFR, UPCR, albumin, PLA2R titer. 3-monthly for stable patients.",
+        "monitoring_protocol": "Monthly: BP, eGFR, 24h UTP, albumin, PLA2R titer. 3-monthly for stable patients.",
         "complications": ["Venous thromboembolism (5-10%)", "Progressive CKD", "Infection risk with immunosuppression"],
         "relapse_information": "Relapse rate 25-30% after rituximab, 40-50% after CNI withdrawal. PLA2R titer rise precedes relapse by 3-6 months.",
         "long_term_prognosis": "One-third spontaneous remission, one-third remission with treatment, one-third progressive CKD. 10-year kidney survival ~80%.",
@@ -131,7 +131,7 @@ DISEASES = {
         "definition": "Minimal change disease is a podocytopathy causing nephrotic syndrome with minimal light microscopic changes and diffuse foot process effacement on EM.",
         "epidemiology": "Most common cause of nephrotic syndrome in children (80-90%). Accounts for 10-15% of adult nephrotic syndrome. Peak: 2-6 years (children), >40 years (adults).",
         "etiology": "Idiopathic in most cases. Secondary: NSAIDs, lithium, interferon, infections, allergies, Hodgkin lymphoma, thymoma.",
-        "pathophysiology": "T-cell dysregulation → circulating permeability factor → podocyte actin cytoskeleton disruption → foot process effacement → proteinuria. Possible role of B-cell and T-cell interaction.",
+        "pathophysiology": "T-cell dysregulation â†’ circulating permeability factor â†’ podocyte actin cytoskeleton disruption â†’ foot process effacement â†’ proteinuria. Possible role of B-cell and T-cell interaction.",
         "clinical_presentation": "Acute-onset nephrotic syndrome (peripheral edema, periorbital edema, frothy urine). Abrupt onset over days to weeks. Hypertension uncommon. Hematuria in 10-20%.",
         "diagnostic_criteria": [
             {"criterion": "Nephrotic syndrome with bland sediment", "essential": True},
@@ -160,7 +160,7 @@ DISEASES = {
         "definition": "FSGS is a clinicopathologic syndrome characterized by segmental glomerular scarring and podocyte injury. Includes primary, genetic, and secondary forms.",
         "epidemiology": "Incidence ~0.8/100,000/year. More common in African ancestry. Male:female 1.5:1. Accounts for 20-30% of adult nephrotic syndrome.",
         "etiology": "Primary: circulating permeability factor (suPAR, anti-CD40). Genetic: mutations in podocyte genes (NPHS1, NPHS2, ACTN4, TRPC6, INF2). Secondary: adaptive (obesity, hypertension, renal ablation), viral (HIV, parvovirus B19), drug-induced (pamidronate, interferon, heroin).",
-        "pathophysiology": "Podocyte injury → detachment from GBM → denuded basement membrane → adhesion to Bowman's capsule → segmental sclerosis. Primary: permeability factor causes podocyte dysfunction. Genetic: structural podocyte defects.",
+        "pathophysiology": "Podocyte injury â†’ detachment from GBM â†’ denuded basement membrane â†’ adhesion to Bowman's capsule â†’ segmental sclerosis. Primary: permeability factor causes podocyte dysfunction. Genetic: structural podocyte defects.",
         "clinical_presentation": "Nephrotic syndrome (primary) or subnephrotic proteinuria (secondary). Microscopic hematuria in 50%. Hypertension. Progressive renal dysfunction.",
         "diagnostic_criteria": [
             {"criterion": "Segmental sclerosis on biopsy", "essential": True},
@@ -182,7 +182,7 @@ DISEASES = {
                                   {"factor": "Proteinuria >10g/day", "risk": "Poor renal survival"},
                                   {"factor": "eGFR <30 at diagnosis", "risk": "ESKD within 2 years"}],
         "treatment_overview": "High-dose corticosteroids for primary FSGS (prednisolone 1mg/kg/day for 4-16 weeks). CNIs (tacrolimus, ciclosporin) for steroid-resistant cases. Rituximab in refractory cases. Supportive: RAASi, SGLT2i, BP control. Treat underlying cause for secondary FSGS.",
-        "monitoring_protocol": "Monthly: UPCR, eGFR, albumin, BP during induction. 3-monthly in remission.",
+        "monitoring_protocol": "Monthly: 24h UTP, eGFR, albumin, BP during induction. 3-monthly in remission.",
         "complications": ["Progressive CKD/ESKD", "Nephrotic syndrome complications",
                           "Post-transplant recurrence (30-50% in primary)"],
         "relapse_information": "Relapse in 30-50% after steroid taper. Post-transplant recurrence risk 30-50% in primary FSGS, <10% in genetic. Collapsing variant frequently recurs.",
@@ -194,7 +194,7 @@ DISEASES = {
         "definition": "Lupus nephritis is renal involvement in systemic lupus erythematosus, ranging from mild mesangial to severe proliferative disease.",
         "epidemiology": "Affects 40-60% of SLE patients. More common in African, Hispanic, Asian ancestry. F:M 9:1. Peak age 20-40.",
         "etiology": "SLE is a multi-system autoimmune disease with genetic predisposition (MHC, complement deficiency), environmental triggers (UV, infections), and hormonal factors.",
-        "pathophysiology": "Loss of immune tolerance → autoantibodies (anti-dsDNA, anti-nucleosome) → immune complex deposition in glomeruli → complement activation → inflammation → glomerular injury. Type I interferon pathway activation.",
+        "pathophysiology": "Loss of immune tolerance â†’ autoantibodies (anti-dsDNA, anti-nucleosome) â†’ immune complex deposition in glomeruli â†’ complement activation â†’ inflammation â†’ glomerular injury. Type I interferon pathway activation.",
         "clinical_presentation": "Hematuria, proteinuria, RBC casts. Hypertension. Reduced eGFR. Concurrent SLE manifestations: malar rash, arthritis, serositis, cytopenias.",
         "diagnostic_criteria": [
             {"criterion": "Renal biopsy showing immune complex GN", "essential": True},
@@ -231,7 +231,7 @@ DISEASES = {
         "definition": "AAV is a small-vessel vasculitis with pauci-immune necrotizing GN. Includes microscopic polyangiitis (MPA), granulomatosis with polyangiitis (GPA), and eosinophilic GPA (EGPA).",
         "epidemiology": "Incidence ~20/million/year. Peak >60 years. GPA more common in Europe, MPA more in Japan. GPA: PR3-ANCA. MPA: MPO-ANCA.",
         "etiology": "Autoimmune with ANCA targeting PR3 or MPO. Genetic associations (HLA-DP, SERPINA1). Triggers: silica exposure, infections (S. aureus in GPA), drugs (hydralazine, propylthiouracil, cocaine).",
-        "pathophysiology": "ANCA activates neutrophils → neutrophil degranulation and NETosis → endothelial injury → necrotizing inflammation of small vessels → crescentic GN. Complement alternative pathway activation (C5a) amplifies injury.",
+        "pathophysiology": "ANCA activates neutrophils â†’ neutrophil degranulation and NETosis â†’ endothelial injury â†’ necrotizing inflammation of small vessels â†’ crescentic GN. Complement alternative pathway activation (C5a) amplifies injury.",
         "clinical_presentation": "RPGN with hematuria, RBC casts, rapidly declining eGFR. Systemic features: fever, weight loss, arthralgia. GPA: ENT and lung involvement. MPA: renal-limited or renal+lung. EGPA: asthma, eosinophilia.",
         "diagnostic_criteria": [
             {"criterion": "Necrotizing pauci-immune GN on biopsy", "essential": True},
@@ -252,7 +252,7 @@ DISEASES = {
                                   {"factor": "Sclerotic class on biopsy", "risk": "Poor renal recovery"},
                                   {"factor": "Alveolar hemorrhage", "risk": "Mortality"}],
         "treatment_overview": "Induction: high-dose corticosteroids + rituximab (preferred) or cyclophosphamide. Plasma exchange for severe disease (Cr >500 or diffuse alveolar hemorrhage). Maintenance: rituximab or azathioprine + low-dose steroids.",
-        "monitoring_protocol": "Monthly: eGFR, UPCR, ANCA titer, CRP. 3-monthly in remission. ANCA titer rise may predict relapse.",
+        "monitoring_protocol": "Monthly: eGFR, 24h UTP, ANCA titer, CRP. 3-monthly in remission. ANCA titer rise may predict relapse.",
         "complications": ["ESKD (20-30%)", "Alveolar hemorrhage (mortality 20-30%)",
                           "Infection (PCP prophylaxis with TMP/SMX required)",
                           "Relapse (30-50% at 5 years)", "Malignancy (cyclophosphamide)"],
@@ -264,8 +264,8 @@ DISEASES = {
         "category": DiseaseCategory.SECONDARY,
         "definition": "Anti-GBM disease is an autoimmune disorder with autoantibodies against the NC1 domain of type IV collagen causing rapidly progressive GN with or without pulmonary hemorrhage.",
         "epidemiology": "Incidence ~1/million/year. Bimodal age distribution: young males (20-30) and older adults (60-70). More common in Whites.",
-        "etiology": "Autoantibodies against α3 chain of type IV collagen (α3(IV)NC1). Genetic: HLA-DRB1*1501. Triggers: smoking (pulmonary hemorrhage), hydrocarbon exposure, infections (influenza A), cocaine.",
-        "pathophysiology": "Anti-GBM antibodies bind to alveolar and glomerular basement membranes → complement activation → neutrophil recruitment → crescentic GN and pulmonary capillaritis. Antibody titer correlates with disease activity.",
+        "etiology": "Autoantibodies against Î±3 chain of type IV collagen (Î±3(IV)NC1). Genetic: HLA-DRB1*1501. Triggers: smoking (pulmonary hemorrhage), hydrocarbon exposure, infections (influenza A), cocaine.",
+        "pathophysiology": "Anti-GBM antibodies bind to alveolar and glomerular basement membranes â†’ complement activation â†’ neutrophil recruitment â†’ crescentic GN and pulmonary capillaritis. Antibody titer correlates with disease activity.",
         "clinical_presentation": "RPGN (oliguria, rapidly rising creatinine, hematuria). Pulmonary hemorrhage (hemoptysis, dyspnea, diffuse alveolar infiltrates). Fever, malaise, arthralgia.",
         "diagnostic_criteria": [
             {"criterion": "Positive anti-GBM antibodies (ELISA)", "essential": True},
@@ -297,10 +297,10 @@ DISEASES = {
         "definition": "C3 glomerulopathy is a group of kidney diseases caused by dysregulation of the alternative complement pathway, with dominant C3 deposition on immunofluorescence.",
         "epidemiology": "Rare (incidence ~1-2/million/year). Age: bimodal (children and young adults). Slight female predominance.",
         "etiology": "Genetic or acquired dysregulation of the alternative complement pathway. C3 nephritic factor (C3NeF) in 40-60%. Complement gene mutations (CFH, CFI, CFB, C3, CFHR5). CFH autoantibodies.",
-        "pathophysiology": "Uncontrolled alternative pathway activation → persistent C3 consumption → C3 deposition in glomeruli → complement-mediated glomerular injury. C3 glomerulonephritis (C3GN): mesangial and subendothelial C3. DDD: intramembranous dense deposits.",
+        "pathophysiology": "Uncontrolled alternative pathway activation â†’ persistent C3 consumption â†’ C3 deposition in glomeruli â†’ complement-mediated glomerular injury. C3 glomerulonephritis (C3GN): mesangial and subendothelial C3. DDD: intramembranous dense deposits.",
         "clinical_presentation": "Hematuria, proteinuria, hypertension. Progressive CKD. May present with nephrotic syndrome. Associated conditions: partial lipodystrophy, drusen (CFH mutations).",
         "diagnostic_criteria": [
-            {"criterion": "Dominant C3 deposition on IF (≥2 orders stronger than other Igs)", "essential": True},
+            {"criterion": "Dominant C3 deposition on IF (â‰¥2 orders stronger than other Igs)", "essential": True},
             {"criterion": "Low C3 (persistent)", "essential": False},
             {"criterion": "EM findings consistent with C3GN or DDD", "essential": False},
             {"criterion": "Exclusion of infection-related GN", "essential": True},
@@ -319,7 +319,7 @@ DISEASES = {
                                   {"factor": "Persistent low C3", "risk": "Active disease"},
                                   {"factor": "DDD histology", "risk": "Slowly progressive"}],
         "treatment_overview": "Supportive: RAASi, BP control. Immunosuppression for active disease: corticosteroids + MMF in C3GN (limited evidence). Complement inhibitors (eculizumab, iptacopan) experimental. Plasma exchange for CFH autoantibody cases.",
-        "monitoring_protocol": "3-monthly: eGFR, UPCR, C3/C4. Monitor for complement abnormalities. Regular ophthalmology (drusen).",
+        "monitoring_protocol": "3-monthly: eGFR, 24h UTP, C3/C4. Monitor for complement abnormalities. Regular ophthalmology (drusen).",
         "complications": ["Progressive CKD/ESKD (50% at 10 years)", "Ocular drusen",
                           "Partial lipodystrophy", "Infection risk (complement deficiency)"],
         "relapse_information": "Relapse common after immunosuppression withdrawal. Post-transplant recurrence: C3GN 50-80%, DDD 80-90%.",
@@ -331,8 +331,8 @@ DISEASES = {
         "definition": "DKD is a progressive kidney disease caused by long-standing diabetes mellitus, leading to albuminuria and declining eGFR.",
         "epidemiology": "Most common cause of ESKD worldwide (30-50%). Affects 25-40% of diabetics. Type 2 DM accounts for >90% of DKD. Higher risk in African, Hispanic, Asian ancestry.",
         "etiology": "Chronic hyperglycemia leading to metabolic and hemodynamic injury. Genetic susceptibility. Hypertension. Obesity.",
-        "pathophysiology": "Hyperglycemia → AGE formation, oxidative stress, PKC activation, polyol pathway flux → podocyte injury, mesangial expansion, GBM thickening, tubulointerstitial fibrosis. Hemodynamic: RAAS activation, intraglomerular hypertension. SGLT2 upregulation contributes to injury.",
-        "clinical_presentation": "Initially asymptomatic. Microalbuminuria → macroalbuminuria → nephrotic syndrome. Gradual eGFR decline over years. Concurrent diabetic retinopathy (90% of type 1, 60% of type 2). Hypertension. Cardiovascular disease.",
+        "pathophysiology": "Hyperglycemia â†’ AGE formation, oxidative stress, PKC activation, polyol pathway flux â†’ podocyte injury, mesangial expansion, GBM thickening, tubulointerstitial fibrosis. Hemodynamic: RAAS activation, intraglomerular hypertension. SGLT2 upregulation contributes to injury.",
+        "clinical_presentation": "Initially asymptomatic. Microalbuminuria â†’ macroalbuminuria â†’ nephrotic syndrome. Gradual eGFR decline over years. Concurrent diabetic retinopathy (90% of type 1, 60% of type 2). Hypertension. Cardiovascular disease.",
         "diagnostic_criteria": [
             {"criterion": "Diabetes mellitus", "essential": True},
             {"criterion": "Persistent albuminuria or reduced eGFR", "essential": True},
@@ -366,7 +366,7 @@ DISEASES = {
         "definition": "DDD is a rare renal disease characterized by dense intramembranous electron-dense deposits in the GBM, caused by uncontrolled alternative complement pathway activation.",
         "epidemiology": "Incidence ~0.5/million/year. Typically children and young adults (peak 5-15 years). Slight female predominance.",
         "etiology": "Acquired or genetic dysregulation of the alternative complement pathway. C3 nephritic factor (C3NeF) in 60-70%. CFH mutations. CFHR5 mutations.",
-        "pathophysiology": "Persistent alternative pathway activation → continuous C3 cleavage → C3b deposition along GBM → dense transformation of lamina densa → glomerular injury.",
+        "pathophysiology": "Persistent alternative pathway activation â†’ continuous C3 cleavage â†’ C3b deposition along GBM â†’ dense transformation of lamina densa â†’ glomerular injury.",
         "clinical_presentation": "Hematuria, proteinuria (often nephrotic). Hypertension. Progressive CKD. Associated: acquired partial lipodystrophy, ocular drusen (CFH mutations).",
         "diagnostic_criteria": [
             {"criterion": "Intramembranous dense ribbon-like deposits on EM", "essential": True},
@@ -378,8 +378,8 @@ DISEASES = {
                           "Hematuria", "Proteinuria", "eGFR reduced"],
         "biopsy_findings": ["Dense intramembranous deposits (GBM ribbon-like)", "Dominant C3 on IF",
                             "Mesangial hypercellularity", "Crescents in active cases"],
-        "treatment_overview": "Supportive care (RAASi). Corticosteroids ± MMF for active disease (limited evidence). Eculizumab (anti-C5) in progressive cases. Plasma exchange for CFH autoantibody. Complement inhibitors (iptacopan, vemircopan) in trials.",
-        "monitoring_protocol": "3-monthly: eGFR, UPCR, C3. Ophthalmology monitoring for drusen.",
+        "treatment_overview": "Supportive care (RAASi). Corticosteroids Â± MMF for active disease (limited evidence). Eculizumab (anti-C5) in progressive cases. Plasma exchange for CFH autoantibody. Complement inhibitors (iptacopan, vemircopan) in trials.",
+        "monitoring_protocol": "3-monthly: eGFR, 24h UTP, C3. Ophthalmology monitoring for drusen.",
         "complications": ["Progressive CKD/ESKD (50% at 5 years)", "Ocular drusen", "Lipodystrophy"],
         "relapse_information": "Chronic progressive disease. Post-transplant recurrence >80%.",
         "long_term_prognosis": "ESKD in 50% within 5-10 years. High post-transplant recurrence.",
@@ -390,12 +390,12 @@ DISEASES = {
         "definition": "MPGN is a histologic pattern of glomerular injury with mesangial hypercellularity, GBM double contours, and immune complex or complement deposition.",
         "epidemiology": "Incidence declining due to better classification. Now accounts for <5% of GN. All ages, peaks in children and young adults.",
         "etiology": "Immune complex-mediated (infection, autoimmune, monoclonal gammopathy) or complement-mediated (C3 glomerulopathy). Idiopathic in minority. Classification by IF pattern.",
-        "pathophysiology": "Immune complex deposition → complement activation → mesangial and endocapillary proliferation → GBM remodeling (double contours = tram tracks) → glomerulosclerosis.",
+        "pathophysiology": "Immune complex deposition â†’ complement activation â†’ mesangial and endocapillary proliferation â†’ GBM remodeling (double contours = tram tracks) â†’ glomerulosclerosis.",
         "clinical_presentation": "Nephrotic syndrome (40-60%). Hematuria (microscopic or macroscopic). Hypertension. Reduced eGFR. May have underlying infection or autoimmune disease.",
         "diagnostic_criteria": [
             {"criterion": "MPGN pattern on light microscopy", "essential": True},
             {"criterion": "IF pattern determines subtype (IgG+, C3+ vs C3-only)", "essential": True},
-            {"criterion": "Subendothelial ± mesangial deposits on EM", "essential": False},
+            {"criterion": "Subendothelial Â± mesangial deposits on EM", "essential": False},
         ],
         "differential_diagnosis": ["c3", "lupus", "cryoglobulinemic", "infectionRelated", "iga"],
         "lab_findings": ["Hematuria", "Proteinuria", "Low C3/C4 (immune complex type)",
@@ -409,7 +409,7 @@ DISEASES = {
         "risk_stratification": [{"factor": "Nephrotic range proteinuria", "risk": "Progression"},
                                   {"factor": "Reduced eGFR at presentation", "risk": "ESKD"}],
         "treatment_overview": "Treat underlying cause (antivirals for HCV, immunosuppression for SLE/autoimmune). Idiopathic: corticosteroids + MMF for IC-MPGN. Complement inhibitors for C3-dominant. Supportive: RAASi.",
-        "monitoring_protocol": "3-monthly: eGFR, UPCR, complement levels. Screen for underlying cause.",
+        "monitoring_protocol": "3-monthly: eGFR, 24h UTP, complement levels. Screen for underlying cause.",
         "complications": ["ESKD (50% at 10 years)", "Hypertension", "Infection"],
         "relapse_information": "Relapse common after treatment withdrawal. Post-transplant recurrence 30-50%.",
         "long_term_prognosis": "10-year kidney survival ~50%. Depends on underlying cause and treatment response.",
@@ -432,8 +432,8 @@ DISEASES = {
                           "Evaluate for monoclonal gammopathy (SPEP, IFE, FLC)"],
         "biopsy_findings": ["Randomly oriented fibrils ~20nm (fibrillary GN)", "Microtubules >30nm (immunotactoid)",
                             "Congo red negative", "IgG + C3 mesangial/GBM deposits"],
-        "treatment_overview": "No established therapy. RAASi for proteinuria. Immunosuppression (steroids ± cyclophosphamide) for progressive disease (limited evidence). Treat underlying monoclonal gammopathy in immunotactoid. Rituximab may have benefit.",
-        "monitoring_protocol": "3-monthly: eGFR, UPCR. Screen for malignancy/ monoclonal gammopathy at diagnosis and follow-up.",
+        "treatment_overview": "No established therapy. RAASi for proteinuria. Immunosuppression (steroids Â± cyclophosphamide) for progressive disease (limited evidence). Treat underlying monoclonal gammopathy in immunotactoid. Rituximab may have benefit.",
+        "monitoring_protocol": "3-monthly: eGFR, 24h UTP. Screen for malignancy/ monoclonal gammopathy at diagnosis and follow-up.",
         "complications": ["ESKD (50% at 5 years)", "Malignancy association (30%)"],
         "relapse_information": "Progressive disease. Post-transplant recurrence 30-50%.",
         "long_term_prognosis": "Poor. ESKD in 50% within 5 years. Immunotactoid may have better prognosis with targeted therapy.",
@@ -443,8 +443,8 @@ DISEASES = {
         "category": DiseaseCategory.HEREDITARY,
         "definition": "TBMD (benign familial hematuria) is a hereditary glomerular basement membrane disorder characterized by persistent hematuria and diffuse GBM thinning.",
         "epidemiology": "Most common cause of persistent microscopic hematuria (1-5% of population). Both sexes. All ages. Autosomal dominant (COL4A3/COL4A4 carriers).",
-        "etiology": "Heterozygous mutation in COL4A3 or COL4A4 genes encoding type IV collagen α3/α4 chains. Carrier state for Alport syndrome.",
-        "pathophysiology": "Reduced collagen IV α3/α4 chain production in GBM → thin and fragile GBM → mechanical fragility → hematuria. Usually no progressive thickening or fibrosis.",
+        "etiology": "Heterozygous mutation in COL4A3 or COL4A4 genes encoding type IV collagen Î±3/Î±4 chains. Carrier state for Alport syndrome.",
+        "pathophysiology": "Reduced collagen IV Î±3/Î±4 chain production in GBM â†’ thin and fragile GBM â†’ mechanical fragility â†’ hematuria. Usually no progressive thickening or fibrosis.",
         "clinical_presentation": "Persistent microscopic hematuria (often incidental). Episodic macroscopic hematuria. Rarely proteinuria (usually <1g/day). Normal kidney function. Family history of hematuria.",
         "diagnostic_criteria": [
             {"criterion": "GBM thickness <250nm (adult) or <200nm (child)", "essential": True},
@@ -461,7 +461,7 @@ DISEASES = {
         "risk_stratification": [{"factor": "Proteinuria >1g/day", "risk": "Possibly Alport carrier"},
                                   {"factor": "Family history of ESKD", "risk": "Consider genetic testing"}],
         "treatment_overview": "No treatment required for isolated hematuria. RAASi if proteinuria develops. Avoid nephrotoxic drugs. Regular monitoring.",
-        "monitoring_protocol": "Annual: BP, eGFR, urine dipstick. If proteinuria develops: UPCR, RAASi.",
+        "monitoring_protocol": "Annual: BP, eGFR, urine dipstick. If proteinuria develops: 24h UTP, RAASi.",
         "complications": ["Rarely proteinuria", "Very rarely ESKD (<1%)"],
         "relapse_information": "Persistent condition, not relapsing. Excellent prognosis.",
         "long_term_prognosis": "Excellent. Normal life expectancy. ESKD rare (<1%). Differentiate from Alport syndrome.",
@@ -472,7 +472,7 @@ DISEASES = {
         "definition": "Alport syndrome is a hereditary disorder of type IV collagen causing progressive nephropathy, sensorineural hearing loss, and ocular abnormalities.",
         "epidemiology": "Prevalence ~1/50,000. X-linked (85%, COL4A5), autosomal recessive (14%, COL4A3/COL4A4), autosomal dominant (1%). Males more severely affected.",
         "etiology": "Mutations in COL4A5 (X-linked), COL4A3 or COL4A4 (autosomal). Defective collagen IV network in GBM, cochlea, eye, and skin basement membranes.",
-        "pathophysiology": "Abnormal type IV collagen → structurally deficient GBM → progressive GBM thickening, thinning, splitting, lamellation → glomerulosclerosis. Similar process in cochlea (hearing loss) and eye (lenticonus, retinopathy).",
+        "pathophysiology": "Abnormal type IV collagen â†’ structurally deficient GBM â†’ progressive GBM thickening, thinning, splitting, lamellation â†’ glomerulosclerosis. Similar process in cochlea (hearing loss) and eye (lenticonus, retinopathy).",
         "clinical_presentation": "Persistent hematuria (early childhood). Progressive proteinuria (adolescence). Hypertension. ESKD (males: 20-30s, females: 50-60s). Sensorineural hearing loss (high frequency). Anterior lenticonus, dot-and-fleck retinopathy.",
         "diagnostic_criteria": [
             {"criterion": "Characteristic GBM changes on EM (thickening, splitting, lamellation)", "essential": True},
@@ -484,7 +484,7 @@ DISEASES = {
         "lab_findings": ["Hematuria (early)", "Proteinuria (progressive)", "eGFR declining",
                           "Genetic testing confirms mutation"],
         "biopsy_findings": ["GBM thickening, thinning, splitting, lamellation (basket weave)",
-                            "Absent or reduced collagen α5(IV) staining", "Progressive glomerulosclerosis"],
+                            "Absent or reduced collagen Î±5(IV) staining", "Progressive glomerulosclerosis"],
         "classification_systems": [
             {"name": "Inheritance Pattern", "components": "X-linked, autosomal recessive, autosomal dominant"},
             {"name": "Stage", "components": "Hematuria only, proteinuria, CKD, ESKD"},
@@ -493,7 +493,7 @@ DISEASES = {
                                   {"factor": "Truncating COL4A5 mutation", "risk": "Early-onset ESKD"},
                                   {"factor": "Proteinuria >1g/day", "risk": "Progression"}],
         "treatment_overview": "RAASi from diagnosis (reduces proteinuria, slows progression). SGLT2i for additional protection. Avoid nephrotoxins. Hearing aids for hearing loss. Renal transplantation (no recurrence - COL4A5 is absent, not abnormal).",
-        "monitoring_protocol": "Annual: eGFR, UPCR, BP, audiometry, ophthalmology. More frequent if proteinuria or declining eGFR.",
+        "monitoring_protocol": "Annual: eGFR, 24h UTP, BP, audiometry, ophthalmology. More frequent if proteinuria or declining eGFR.",
         "complications": ["ESKD", "Sensorineural hearing loss", "Anterior lenticonus",
                           "Aortic root dilation", "Leiomyomatosis (rare contiguous gene deletion)"],
         "relapse_information": "Progressive disease. No relapse post-transplant (kidney has normal collagen IV).",
@@ -505,8 +505,8 @@ DISEASES = {
         "category": DiseaseCategory.SECONDARY,
         "definition": "Cryoglobulinemic GN is renal involvement in mixed cryoglobulinemia, most commonly associated with chronic HCV infection.",
         "epidemiology": "HCV-related in 80% of cases. Type I: monoclonal (MGUS/lymphoma). Type II: mixed monoclonal+polyclonal (HCV). Type III: polyclonal (autoimmune, infection).",
-        "etiology": "HCV → chronic B-cell stimulation → IgM rheumatoid factor production → cryoglobulin formation → immune complex deposition. Other causes: HBV, HIV, SLE, Sjogren's, lymphoproliferative.",
-        "pathophysiology": "Cryoglobulins (IgM rheumatoid factor + IgG + HCV RNA) deposit in glomeruli → complement activation → leukocytoclastic vasculitis → membranoproliferative pattern + vasculitic lesions.",
+        "etiology": "HCV â†’ chronic B-cell stimulation â†’ IgM rheumatoid factor production â†’ cryoglobulin formation â†’ immune complex deposition. Other causes: HBV, HIV, SLE, Sjogren's, lymphoproliferative.",
+        "pathophysiology": "Cryoglobulins (IgM rheumatoid factor + IgG + HCV RNA) deposit in glomeruli â†’ complement activation â†’ leukocytoclastic vasculitis â†’ membranoproliferative pattern + vasculitic lesions.",
         "clinical_presentation": "Palpable purpura (lower extremities), arthralgia, neuropathy. Hematuria, proteinuria, hypertension. RPGN in severe cases. Systemic vasculitis symptoms.",
         "diagnostic_criteria": [
             {"criterion": "Positive cryoglobulins (serum)", "essential": True},
@@ -519,8 +519,8 @@ DISEASES = {
         "biopsy_findings": ["MPGN pattern", "IgG + IgM + C3 deposits (subendothelial)",
                             "Intracapillary thrombi (cryoglobulin precipitates) - PAS positive",
                             "Vasculitis in small arteries"],
-        "treatment_overview": "Treat HCV (direct-acting antivirals) - can cause remission of cryoglobulinemia. Severe: rituximab + steroids ± plasma exchange. Cyclophosphamide for refractory. Avoid interferon-based regimens.",
-        "monitoring_protocol": "3-monthly: eGFR, UPCR, C3/C4, RF, cryocrit. HCV viral load.",
+        "treatment_overview": "Treat HCV (direct-acting antivirals) - can cause remission of cryoglobulinemia. Severe: rituximab + steroids Â± plasma exchange. Cyclophosphamide for refractory. Avoid interferon-based regimens.",
+        "monitoring_protocol": "3-monthly: eGFR, 24h UTP, C3/C4, RF, cryocrit. HCV viral load.",
         "complications": ["ESKD", "Systemic vasculitis", "Neuropathy", "Lymphoma (long-term)"],
         "relapse_information": "Relapse if HCV persists or reinfection. B-cell clonal persistence increases relapse risk.",
         "long_term_prognosis": "5-year kidney survival ~80% with DAA therapy. HCV cure improves outcomes.",
@@ -531,7 +531,7 @@ DISEASES = {
         "definition": "HIVAN is a collapsing form of FSGS occurring in HIV-infected patients, characterized by heavy proteinuria and rapid progression to ESKD.",
         "epidemiology": "HIVAN occurs almost exclusively in patients of African ancestry with APOL1 risk variants. Peak: 30-40 years. More common in males. Declining with ART.",
         "etiology": "HIV infection of renal epithelial cells + APOL1 G1/G2 risk alleles. APOL1 variants account for >70% of HIVAN risk.",
-        "pathophysiology": "HIV directly infects renal tubular and glomerular epithelial cells → cytopathic effect → podocyte dedifferentiation → collapsing FSGS. APOL1 risk variants increase susceptibility to HIV-induced podocyte injury. Immune dysregulation contributes.",
+        "pathophysiology": "HIV directly infects renal tubular and glomerular epithelial cells â†’ cytopathic effect â†’ podocyte dedifferentiation â†’ collapsing FSGS. APOL1 risk variants increase susceptibility to HIV-induced podocyte injury. Immune dysregulation contributes.",
         "clinical_presentation": "Nephrotic-range proteinuria, rapidly declining eGFR, bland sediment. Kidneys often enlarged on ultrasound. Absence of edema despite nephrotic proteinuria.",
         "diagnostic_criteria": [
             {"criterion": "Collapsing FSGS on biopsy", "essential": True},
@@ -545,7 +545,7 @@ DISEASES = {
         "biopsy_findings": ["Collapsing FSGS", "Podocyte hyperplasia", "Tubular microcysts",
                             "Interstitial inflammation", "APOL1 immunohistochemistry"],
         "treatment_overview": "Antiretroviral therapy (ART) is the cornerstone - reduces proteinuria and slows progression. RAASi for proteinuria. Corticosteroids for rapidly progressive (limited evidence). Renal replacement therapy when indicated.",
-        "monitoring_protocol": "Monthly: eGFR, UPCR, CD4, HIV viral load during active disease. 3-monthly in remission.",
+        "monitoring_protocol": "Monthly: eGFR, 24h UTP, CD4, HIV viral load during active disease. 3-monthly in remission.",
         "complications": ["ESKD (rapid, within months-years)", "Infection (immunosuppression)",
                           "Dialysis complications in HIV patients"],
         "relapse_information": "May improve with ART initiation but few achieve complete remission. Post-transplant: no recurrence (APOL1 risk in donor kidney matters).",
@@ -557,7 +557,7 @@ DISEASES = {
         "definition": "Drug-induced GN encompasses various glomerular injury patterns caused by medications, including AIN, membranous, FSGS, ANCA vasculitis, and TMA.",
         "epidemiology": "Increasing recognition. Incidence depends on drug exposure. Common culprits: NSAIDs, antibiotics (beta-lactams), PPIs, lithium, interferon, bisphosphonates, chemotherapy agents.",
         "etiology": "Various drugs can induce GN through immune-mediated, toxic, or hypersensitivity mechanisms. NSAIDs: MCD-like or membranous. Lithium: MCD or FSGS. Interferon: FSGS (collapsing). Bisphosphonates: FSGS. Anti-TNF: proliferative GN.",
-        "pathophysiology": "Drug-induced immune response or direct podocyte toxicity → glomerular injury. Drug acts as hapten → immune complex formation. Some drugs trigger ANCA production (hydralazine, PTU, cocaine).",
+        "pathophysiology": "Drug-induced immune response or direct podocyte toxicity â†’ glomerular injury. Drug acts as hapten â†’ immune complex formation. Some drugs trigger ANCA production (hydralazine, PTU, cocaine).",
         "clinical_presentation": "Proteinuria, hematuria, AKI. May present weeks to years after drug exposure. Concurrent features: rash, fever, eosinophilia (AIN-dominant). ANCA-positive drug-induced vasculitis: +MPO antibody.",
         "diagnostic_criteria": [
             {"criterion": "Temporal relationship between drug exposure and renal disease", "essential": True},
@@ -572,7 +572,7 @@ DISEASES = {
                             "Tubulointerstitial nephritis with eosinophils (AIN)",
                             "Collapsing FSGS (interferon, pamidronate)"],
         "treatment_overview": "Drug withdrawal is the primary treatment. Corticosteroids for severe AIN or drug-induced ANCA-GN. Supportive care + RAASi for persistent proteinuria. Most improve with drug cessation.",
-        "monitoring_protocol": "Weekly initially: eGFR, UPCR. Monthly until stable.",
+        "monitoring_protocol": "Weekly initially: eGFR, 24h UTP. Monthly until stable.",
         "complications": ["Persistent CKD", "ESKD (rare with prompt recognition)"],
         "relapse_information": "Usually resolves with drug avoidance. Recurrence if drug re-exposed.",
         "long_term_prognosis": "Generally good if drug identified early. Most recover renal function. CKD may persist in cases with prolonged exposure.",
@@ -584,7 +584,7 @@ DISEASES = {
         "definition": "ABMR is a form of renal allograft rejection mediated by donor-specific antibodies (DSA) targeting HLA or other antigens on graft endothelium.",
         "epidemiology": "Occurs in 10-30% of kidney transplant recipients. Risk factors: pre-formed DSA, non-adherence, younger recipients, previous transplants.",
         "etiology": "Pre-existing (pre-formed) or de novo DSA (non-adherence, under-immunosuppression). DSA targets donor HLA class I/II or non-HLA antigens (AT1R, ETAR, collagen V).",
-        "pathophysiology": "DSA binds to graft endothelial cells → complement activation (C4d deposition) → endothelial injury → microvascular inflammation → transplant glomerulopathy (chronic).",
+        "pathophysiology": "DSA binds to graft endothelial cells â†’ complement activation (C4d deposition) â†’ endothelial injury â†’ microvascular inflammation â†’ transplant glomerulopathy (chronic).",
         "clinical_presentation": "Acute: rising creatinine, oliguria, graft tenderness, fever. Chronic: gradual eGFR decline, proteinuria, hypertension.",
         "diagnostic_criteria": [
             {"criterion": "DSA positive", "essential": True},
@@ -606,7 +606,7 @@ DISEASES = {
                                   {"factor": "De novo DSA", "risk": "Late ABMR"},
                                   {"factor": "C4d positive", "risk": "Active ABMR"},
                                   {"factor": "Transplant glomerulopathy", "risk": "Graft loss"}],
-        "treatment_overview": "Acute: IVIG, plasma exchange, rituximab ± bortezomib or carfilzomib. Steroid pulses. Optimize maintenance immunosuppression. Chronic: prevent further injury; no established reversal therapy.",
+        "treatment_overview": "Acute: IVIG, plasma exchange, rituximab Â± bortezomib or carfilzomib. Steroid pulses. Optimize maintenance immunosuppression. Chronic: prevent further injury; no established reversal therapy.",
         "monitoring_protocol": "DSA monitoring at 3, 6, 12 months then annually. Graft biopsy when DSA positive or eGFR declines.",
         "complications": ["Graft loss (50% within 5 years of diagnosis)", "Infection (augmented immunosuppression)"],
         "relapse_information": "Persistent/recurrent ABMR is common without adequate treatment.",
@@ -618,11 +618,11 @@ DISEASES = {
         "definition": "TCMR is a form of renal allograft rejection mediated by recipient T lymphocytes infiltrating the graft interstitium and tubules.",
         "epidemiology": "Most common type of acute rejection. Incidence 10-20% in first year. Lower with modern immunosuppression.",
         "etiology": "Under-immunosuppression, non-adherence, reduced CNI exposure. Donor-recipient HLA mismatch. Sensitization (previous transplants, transfusions, pregnancies).",
-        "pathophysiology": "Donor alloantigen presentation → recipient T-cell activation → clonal expansion → graft infiltration → tubulitis and interstitial inflammation → tubular injury ± arteritis.",
+        "pathophysiology": "Donor alloantigen presentation â†’ recipient T-cell activation â†’ clonal expansion â†’ graft infiltration â†’ tubulitis and interstitial inflammation â†’ tubular injury Â± arteritis.",
         "clinical_presentation": "Rising creatinine, oliguria, graft tenderness, fever. May be subclinical (biopsy-detected).",
         "diagnostic_criteria": [
             {"criterion": "Interstitial inflammation (>25% of cortex)", "essential": True},
-            {"criterion": "Tubulitis (Banff t-score ≥2)", "essential": True},
+            {"criterion": "Tubulitis (Banff t-score â‰¥2)", "essential": True},
             {"criterion": "Intimal arteritis (Banff v-score, in vascular rejection)", "essential": False},
         ],
         "differential_diagnosis": ["antibodyMediatedRejection", "cniToxicity", "acuteInterstitialNephritis", "bkVirusNephropathy"],
@@ -647,7 +647,7 @@ DISEASES = {
         "definition": "CNI nephrotoxicity is progressive renal injury from chronic tacrolimus or ciclosporin use, characterized by arteriolar hyalinosis and tubulointerstitial fibrosis.",
         "epidemiology": "Universal exposure in transplant recipients. Acute: 10-30%. Chronic: >50% on biopsy at 5 years.",
         "etiology": "CNIs (tacrolimus, ciclosporin) cause afferent arteriolar vasoconstriction (acute) and progressive arteriolar hyalinosis + tubulointerstitial fibrosis (chronic). Dose-dependent, but toxicity can occur at therapeutic levels.",
-        "pathophysiology": "Acute: CNI → calcineurin inhibition in vascular smooth muscle → vasoconstriction → reduced RBF → AKI. Chronic: CNI → TGF-β activation → endothelial injury → arteriolar hyalinosis → tubular atrophy → interstitial fibrosis.",
+        "pathophysiology": "Acute: CNI â†’ calcineurin inhibition in vascular smooth muscle â†’ vasoconstriction â†’ reduced RBF â†’ AKI. Chronic: CNI â†’ TGF-Î² activation â†’ endothelial injury â†’ arteriolar hyalinosis â†’ tubular atrophy â†’ interstitial fibrosis.",
         "clinical_presentation": "Acute: dose-dependent rise in creatinine, hyperkalemia, hypertension (may be reversible). Chronic: slow, progressive eGFR decline, hypertension, bland sediment.",
         "diagnostic_criteria": [
             {"criterion": "Arteriolar hyalinosis (afferent arteriolar nodular hyaline deposits)", "essential": True},
@@ -674,7 +674,7 @@ DISEASES = {
         "definition": "TG is a morphologic pattern of chronic glomerular injury in renal allografts, characterized by GBM double contours and associated with chronic ABMR.",
         "epidemiology": "Prevalence 10-20% at 5 years post-transplant. Strongly associated with DSA. Leading cause of late graft loss.",
         "etiology": "Most commonly chronic ABMR (DSA-mediated). Can also occur in HCV infection, TMA, CNI toxicity.",
-        "pathophysiology": "Chronic endothelial injury (DSA-mediated) → loss of endothelial fenestrations → new GBM deposition → double contours (CG) → progressive glomerulosclerosis.",
+        "pathophysiology": "Chronic endothelial injury (DSA-mediated) â†’ loss of endothelial fenestrations â†’ new GBM deposition â†’ double contours (CG) â†’ progressive glomerulosclerosis.",
         "clinical_presentation": "Proteinuria (often nephrotic-range), hypertension, progressive eGFR decline. May have concurrent DSA positivity.",
         "diagnostic_criteria": [
             {"criterion": "GBM double contours by EM (>2 glomeruli)", "essential": True},
@@ -695,7 +695,7 @@ DISEASES = {
                                   {"factor": "crescents", "risk": "Rapid loss"},
                                   {"factor": "cg3 score", "risk": "Imminent graft loss"}],
         "treatment_overview": "No proven effective therapy. Augment immunosuppression (IVIG, rituximab) if DSA positive. Optimize BP and proteinuria management. Consider SGLT2i for proteinuria reduction. Prepare for dialysis/retransplant.",
-        "monitoring_protocol": "3-monthly: eGFR, UPCR, DSA. Biopsy if progressing.",
+        "monitoring_protocol": "3-monthly: eGFR, 24h UTP, DSA. Biopsy if progressing.",
         "complications": ["Graft loss (50% at 3 years after diagnosis)", "Nephrotic syndrome"],
         "relapse_information": "Progressive condition. No reversal reported.",
         "long_term_prognosis": "Poor. 50% graft loss within 3 years of diagnosis.",
@@ -705,8 +705,8 @@ DISEASES = {
         "category": DiseaseCategory.TRANSPLANT,
         "definition": "BKVN is a polyomavirus-associated nephropathy in kidney transplant recipients, causing progressive tubulointerstitial inflammation and graft dysfunction.",
         "epidemiology": "Affects 5-10% of kidney transplant recipients. Typically 3-12 months post-transplant. Risk: intense immunosuppression, older age, male gender, DGF, CMV infection.",
-        "etiology": "Reactivation of BK polyomavirus from latent state in urothelium → viral replication in tubular epithelium → cytopathic injury → interstitial nephritis → fibrosis.",
-        "pathophysiology": "BK virus infects renal tubular epithelial cells → viral replication → cell lysis → viral shedding (decoy cells) → interstitial inflammation → tubular atrophy → fibrosis. Nephropathy stage correlates with outcome.",
+        "etiology": "Reactivation of BK polyomavirus from latent state in urothelium â†’ viral replication in tubular epithelium â†’ cytopathic injury â†’ interstitial nephritis â†’ fibrosis.",
+        "pathophysiology": "BK virus infects renal tubular epithelial cells â†’ viral replication â†’ cell lysis â†’ viral shedding (decoy cells) â†’ interstitial inflammation â†’ tubular atrophy â†’ fibrosis. Nephropathy stage correlates with outcome.",
         "clinical_presentation": "Asymptomatic rise in creatinine. Urine decoy cells. BK viremia on PCR. May progress to graft dysfunction.",
         "diagnostic_criteria": [
             {"criterion": "BK viremia >10,000 copies/mL (screening threshold)", "essential": False},
@@ -735,7 +735,7 @@ DISEASES = {
 }
 
 
-# ─── NEW DISEASES: KB RULES ──────────────────────────────────────────
+# â”€â”€â”€ NEW DISEASES: KB RULES â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 NEW_DISEASE_RULES = {
     "alport": {
@@ -903,13 +903,13 @@ NEW_DISEASE_RULES = {
 }
 
 
-# ─── CLINICAL PATHWAYS ───────────────────────────────────────────────
+# â”€â”€â”€ CLINICAL PATHWAYS â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 PATHWAYS = {
     "iga": [
         {"stage_order": 1, "stage_name": "Presentation & Diagnosis",
          "description": "Hematuria workup, kidney biopsy for definitive diagnosis",
-         "required_actions": ["Urine microscopy for RBC morphology and casts", "UPCR or ACR quantification",
+         "required_actions": ["Urine microscopy for RBC morphology and casts", "24h UTP (or ACR) quantification",
                               "eGFR, serum creatinine", "Kidney biopsy with IF",
                               "Oxford MEST-C scoring"], "next_stages": ["2"]},
         {"stage_order": 2, "stage_name": "Risk Stratification",
@@ -930,7 +930,7 @@ PATHWAYS = {
          "expected_duration_days": 180, "next_stages": ["5"]},
         {"stage_order": 5, "stage_name": "Long-term Monitoring",
          "description": "Regular follow-up with monitoring for progression",
-         "required_actions": ["3-monthly eGFR, UPCR, BP",
+         "required_actions": ["3-monthly eGFR, 24h UTP, BP",
                               "Monitor for treatment side effects",
                               "Prepare for RRT if ESKD approaches"],
          "expected_duration_days": 365, "next_stages": ["6"]},
@@ -977,7 +977,7 @@ class Command(BaseCommand):
         self._seed_rules()
         self._seed_pathways()
 
-    # ── 1. Guideline Sources ───────────────────────────────────────
+    # â”€â”€ 1. Guideline Sources â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
     def _seed_guidelines(self):
         count = 0
@@ -994,7 +994,7 @@ class Command(BaseCommand):
                 count += 1
         self.stdout.write(self.style.SUCCESS(f"Seeded {count} new guideline sources"))
 
-    # ── 2. Disease Records ────────────────────────────────────────
+    # â”€â”€ 2. Disease Records â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
     def _seed_diseases(self):
         count = 0
@@ -1029,7 +1029,7 @@ class Command(BaseCommand):
             f"Disease records: {Disease.objects.filter(is_active=True).count()} active diseases"
         ))
 
-    # ── 3. KB Rules for New Diseases ──────────────────────────────
+    # â”€â”€ 3. KB Rules for New Diseases â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
     def _seed_rules(self):
         source_cache = {}
@@ -1072,7 +1072,7 @@ class Command(BaseCommand):
 
         self.stdout.write(self.style.SUCCESS(f"Seeded {rule_count} new KB rules across {len(NEW_DISEASE_RULES)} diseases"))
 
-    # ── 4. Clinical Pathways ──────────────────────────────────────
+    # â”€â”€ 4. Clinical Pathways â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
     def _seed_pathways(self):
         count = 0
@@ -1098,3 +1098,4 @@ class Command(BaseCommand):
                 if created:
                     count += 1
         self.stdout.write(self.style.SUCCESS(f"Seeded {count} pathway stages"))
+

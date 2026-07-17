@@ -4,6 +4,7 @@ from . import views
 router = DefaultRouter()
 router.register("profiles", views.ClinicalProfileViewSet)
 router.register("insights", views.ClinicalInsightViewSet)
+router.register("audit", views.RecommendationAuditViewSet)
 
 app_name = "clinical_reasoning"
 urlpatterns = router.urls

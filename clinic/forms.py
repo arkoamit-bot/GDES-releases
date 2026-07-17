@@ -128,7 +128,7 @@ class PatientForm(forms.ModelForm):
                   # Level 2: persistent clinical data (single source of truth).
                   "hypertension", "autoimmune_disease", "chronic_infection",
                   "smoking_status", "hepatitis_status", "hiv_status",
-                  "biopsy_diagnosis", "oxford_mestc", "isn_rps_class",
+"biopsy_diagnosis", "gn_broad_group", "gn_primary_secondary", "oxford_mestc", "isn_rps_class",
                   "ckd_etiology", "transplant_status"]
         widgets = {
             "dob": _date(),
@@ -138,6 +138,8 @@ class PatientForm(forms.ModelForm):
             "hospital_id": "Hospital/BIRDEM registration number (optional).",
             "primary_diagnosis": "Primary GN diagnosis (auto-set from biopsy if available).",
             "biopsy_diagnosis": "Diagnosis from biopsy report (auto-synced from pathology).",
+            "gn_broad_group": "Broad disease category (auto-synced from GNDiagnosis).",
+            "gn_primary_secondary": "Primary vs secondary GN (auto-synced from GNDiagnosis).",
             "oxford_mestc": "Oxford MEST-C score (auto-synced from IgAN score).",
             "isn_rps_class": "ISN/RPS class for lupus nephritis (auto-synced from pathology).",
             "ckd_etiology": "CKD aetiology (auto-derived or clinician-entered).",
@@ -263,10 +265,9 @@ class BiopsyForm(forms.ModelForm):
         exclude = ["patient", "review_status", "created_at", "updated_at"]
         widgets = {
             "biopsy_date": _date(),
-            "em_findings": forms.Textarea(attrs={"rows": 2}),
+            "em_findings": forms.Select(),
             "notes": forms.Textarea(attrs={"rows": 2}),
-            "if_pattern": forms.TextInput(
-                attrs={"placeholder": "e.g. mesangial IgA, full-house"}),
+            "if_pattern": forms.Select(),
         }
 
 

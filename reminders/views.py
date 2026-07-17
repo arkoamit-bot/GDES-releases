@@ -1,3 +1,6 @@
+from django.contrib.auth.decorators import login_required
+from django.shortcuts import get_object_or_404, redirect, render
+from django.utils import timezone
 from rest_framework import status, viewsets
 from rest_framework.decorators import action, api_view, permission_classes
 from rest_framework.permissions import IsAuthenticated
@@ -18,6 +21,61 @@ from .tasks import (
     send_reminder,
     schedule_visit_reminders as auto_schedule_reminders,
 )
+
+
+LOGIN = "/login/"
+
+
+@login_required(login_url=LOGIN)
+def reminder_log(request):
+    """In-app reminder log — manually log reminders during consults."""
+    if request.method == "POST":
+        patient = get_object_or_404(Patient, pk=request.POST.get("patient"))
+        reminder_type = request.POST.get("reminder_type", "general")
+        title = request.POST.get("title", "").strip()
+        message = request.POST.get("message", "").strip()
+        if title:
+            ReminderSchedule.objects.create(
+                patient=patient,
+                reminder_type=reminder_type,
+                channel="app",
+                title=title,
+                message=message,
+                scheduled_at=timezone.now(),
+            )
+        return redirect("reminders:log")
+
+    qs = ReminderSchedule.objects.filter(channel="app").select_related("patient")
+    active = qs.exclude(status__in=["cancelled", "sent"])
+    completed = qs.filter(status__in=["cancelled", "sent"])[:50]
+    patients = Patient.objects.all().order_by("patient_id")
+
+    return render(request, "reminders/reminder_log.html", {
+        "active": "reminders",
+        "reminders_active": active,
+        "reminders_completed": completed,
+        "patients": patients,
+        "reminder_types": ReminderSchedule._meta.get_field("reminder_type").choices,
+    })
+
+
+@login_required(login_url=LOGIN)
+def reminder_done(request, pk):
+    """Mark an in-app reminder as completed/sent."""
+    r = get_object_or_404(ReminderSchedule, pk=pk, channel="app")
+    r.status = "sent"
+    r.sent_at = timezone.now()
+    r.save()
+    return redirect("reminders:log")
+
+
+@login_required(login_url=LOGIN)
+def reminder_cancel(request, pk):
+    """Cancel an in-app reminder."""
+    r = get_object_or_404(ReminderSchedule, pk=pk, channel="app")
+    r.status = "cancelled"
+    r.save()
+    return redirect("reminders:log")
 
 
 class ReminderScheduleViewSet(viewsets.ModelViewSet):

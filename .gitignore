@@ -58,9 +58,23 @@ node_modules/
 Thumbs.db
 .claude/settings.local.json
 
+# Scratch / per-machine customisations (never commit)
+*-Dr-Wasim.*
+
 # Keep the COMPILED stylesheet (static/css/app.css) and vendored JS committed so
 # the app runs without a Node build; only re-run `npm run build:css` when the
 # templates/CSS change.
 
 # Build logs
 build_pyinstaller.log
+
+# Stray test/validation output dumps
+test_output.txt
+test_results_fixed.txt
+validation_output.txt
+*_output.txt
+
+# Patient-data exports must never be tracked
+patient_issues.csv
+*_issues.csv
+PATIENT_*.csv

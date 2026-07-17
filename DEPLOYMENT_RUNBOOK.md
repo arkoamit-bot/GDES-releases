@@ -180,11 +180,43 @@ allowlist `%LOCALAPPDATA%\GDES\` in the AV/EDR product.
 
 ## 7. Applying an update
 
+Two channels — both swap only `BGDDR.exe` + `_internal\` (the app folder) and
+leave `Data\` (db + backups) untouched; the previous code is kept as `*.old-<ver>`
+for rollback. The updater is always **prompted**, never silent.
+
+### 7a. Installer (manual)
 1. Rebuild + re-sign; produce a new `Setup_GDES_<newversion>.exe`.
-2. Run it on the clinic PC. Inno Setup upgrades the app files **in place** and
-   **leaves `Data\` untouched**.
-3. On next launch, safe-migrate runs (snapshot + rollback protection), and KB
-   seeding re-runs **only if** `PACKAGED_KB_VERSION` was bumped.
+2. Run it on the clinic PC. Inno Setup upgrades in place, leaves `Data\` untouched.
+3. On next launch, safe-migrate runs and KB seeding re-runs only if
+   `PACKAGED_KB_VERSION` was bumped.
+
+### 7b. GitHub Releases (self-update over the internet — recommended for many PCs)
+The app checks `<repo>/releases/latest` on launch (and via "Check for updates"),
+downloads the `BGDDR-<ver>.zip` asset, verifies its digest, and swaps the code.
+Repo comes from `BGDDR_GITHUB_REPO` (default `arkoamit-bot/GDES`).
+
+**Publish a release (maintainer, once per version):**
+```powershell
+.\desktop\build_exe.ps1                     # build + sign the app
+# create the update zip (BGDDR.exe + _internal at the zip root):
+#   the same dist\update\BGDDR-<ver>.zip used for the OneDrive channel
+$env:GITHUB_TOKEN = "<token with contents:write on the releases repo>"
+.\desktop\publish_github_release.ps1 -Repo <owner/releases-repo> -ZipPath dist\update\BGDDR-<ver>.zip
+```
+GitHub computes the asset SHA-256 digest automatically; the app verifies it.
+
+**⚠️ Public vs private — security decision:**
+- **Recommended:** a **PUBLIC "releases-only" repo** (e.g. `arkoamit-bot/GDES-releases`)
+  holding just the built zips (no source). Clinic PCs need **no token**; point them
+  at it with `BGDDR_GITHUB_REPO`. Your private source repo stays private.
+- **Private repo:** works, but each clinic PC needs `BGDDR_GITHUB_TOKEN` (a
+  fine-grained, single-repo, **read-only** token). Shipping a token that can read
+  your private *source* repo to clinic machines is a leakage risk — use the
+  public releases-repo instead.
+
+Note: the currently-configured repo `arkoamit-bot/GDES` is **private and has no
+releases yet**, so self-update is inactive until you publish one (and decide
+public-releases-repo vs private+token).
 
 ---
 

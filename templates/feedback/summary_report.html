@@ -1,0 +1,94 @@
+{% extends "base.html" %}{% load static %}
+{% block title %}Feedback Summary Report — GDES{% endblock %}
+{% block heading %}Release Planning — Feedback Summary Report{% endblock %}
+{% block content %}
+
+<div class="text-xs text-slate-400 mb-4">
+  Generated: {{ report.generated_at|date:"Y-m-d H:i" }}
+  &middot; App: {{ report.app_version }} &middot; KB: {{ report.knowledge_version }}
+</div>
+
+<div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
+  <div class="card"><div class="card-body">
+    <h3 class="section-title">Critical Bugs</h3>
+    {% for item in report.critical_bugs %}
+    <div class="flex justify-between py-1"><span>{{ item.exception_type }}</span><span class="font-semibold">{{ item.count }}</span></div>
+    {% empty %}<p class="empty-state">No critical bugs</p>{% endfor %}
+  </div></div>
+
+  <div class="card"><div class="card-body">
+    <h3 class="section-title">AI Disagreements by Disease</h3>
+    {% for item in report.ai_disagreements %}
+    <div class="flex justify-between py-1"><span>{{ item.disease|default:"Unknown" }}</span><span class="font-semibold">{{ item.count }}</span></div>
+    {% empty %}<p class="empty-state">No disagreements</p>{% endfor %}
+  </div></div>
+</div>
+
+<div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
+  <div class="card"><div class="card-body">
+    <h3 class="section-title">Most Overridden Recommendations</h3>
+    {% for item in report.most_overridden %}
+    <div class="flex justify-between py-1"><span><code>{{ item.knowledge_rule_id|default:"—" }}</code> ({{ item.disease }})</span><span class="font-semibold">{{ item.count }}</span></div>
+    {% empty %}<p class="empty-state">None</p>{% endfor %}
+  </div></div>
+
+  <div class="card"><div class="card-body">
+    <h3 class="section-title">Knowledge Conflicts</h3>
+    {% for item in report.knowledge_conflicts %}
+    <div class="flex justify-between py-1"><span>{{ item.conflict_type }}</span><span class="font-semibold">{{ item.count }}</span></div>
+    {% empty %}<p class="empty-state">No conflicts</p>{% endfor %}
+  </div></div>
+</div>
+
+<div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
+  <div class="card"><div class="card-body">
+    <h3 class="section-title">AI Failures by Type</h3>
+    {% for item in report.ai_failures_by_type %}
+    <div class="flex justify-between py-1"><span class="capitalize">{{ item.failure_type }}</span><span class="font-semibold">{{ item.count }}</span></div>
+    {% empty %}<p class="empty-state">None</p>{% endfor %}
+  </div></div>
+
+  <div class="card"><div class="card-body">
+    <h3 class="section-title">Top Failing Rules</h3>
+    {% for item in report.top_failing_rules %}
+    <div class="flex justify-between py-1"><span><code>{{ item.rule_id }}</code> ({{ item.disease }})</span><span class="font-semibold">{{ item.count }}</span></div>
+    {% empty %}<p class="empty-state">None</p>{% endfor %}
+  </div></div>
+</div>
+
+<div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
+  <div class="card"><div class="card-body">
+    <h3 class="section-title">User Feedback by Type</h3>
+    {% for item in report.user_feedback_by_type %}
+    <div class="flex justify-between py-1"><span>{{ item.feedback_type|title }}</span><span class="font-semibold">{{ item.count }}</span></div>
+    {% empty %}<p class="empty-state">None</p>{% endfor %}
+  </div></div>
+
+  <div class="card"><div class="card-body">
+    <h3 class="section-title">Improvement Suggestions</h3>
+    {% for k, v in report.improvement_suggestions.items %}
+    <div class="flex justify-between py-1"><span class="capitalize">{{ k|title }}</span><span class="font-semibold">{{ v }}</span></div>
+    {% endfor %}
+  </div></div>
+</div>
+
+<div class="card mb-6"><div class="card-body">
+  <h3 class="section-title">Slowest Pages</h3>
+  {% if report.slow_pages %}
+  <div class="overflow-x-auto"><table class="min-w-full text-sm">
+    <thead><tr class="text-left text-slate-500"><th class="py-2">Page</th><th class="py-2">Avg (ms)</th><th class="py-2">Count</th></tr></thead>
+    <tbody>{% for item in report.slow_pages %}
+    <tr class="border-t"><td class="py-1"><code>{{ item.page|truncatechars:60 }}</code></td><td class="py-1">{{ item.avg_ms|floatformat:0 }}</td><td class="py-1">{{ item.count }}</td></tr>
+    {% endfor %}</tbody>
+  </table></div>
+  {% else %}<p class="empty-state">No data</p>{% endif %}
+</div></div>
+
+<div class="card"><div class="card-body">
+  <h3 class="section-title">Knowledge Gaps by Disease</h3>
+  {% for item in report.knowledge_gaps %}
+  <div class="flex justify-between py-1"><span>{{ item.disease|default:"Unknown" }}</span><span class="font-semibold">{{ item.count }}</span></div>
+  {% empty %}<p class="empty-state">No knowledge gaps identified</p>{% endfor %}
+</div></div>
+
+{% endblock %}

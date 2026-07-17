@@ -357,7 +357,9 @@ class EvaluateEntryTests(TestCase):
         )
         features = {"proteinuria": "none"}
         result = evaluate_entry(entry, features)
-        self.assertEqual(result.total_score, 1)  # Only base score
+        # Per H-1 design: non-firing rules score 0 (not their base_score) to avoid
+        # differential rankings driven by rule count rather than patient fit.
+        self.assertEqual(result.total_score, 0)
         self.assertEqual(len(result.matched_rules), 0)
 
     def test_entry_multiple_conditions_or_logic(self):

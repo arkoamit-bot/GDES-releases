@@ -105,6 +105,8 @@ INSTALLED_APPS = [
     "clinical_reasoning",
     # Phase 5.1 — Follow-up Engine
     "followup",
+    # V8 — Field Error Reporting & Continuous Improvement
+    "feedback",
 ]
 
 # --- Django REST Framework --------------------------------------------------
@@ -137,6 +139,8 @@ MIDDLEWARE = [
     "django.middleware.clickjacking.XFrameOptionsMiddleware",
     # Attributes audited changes to request.user (must follow AuthenticationMiddleware).
     "audit.middleware.AuditMiddleware",
+    # V8 — Field Error Reporting & Performance Monitoring
+    "feedback.middleware.FeedbackMiddleware",
 ]
 
 ROOT_URLCONF = "bgddr.urls"
@@ -223,6 +227,13 @@ PRESCRIPTION_PDF_DIR = MEDIA_ROOT / "prescriptions"
 
 # --- Automatic backup (single-user desktop) ---------------------------------
 # Consumed by bgddr/backup.py. Timestamped .sqlite3 snapshots in Backups/.
+# --- V8 online evidence retrieval (Layer 5) --------------------------------
+# OFF by default: the pilot is offline-first. When explicitly enabled, the
+# evidence lookup queries ONLY approved sources (PubMed via NCBI E-utilities)
+# with a clinician-entered text query — it never transmits patient data and is
+# never invoked automatically. Enable with GDES_AI_ONLINE_EVIDENCE=1.
+AI_ONLINE_EVIDENCE_ENABLED = os.environ.get("GDES_AI_ONLINE_EVIDENCE", "0") == "1"
+
 BACKUP_CONFIG = {
     "directory": str(BACKUPS_DIR),
     "max_backups": int(os.environ.get("BGDDR_MAX_BACKUPS", "60")),

@@ -1,0 +1,48 @@
+{% extends "base.html" %}{% load static %}
+{% block title %}Clinical Conflicts — GDES{% endblock %}
+{% block heading %}AI vs Clinician Conflicts{% endblock %}
+{% block content %}
+
+<div class="page-nav mb-4">
+  <span class="text-sm text-slate-500">{{ unresolved }} unresolved / {{ conflicts|length }} total</span>
+</div>
+
+<div class="card mb-6"><div class="card-body">
+  <h3 class="section-title">Clinical Conflicts (AI vs Clinician)</h3>
+  {% if conflicts %}
+  <div class="overflow-x-auto">
+    <table class="min-w-full text-sm">
+      <thead><tr class="text-left text-slate-500"><th class="py-2">Date</th><th class="py-2">Disease</th><th class="py-2">AI</th><th class="py-2">Clinician</th><th class="py-2">Reason</th><th class="py-2">Status</th><th class="py-2"></th></tr></thead>
+      <tbody>{% for c in conflicts %}
+      <tr class="border-t"><td class="py-2 whitespace-nowrap">{{ c.timestamp|date:"Y-m-d H:i" }}</td>
+        <td class="py-2">{{ c.disease|default:"—" }}</td>
+        <td class="py-2 max-w-xs truncate">{{ c.ai_recommendation|truncatechars:60 }}</td>
+        <td class="py-2 max-w-xs truncate">{{ c.clinician_decision|truncatechars:60 }}</td>
+        <td class="py-2 max-w-xs truncate">{{ c.reason|truncatechars:40 }}</td>
+        <td class="py-2">{% if c.resolved %}<span class="badge badge-success">Resolved</span>{% else %}<span class="badge badge-warning">Open</span>{% endif %}</td>
+        <td class="py-2">{% if not c.resolved %}<form method="post" action="{% url 'feedback:resolve_conflict' c.id %}">{% csrf_token %}<button class="btn btn-sm btn-primary">Resolve</button></form>{% endif %}</td>
+      </tr>{% endfor %}</tbody>
+    </table>
+  </div>
+  {% else %}<p class="empty-state">No conflicts recorded</p>{% endif %}
+</div></div>
+
+<div class="card"><div class="card-body">
+  <h3 class="section-title">Knowledge Conflicts (Auto-detected)</h3>
+  {% if knowledge_conflicts %}
+  <div class="overflow-x-auto">
+    <table class="min-w-full text-sm">
+      <thead><tr class="text-left text-slate-500"><th class="py-2">Date</th><th class="py-2">Type</th><th class="py-2">Description</th><th class="py-2">Severity</th><th class="py-2">Status</th></tr></thead>
+      <tbody>{% for kc in knowledge_conflicts %}
+      <tr class="border-t"><td class="py-2 whitespace-nowrap">{{ kc.timestamp|date:"Y-m-d H:i" }}</td>
+        <td class="py-2">{{ kc.get_conflict_type_display }}</td>
+        <td class="py-2 max-w-md truncate">{{ kc.description|truncatechars:80 }}</td>
+        <td class="py-2"><span class="badge {% if kc.severity == 'critical' %}badge-error{% elif kc.severity == 'high' %}badge-warning{% else %}badge-info{% endif %}">{{ kc.get_severity_display }}</span></td>
+        <td class="py-2">{% if kc.resolved %}<span class="badge badge-success">Resolved</span>{% else %}<span class="badge badge-warning">Open</span>{% endif %}</td>
+      </tr>{% endfor %}</tbody>
+    </table>
+  </div>
+  {% else %}<p class="empty-state">No knowledge conflicts detected</p>{% endif %}
+</div></div>
+
+{% endblock %}
