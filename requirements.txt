@@ -15,7 +15,7 @@ pandas~=2.2.3
 # Waitress: pure-Python WSGI server the launcher runs on 127.0.0.1:8000.
 # WhiteNoise: serves the compiled static files from the WSGI app (no nginx).
 waitress~=3.0.2
-whitenoise~=6.8.2
+whitenoise~=6.12.0
 # pyinstaller~=6.10.0   # build-time only; packages BGDDR.exe (desktop/build_exe.ps1)
 
 # Production hardening
