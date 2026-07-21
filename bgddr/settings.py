@@ -107,6 +107,8 @@ INSTALLED_APPS = [
     "followup",
     # V8 — Field Error Reporting & Continuous Improvement
     "feedback",
+    # Security hardening
+    "csp",
 ]
 
 # --- Django REST Framework --------------------------------------------------
@@ -127,6 +129,8 @@ REST_FRAMEWORK = {
 
 MIDDLEWARE = [
     "django.middleware.security.SecurityMiddleware",
+    # Rate-limiting on auth endpoints (must be early)
+    "django_ratelimit.middleware.RatelimitMiddleware",
     # WhiteNoise serves the compiled static files directly from the WSGI app so
     # the desktop build needs no separate web server. No-op in dev (runserver
     # serves static itself). Must sit right after SecurityMiddleware.

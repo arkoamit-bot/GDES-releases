@@ -680,10 +680,19 @@ def ensure_admin(interactive: bool = True) -> None:
         return
 
     username, password = _admin_dialog() if interactive else (None, None)
-    if not username:  # dialog cancelled — fall back to a documented default
-        username, password = "admin", "bgddr-admin"
-        log("Admin dialog cancelled; created default admin / bgddr-admin "
-            "(change it in the admin immediately).")
+    if not username:  # dialog cancelled — generate a secure random password
+        import secrets
+        import string
+        _alphabet = string.ascii_letters + string.digits + "!@#$%&*"
+        password = "".join(secrets.choice(_alphabet) for _ in range(16))
+        username = "admin"
+        log("=" * 60)
+        log("ADMIN DIALOG CANCELLED — AUTO-GENERATED CREDENTIALS")
+        log(f"  Username: {username}")
+        log(f"  Password: {password}")
+        log("  ⚠️  SAVE THIS PASSWORD — YOU WILL NOT SEE IT AGAIN")
+        log("  ⚠️  CHANGE IT IMMEDIATELY after first login")
+        log("=" * 60)
     User.objects.create_superuser(username=username, password=password)
     log(f"Administrator account '{username}' created.")
 
