@@ -578,9 +578,11 @@ def run_update_check(root: Path, interactive: bool = True) -> bool:
         staging = _github_download_and_stage(manifest, log=log)
     else:
         staging = updater.verify_and_stage(Path(update_dir), manifest, log=log)
-            _info_msg("GDES - Update failed",
-                      "The update could not be verified or extracted. "
-                      "See Logs\\update.log. Your app is unchanged.")
+
+    if not staging:
+        _info_msg("GDES - Update failed",
+                  "The update could not be verified or extracted. "
+                  "See Logs\\\\update.log. Your app is unchanged.")
         return False
 
     # A safety snapshot before we hand over to the swap helper.
