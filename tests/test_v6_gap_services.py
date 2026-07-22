@@ -247,9 +247,12 @@ class TestTreatmentFailure:
 
     def test_failure_report_structure(self, mock_patient):
         """TreatmentFailureReport returns correct structure."""
-        with patch("clinical_reasoning.services.treatment_failure._get_primary_disease", return_value="iga"), \
+        with \
+             patch("clinical_reasoning.services.treatment_failure._get_primary_disease", return_value="iga"), \
              patch("clinical_reasoning.services.treatment_failure._get_comprehensive_lab_values", return_value={}), \
-             patch("clinical_reasoning.services.treatment_failure._get_treatment_duration", return_value=12.0):
+             patch("clinical_reasoning.services.treatment_failure._get_treatment_duration", return_value=12.0), \
+             patch("clinical_reasoning.services.treatment_failure._get_latest_egfr_value", return_value=45.0), \
+             patch("clinical_reasoning.services.treatment_failure._get_previous_egfr", return_value=50.0):
             report = detect_treatment_failure(mock_patient)
 
         assert isinstance(report, TreatmentFailureReport)
@@ -267,10 +270,14 @@ class TestTreatmentFailure:
 
     def test_proteinuria_nonresponse_detected(self, mock_patient):
         """Proteinuria non-response detected when above threshold."""
-        with patch("clinical_reasoning.services.treatment_failure._get_primary_disease", return_value="iga"), \
+        with \
+             patch("clinical_reasoning.services.treatment_failure._get_primary_disease", return_value="iga"), \
              patch("clinical_reasoning.services.treatment_failure._get_comprehensive_lab_values", return_value={
                  "proteinuria_upcr": 2.5,
-             }), patch("clinical_reasoning.services.treatment_failure._get_treatment_duration", return_value=12.0):
+             }), \
+             patch("clinical_reasoning.services.treatment_failure._get_treatment_duration", return_value=12.0), \
+             patch("clinical_reasoning.services.treatment_failure._get_latest_egfr_value", return_value=45.0), \
+             patch("clinical_reasoning.services.treatment_failure._get_previous_egfr", return_value=50.0):
             report = detect_treatment_failure(mock_patient)
 
         proteinuria_alerts = [a for a in report.alerts if a.failure_type == "proteinuria_nonresponse"]
@@ -278,20 +285,27 @@ class TestTreatmentFailure:
 
     def test_no_failure_with_normal_labs(self, mock_patient):
         """No failure detected with normal labs."""
-        with patch("clinical_reasoning.services.treatment_failure._get_primary_disease", return_value="iga"), \
+        with \
+             patch("clinical_reasoning.services.treatment_failure._get_primary_disease", return_value="iga"), \
              patch("clinical_reasoning.services.treatment_failure._get_comprehensive_lab_values", return_value={
                  "proteinuria_upcr": 0.3,
                  "serum_creatinine": 1.0,
-             }), patch("clinical_reasoning.services.treatment_failure._get_treatment_duration", return_value=12.0):
+             }), \
+             patch("clinical_reasoning.services.treatment_failure._get_treatment_duration", return_value=12.0), \
+             patch("clinical_reasoning.services.treatment_failure._get_latest_egfr_value", return_value=45.0), \
+             patch("clinical_reasoning.services.treatment_failure._get_previous_egfr", return_value=48.0):
             report = detect_treatment_failure(mock_patient)
 
         assert len(report.alerts) == 0
 
     def test_report_to_dict(self, mock_patient):
         """Report to_dict is serializable."""
-        with patch("clinical_reasoning.services.treatment_failure._get_primary_disease", return_value="iga"), \
+        with \
+             patch("clinical_reasoning.services.treatment_failure._get_primary_disease", return_value="iga"), \
              patch("clinical_reasoning.services.treatment_failure._get_comprehensive_lab_values", return_value={}), \
-             patch("clinical_reasoning.services.treatment_failure._get_treatment_duration", return_value=None):
+             patch("clinical_reasoning.services.treatment_failure._get_treatment_duration", return_value=None), \
+             patch("clinical_reasoning.services.treatment_failure._get_latest_egfr_value", return_value=45.0), \
+             patch("clinical_reasoning.services.treatment_failure._get_previous_egfr", return_value=50.0):
             report = detect_treatment_failure(mock_patient)
 
         d = report.to_dict()

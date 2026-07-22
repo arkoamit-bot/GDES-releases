@@ -993,8 +993,7 @@ class TestTreatmentFailure:
         assert _priority_order("high") < _priority_order("medium")
 
     def test_egfr_decline_pattern(self):
-        """egfr_decline evaluation is a stub (both branches are ``pass``)
-        so the function returns None regardless of input data."""
+        """egfr_decline rate-based check: alert when rate >= threshold."""
         from clinical_reasoning.services.treatment_failure import (
             _evaluate_failure_pattern, FailurePattern,
         )
@@ -1005,11 +1004,64 @@ class TestTreatmentFailure:
             },
             clinical_significance="sig", next_steps="steps", guideline_ref="ref",
         )
-        # The egfr_decline logic is not yet implemented — both the rate-based
-        # and percent-based checks are ``pass`` statements. This test documents
-        # current behaviour and will change when the implementation is added.
         alert = _evaluate_failure_pattern(pattern, {"egfr_decline_rate": 8.0}, 12)
-        assert alert is None  # known stub — update when implemented
+        assert alert is not None  # alert raised when rate >= threshold
+        assert alert.failure_type == "egfr_decline"
+        assert alert.current_values["egfr_decline_rate"] == 8.0
+
+    def test_egfr_decline_pattern_rate_based(self):
+        """Rate-based egfr_decline: rate above threshold triggers alert."""
+        from clinical_reasoning.services.treatment_failure import (
+            _evaluate_failure_pattern, FailurePattern,
+        )
+        pattern = FailurePattern(
+            disease_id="iga", failure_type="egfr_decline",
+            description="test", criteria={
+                "egfr_decline_rate": 5.0, "assessment_period_months": 12,
+            },
+            clinical_significance="sig", next_steps="steps", guideline_ref="ref",
+        )
+        # rate 8.0 >= threshold 5.0 → alert
+        alert = _evaluate_failure_pattern(pattern, {"egfr_decline_rate": 8.0}, 12)
+        assert alert is not None
+        assert alert.current_values["egfr_decline_rate"] == 8.0
+
+    def test_egfr_decline_pattern_percent_based(self):
+        """Percent-based egfr_decline: decline > threshold triggers alert."""
+        from clinical_reasoning.services.treatment_failure import (
+            _evaluate_failure_pattern, FailurePattern,
+        )
+        pattern = FailurePattern(
+            disease_id="membranous", failure_type="egfr_decline",
+            description="test", criteria={
+                "egfr_decline_percent": 20, "assessment_period_months": 12,
+            },
+            clinical_significance="sig", next_steps="steps", guideline_ref="ref",
+        )
+        # baseline=60, current=40 → 33% decline ≥ 20% threshold → alert
+        alert = _evaluate_failure_pattern(
+            pattern, {"egfr_baseline": 60, "egfr_value": 40}, 12,
+        )
+        assert alert is not None
+        assert alert.failure_type == "egfr_decline"
+        import pytest
+        assert alert.current_values["decline_percent"] == pytest.approx(33.33, abs=0.01)
+
+    def test_egfr_decline_no_alert_when_below_threshold(self):
+        """Rate-based egfr_decline: rate below threshold does not trigger."""
+        from clinical_reasoning.services.treatment_failure import (
+            _evaluate_failure_pattern, FailurePattern,
+        )
+        pattern = FailurePattern(
+            disease_id="iga", failure_type="egfr_decline",
+            description="test", criteria={
+                "egfr_decline_rate": 5.0, "assessment_period_months": 12,
+            },
+            clinical_significance="sig", next_steps="steps", guideline_ref="ref",
+        )
+        # rate 3.0 < threshold 5.0 → no alert
+        alert = _evaluate_failure_pattern(pattern, {"egfr_decline_rate": 3.0}, 12)
+        assert alert is None
 
 
 # ============================================================================

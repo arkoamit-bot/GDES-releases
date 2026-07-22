@@ -227,6 +227,16 @@ def detect_treatment_failure(patient, clinical_profile=None) -> TreatmentFailure
     treatment_duration = _get_treatment_duration(patient)
     alerts: list[TreatmentFailureAlert] = []
 
+    # Add eGFR data for decline detection
+    current_egfr = _get_latest_egfr_value(patient)
+    previous_egfr = _get_previous_egfr(patient, months_ago=12)
+    if current_egfr is not None and previous_egfr is not None:
+        lab_values["egfr_value"] = current_egfr
+        lab_values["egfr_baseline"] = previous_egfr
+        lab_values["previous_egfr"] = previous_egfr
+        # Compute annualized decline rate (mL/min/1.73m² per year)
+        lab_values["egfr_decline_rate"] = previous_egfr - current_egfr
+
     # Filter patterns for current disease
     disease_patterns = [p for p in TREATMENT_FAILURE_PATTERNS if p.disease_id == primary_disease]
 
@@ -500,11 +510,44 @@ def _evaluate_failure_pattern(
     elif pattern.failure_type == "egfr_decline":
         # Check rate-based decline
         if "egfr_decline_rate" in criteria:
-            # Simplified: compare current vs 12 months ago
-            pass
+            rate = lab_values.get("egfr_decline_rate")
+            threshold = criteria["egfr_decline_rate"]
+            if rate is not None and rate >= threshold:
+                severity = "critical" if rate >= threshold * 2 else "warning"
+                return TreatmentFailureAlert(
+                    disease_id=pattern.disease_id,
+                    failure_type=pattern.failure_type,
+                    description=pattern.description,
+                    clinical_significance=pattern.clinical_significance,
+                    next_steps=pattern.next_steps,
+                    guideline_ref=pattern.guideline_ref,
+                    current_values={"egfr_decline_rate": rate, "threshold": threshold},
+                    severity=severity,
+                    priority="urgent" if severity == "critical" else "high",
+                )
         # Check percent-based decline
         if "egfr_decline_percent" in criteria:
-            pass
+            baseline = lab_values.get("egfr_baseline") or lab_values.get("previous_egfr")
+            current = lab_values.get("egfr_value")
+            threshold = criteria["egfr_decline_percent"]
+            if baseline is not None and current is not None and baseline > 0:
+                decline_pct = ((baseline - current) / baseline) * 100
+                if decline_pct >= threshold:
+                    severity = "critical" if decline_pct >= threshold * 2 else "warning"
+                    return TreatmentFailureAlert(
+                        disease_id=pattern.disease_id,
+                        failure_type=pattern.failure_type,
+                        description=pattern.description,
+                        clinical_significance=pattern.clinical_significance,
+                        next_steps=pattern.next_steps,
+                        guideline_ref=pattern.guideline_ref,
+                        current_values={
+                            "egfr_baseline": baseline, "egfr_current": current,
+                            "decline_percent": decline_pct, "threshold": threshold,
+                        },
+                        severity=severity,
+                        priority="urgent" if severity == "critical" else "high",
+                    )
 
     elif pattern.failure_type == "immunological_nonresponse":
         biomarker = criteria.get("biomarker_name", "")
