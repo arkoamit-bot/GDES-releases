@@ -21,6 +21,16 @@ ALLOWED_HOSTS = [h.strip() for h in
                  os.environ.get("DJANGO_ALLOWED_HOSTS", "localhost,127.0.0.1").split(",")
                  if h.strip()]
 
+# --- Security settings -------------------------------------------------------
+# Enable security headers for all environments
+SECURE_BROWSER_XSS_FILTER = True
+SECURE_CONTENT_TYPE_NOSNIFF = True
+X_FRAME_OPTIONS = "DENY"
+CSRF_COOKIE_SECURE = not DEBUG
+SESSION_COOKIE_SECURE = not DEBUG
+CSRF_COOKIE_HTTPONLY = True
+SESSION_COOKIE_HTTPONLY = True
+
 # --- Data directory (single-user Windows desktop) ---------------------------
 # All mutable data lives under BGDDR_DATA_DIR. Defaults to the project directory
 # for local development, so existing behaviour is unchanged.
@@ -127,8 +137,32 @@ REST_FRAMEWORK = {
     "PAGE_SIZE": 50,
 }
 
+# --- Content-Security-Policy (CSP) -------------------------------------------
+# Default policy: allow self, block inline scripts/eval, allow common CDNs
+# CSP_REPORT_ONLY = not DEBUG  # Enable report-only mode in development
+CSP_DEFAULT_SRC = ("'self'",)
+CSP_SCRIPT_SRC = ("'self'", "'unsafe-inline'", "https://cdn.jsdelivr.net")
+CSP_STYLE_SRC = ("'self'", "'unsafe-inline'", "https://cdn.jsdelivr.net", "https://fonts.googleapis.com")
+CSP_FONT_SRC = ("'self'", "https://fonts.gstatic.com", "https://cdn.jsdelivr.net")
+CSP_IMG_SRC = ("'self'", "data:", "https://cdn.jsdelivr.net")
+CSP_CONNECT_SRC = ("'self'",)
+CSP_FRAME_SRC = ("'none'",)
+CSP_OBJECT_SRC = ("'none'",)
+CSP_BASE_URI = ("'self'",)
+CSP_FORM_ACTION = ("'self'",)
+CSP_REPORT_URI = "/csp-report/"
+
+# --- Rate Limiting -----------------------------------------------------------
+# Default rate limits for all views (can be overridden per-view)
+RATELIMIT_USE_CACHE = "default"
+RATELIMIT_FAIL_OPEN = False  # Fail closed if cache unavailable
+RATELIMIT_KEY_FUNC = None  # Use default (IP-based)
+RATELIMIT_VIEW = None  # Use default 403 view
+
 MIDDLEWARE = [
     "django.middleware.security.SecurityMiddleware",
+    # Content-Security-Policy headers (must be early)
+    "csp.middleware.CSPMiddleware",
     # Rate-limiting on auth endpoints (must be early)
     "django_ratelimit.middleware.RatelimitMiddleware",
     # WhiteNoise serves the compiled static files directly from the WSGI app so
