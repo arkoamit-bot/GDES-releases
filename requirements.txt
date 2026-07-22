@@ -23,7 +23,7 @@ whitenoise~=6.8.2
 
 # xhtml2pdf is a pure-Python PDF fallback when WeasyPrint/native GTK is unavailable.
 # It uses pypdf + reportlab under the hood and renders the same HTML template.
-xhtml2pdf~=0.2.16
+xhtml2pdf~=0.2.17
 
 # PostgreSQL adapter (uncomment / install when switching from SQLite).
 # psycopg~=3.2.3
