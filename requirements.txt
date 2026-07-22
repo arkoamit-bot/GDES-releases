@@ -32,7 +32,7 @@ xhtml2pdf~=0.2.16
 # gunicorn~=22.0.0
 
 # Background task infrastructure (Phase 3.2)
-celery~=5.4.0
+celery~=5.6.3
 redis>=4.5.0,<5.0.0
 
 # SMS and email integrations (reminders)
