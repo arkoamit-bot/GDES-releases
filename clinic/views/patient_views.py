@@ -11,7 +11,7 @@ from ._common import (LOGIN, Patient, Prescription, _PATIENT_CLIN_FIELDS,
                       _PATIENT_DEM_FIELDS, _PATIENT_LEVEL2_FIELDS,
                       _get_recommendation_audit_records, _save_labs,
                       login_required)
-from .forms import PatientForm, RegisterForm
+from ..forms import PatientForm, RegisterForm
 
 
 # --- Patients ---------------------------------------------------------------

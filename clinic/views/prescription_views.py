@@ -9,7 +9,7 @@ from django.shortcuts import get_object_or_404, redirect, render
 
 from ._common import (LOGIN, DrugMaster, Patient, Prescription, PrescriptionItem,
                       login_required)
-from .forms import AdviceTemplate
+from prescriptions.models import AdviceTemplate
 
 
 # --- Prescription (guided create) -------------------------------------------

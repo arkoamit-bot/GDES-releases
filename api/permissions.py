@@ -4,7 +4,7 @@ Site-scoped RBAC permissions and queryset filtering for multi-center operation.
 Site coordinators see only their site's patients. data_manager role sees all.
 """
 
-from rest_framework.permissions import BasePermission, DjangoModelPermissions
+from rest_framework.permissions import BasePermission
 
 
 def user_sites(request):

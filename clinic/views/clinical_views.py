@@ -7,7 +7,7 @@ from django.contrib import messages
 from django.shortcuts import get_object_or_404, redirect, render
 
 from ._common import LOGIN, Patient, login_required
-from .forms import (AdverseEventForm, BiopsyForm, ConsentForm, FSGSPathologyForm,
+from ..forms import (AdverseEventForm, BiopsyForm, ConsentForm, FSGSPathologyForm,
                     GNDiagnosisForm, IgANScoreForm, LupusPathologyForm,
                     MembranousPathologyForm, StudyEnrollmentForm,
                     TreatmentExposureForm)

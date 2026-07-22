@@ -5,7 +5,7 @@ from django.contrib import messages
 from django.shortcuts import get_object_or_404, redirect, render
 
 from ._common import LOGIN, Patient, login_required
-from .forms import LabOrderForm, LabResultsForm
+from ..forms import LabOrderForm, LabResultsForm
 
 
 @login_required(login_url=LOGIN)
