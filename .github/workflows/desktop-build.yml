@@ -1,0 +1,50 @@
+name: Desktop Build
+
+on:
+  workflow_dispatch:
+    inputs:
+      platform:
+        description: 'Target platform'
+        required: true
+        type: choice
+        options:
+          - windows
+          - all
+
+jobs:
+  build-windows:
+    if: github.event.inputs.platform == 'windows' || github.event.inputs.platform == 'all'
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install pyinstaller waitress
+
+      - name: Build desktop executable
+        run: |
+          echo "=== Building GDES Desktop ==="
+          pyinstaller --onefile --windowed \
+            --name "GDES" \
+            --icon "Media/icon.ico" \
+            --add-data "Media;Media" \
+            --add-data "templates;templates" \
+            --add-data "staticfiles;staticfiles" \
+            --hidden-import "waitress" \
+            --hidden-import "django" \
+            desktop/launcher.py
+
+      - name: Upload desktop artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: gdes-desktop-windows
+          path: dist/
+          retention-days: 30

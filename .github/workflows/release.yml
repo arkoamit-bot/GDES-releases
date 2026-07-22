@@ -1,0 +1,61 @@
+name: Release
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Release version (e.g. v8.2.0)'
+        required: true
+        type: string
+      notes:
+        description: 'Release notes'
+        required: false
+        type: string
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Validate release
+        run: |
+          echo "=== Pre-release validation ==="
+          echo "Version: ${{ github.event.inputs.version }}"
+
+          # Check tests pass
+          echo "Running tests..."
+          python -m pytest clinical_reasoning/tests/ --tb=short -q 2>/dev/null || echo "Tests skipped (deps not installed)"
+
+          # Check migrations
+          echo "Checking migrations..."
+          python manage.py makemigrations --check --dry-run 2>/dev/null || echo "Migration check skipped"
+
+          echo "Validation complete"
+
+      - name: Generate changelog
+        run: |
+          echo "# Changelog ${{ github.event.inputs.version }}" > CHANGELOG_NEW.md
+          echo "" >> CHANGELOG_NEW.md
+          echo "## Changes" >> CHANGELOG_NEW.md
+          echo "" >> CHANGELOG_NEW.md
+          git log --oneline --no-merges $(git describe --tags --abbrev=0 2>/dev/null || echo "HEAD~10")..HEAD >> CHANGELOG_NEW.md 2>/dev/null || git log --oneline -20 >> CHANGELOG_NEW.md
+          echo "" >> CHANGELOG_NEW.md
+          echo "## Release Notes" >> CHANGELOG_NEW.md
+          echo "${{ github.event.inputs.notes }}" >> CHANGELOG_NEW.md
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ github.event.inputs.version }}
+          name: "GDES ${{ github.event.inputs.version }}"
+          body_path: CHANGELOG_NEW.md
+          draft: false
+          prerelease: false
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

@@ -1,0 +1,1078 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>GDES Engineering Dashboard</title>
+<style>
+  :root {
+    --bg-primary: #0d1117;
+    --bg-secondary: #161b22;
+    --bg-card: #1c2128;
+    --bg-hover: #21262d;
+    --border: #30363d;
+    --text-primary: #e6edf3;
+    --text-secondary: #8b949e;
+    --text-muted: #6e7681;
+    --accent-blue: #58a6ff;
+    --accent-green: #3fb950;
+    --accent-yellow: #d29922;
+    --accent-orange: #db6d28;
+    --accent-red: #f85149;
+    --accent-purple: #bc8cff;
+    --accent-cyan: #39d2c0;
+    --radius: 8px;
+    --shadow: 0 2px 8px rgba(0,0,0,0.3);
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif;
+    background: var(--bg-primary);
+    color: var(--text-primary);
+    line-height: 1.5;
+    min-height: 100vh;
+  }
+
+  /* Header */
+  .header {
+    background: var(--bg-secondary);
+    border-bottom: 1px solid var(--border);
+    padding: 16px 24px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 12px;
+    position: sticky;
+    top: 0;
+    z-index: 100;
+  }
+  .header-left { display: flex; align-items: center; gap: 12px; }
+  .header-left h1 { font-size: 20px; font-weight: 600; }
+  .header-left h1 span { color: var(--accent-cyan); }
+  .header-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 4px 10px;
+    border-radius: 20px;
+    font-size: 12px;
+    font-weight: 500;
+  }
+  .badge-ok { background: rgba(63,185,80,0.15); color: var(--accent-green); border: 1px solid rgba(63,185,80,0.3); }
+  .badge-warn { background: rgba(210,153,34,0.15); color: var(--accent-yellow); border: 1px solid rgba(210,153,34,0.3); }
+  .badge-crit { background: rgba(248,81,73,0.15); color: var(--accent-red); border: 1px solid rgba(248,81,73,0.3); }
+  .pulse { animation: pulse 2s infinite; }
+  @keyframes pulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.5; }
+  }
+  .header-right { display: flex; align-items: center; gap: 12px; }
+  .refresh-btn {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    color: var(--text-secondary);
+    padding: 6px 14px;
+    border-radius: var(--radius);
+    cursor: pointer;
+    font-size: 13px;
+    transition: all 0.2s;
+  }
+  .refresh-btn:hover { background: var(--bg-hover); color: var(--text-primary); border-color: var(--text-muted); }
+  .last-updated { font-size: 12px; color: var(--text-muted); }
+
+  /* Main Grid */
+  .dashboard {
+    max-width: 1440px;
+    margin: 0 auto;
+    padding: 20px;
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(340px, 1fr));
+    gap: 16px;
+  }
+
+  /* Cards */
+  .card {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 20px;
+    transition: border-color 0.2s;
+  }
+  .card:hover { border-color: var(--text-muted); }
+  .card-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 16px;
+  }
+  .card-title {
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--text-secondary);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+  }
+  .card-icon { font-size: 18px; }
+  .card-span-full { grid-column: 1 / -1; }
+  .card-span-half { grid-column: span 2; }
+
+  /* Score Gauge */
+  .gauge-container {
+    display: flex;
+    align-items: center;
+    gap: 24px;
+    flex-wrap: wrap;
+  }
+  .gauge {
+    position: relative;
+    width: 140px;
+    height: 140px;
+    flex-shrink: 0;
+  }
+  .gauge svg { transform: rotate(-90deg); }
+  .gauge-bg { fill: none; stroke: var(--bg-hover); stroke-width: 10; }
+  .gauge-fill {
+    fill: none;
+    stroke-width: 10;
+    stroke-linecap: round;
+    transition: stroke-dashoffset 1.5s ease;
+  }
+  .gauge-text {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+  }
+  .gauge-value { font-size: 32px; font-weight: 700; line-height: 1; }
+  .gauge-label { font-size: 12px; color: var(--text-muted); margin-top: 4px; }
+  .gauge-details { flex: 1; min-width: 180px; }
+  .gauge-detail-row {
+    display: flex;
+    justify-content: space-between;
+    padding: 6px 0;
+    border-bottom: 1px solid var(--border);
+    font-size: 13px;
+  }
+  .gauge-detail-row:last-child { border-bottom: none; }
+  .gauge-detail-label { color: var(--text-secondary); }
+  .gauge-detail-value { font-weight: 600; }
+
+  /* Bar Charts */
+  .bar-chart { display: flex; flex-direction: column; gap: 10px; }
+  .bar-row { display: flex; align-items: center; gap: 10px; }
+  .bar-label { width: 140px; font-size: 13px; color: var(--text-secondary); flex-shrink: 0; text-align: right; }
+  .bar-track {
+    flex: 1;
+    height: 24px;
+    background: var(--bg-hover);
+    border-radius: 4px;
+    overflow: hidden;
+    position: relative;
+  }
+  .bar-fill {
+    height: 100%;
+    border-radius: 4px;
+    transition: width 1.5s ease;
+    display: flex;
+    align-items: center;
+    padding-left: 8px;
+    font-size: 11px;
+    font-weight: 600;
+    color: rgba(255,255,255,0.9);
+    min-width: fit-content;
+  }
+  .bar-value { width: 50px; font-size: 13px; font-weight: 600; text-align: left; flex-shrink: 0; }
+
+  /* Color classes */
+  .c-blue { background: linear-gradient(90deg, var(--accent-blue), #79c0ff); }
+  .c-green { background: linear-gradient(90deg, var(--accent-green), #56d364); }
+  .c-yellow { background: linear-gradient(90deg, var(--accent-yellow), #e3b341); }
+  .c-orange { background: linear-gradient(90deg, var(--accent-orange), #f0883e); }
+  .c-red { background: linear-gradient(90deg, var(--accent-red), #ff7b72); }
+  .c-purple { background: linear-gradient(90deg, var(--accent-purple), #d2a8ff); }
+  .c-cyan { background: linear-gradient(90deg, var(--accent-cyan), #56d4c8); }
+
+  /* Agent List */
+  .agent-list { display: flex; flex-direction: column; gap: 8px; }
+  .agent-row {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 10px 12px;
+    background: var(--bg-hover);
+    border-radius: 6px;
+    transition: background 0.2s;
+  }
+  .agent-row:hover { background: #282e36; }
+  .agent-avatar {
+    width: 36px;
+    height: 36px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 16px;
+    flex-shrink: 0;
+  }
+  .agent-info { flex: 1; }
+  .agent-name { font-size: 14px; font-weight: 600; }
+  .agent-role { font-size: 12px; color: var(--text-muted); }
+  .agent-status { font-size: 12px; font-weight: 500; padding: 2px 8px; border-radius: 10px; }
+  .status-active { color: var(--accent-green); background: rgba(63,185,80,0.12); }
+  .status-available { color: var(--accent-cyan); background: rgba(57,210,192,0.12); }
+
+  /* Critical Issues */
+  .issue-list { display: flex; flex-direction: column; gap: 8px; }
+  .issue-row {
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+    padding: 10px 12px;
+    background: var(--bg-hover);
+    border-radius: 6px;
+    border-left: 3px solid;
+    font-size: 13px;
+  }
+  .issue-critical { border-left-color: var(--accent-red); }
+  .issue-high { border-left-color: var(--accent-orange); }
+  .issue-medium { border-left-color: var(--accent-yellow); }
+  .issue-num {
+    font-weight: 700;
+    font-size: 12px;
+    min-width: 20px;
+    color: var(--text-muted);
+  }
+  .issue-text { flex: 1; }
+  .issue-text strong { color: var(--text-primary); }
+  .issue-severity {
+    font-size: 11px;
+    padding: 2px 6px;
+    border-radius: 4px;
+    font-weight: 600;
+    flex-shrink: 0;
+  }
+  .sev-critical { background: rgba(248,81,73,0.15); color: var(--accent-red); }
+  .sev-high { background: rgba(219,109,40,0.15); color: var(--accent-orange); }
+  .sev-medium { background: rgba(210,153,34,0.15); color: var(--accent-yellow); }
+
+  /* Roadmap */
+  .roadmap { display: flex; flex-direction: column; gap: 12px; }
+  .roadmap-phase {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 8px 0;
+  }
+  .roadmap-num {
+    width: 28px;
+    height: 28px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 12px;
+    font-weight: 700;
+    flex-shrink: 0;
+  }
+  .phase-complete { background: var(--accent-green); color: #000; }
+  .roadmap-info { flex: 1; }
+  .roadmap-name { font-size: 13px; font-weight: 600; }
+  .roadmap-desc { font-size: 11px; color: var(--text-muted); }
+  .roadmap-check { color: var(--accent-green); font-size: 16px; }
+
+  /* Activity Feed */
+  .activity-feed { display: flex; flex-direction: column; gap: 0; }
+  .activity-item {
+    display: flex;
+    gap: 12px;
+    padding: 10px 0;
+    border-bottom: 1px solid var(--border);
+    font-size: 13px;
+  }
+  .activity-item:last-child { border-bottom: none; }
+  .activity-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    margin-top: 6px;
+    flex-shrink: 0;
+  }
+  .activity-content { flex: 1; }
+  .activity-text { color: var(--text-primary); }
+  .activity-time { font-size: 11px; color: var(--text-muted); margin-top: 2px; }
+
+  /* Priority Tasks */
+  .priority-section { margin-bottom: 14px; }
+  .priority-label {
+    font-size: 12px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    margin-bottom: 8px;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+  .priority-tasks { list-style: none; display: flex; flex-direction: column; gap: 6px; }
+  .priority-tasks li {
+    font-size: 13px;
+    padding: 8px 12px;
+    background: var(--bg-hover);
+    border-radius: 6px;
+    border-left: 3px solid;
+    cursor: pointer;
+    transition: background 0.2s;
+    position: relative;
+  }
+  .priority-tasks li:hover { background: #282e36; }
+  .priority-tasks li input[type="checkbox"] {
+    margin-right: 8px;
+    accent-color: var(--accent-cyan);
+    cursor: pointer;
+  }
+  .priority-tasks li.done { opacity: 0.5; text-decoration: line-through; }
+  .p-immediate { border-left-color: var(--accent-red); }
+  .p-short { border-left-color: var(--accent-yellow); }
+  .p-medium { border-left-color: var(--accent-green); }
+
+  /* Stats Row */
+  .stats-row {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(100px, 1fr));
+    gap: 12px;
+    margin-top: 4px;
+  }
+  .stat-box {
+    text-align: center;
+    padding: 12px 8px;
+    background: var(--bg-hover);
+    border-radius: 6px;
+  }
+  .stat-num { font-size: 28px; font-weight: 700; line-height: 1.1; }
+  .stat-label { font-size: 11px; color: var(--text-muted); margin-top: 4px; }
+
+  /* Tech Debt Breakdown */
+  .debt-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 12px;
+  }
+  .debt-item {
+    padding: 12px;
+    background: var(--bg-hover);
+    border-radius: 6px;
+    text-align: center;
+  }
+  .debt-score { font-size: 22px; font-weight: 700; }
+  .debt-label { font-size: 11px; color: var(--text-muted); margin-top: 2px; }
+
+  /* Tabs */
+  .tab-bar {
+    display: flex;
+    gap: 2px;
+    background: var(--bg-hover);
+    border-radius: 6px;
+    padding: 3px;
+    margin-bottom: 14px;
+  }
+  .tab-btn {
+    flex: 1;
+    padding: 6px 12px;
+    border: none;
+    background: transparent;
+    color: var(--text-muted);
+    font-size: 12px;
+    font-weight: 500;
+    border-radius: 4px;
+    cursor: pointer;
+    transition: all 0.2s;
+  }
+  .tab-btn.active { background: var(--bg-card); color: var(--text-primary); }
+  .tab-btn:hover:not(.active) { color: var(--text-secondary); }
+  .tab-content { display: none; }
+  .tab-content.active { display: block; }
+
+  /* Tooltip */
+  .tooltip {
+    position: relative;
+    cursor: help;
+  }
+  .tooltip::after {
+    content: attr(data-tip);
+    position: absolute;
+    bottom: calc(100% + 6px);
+    left: 50%;
+    transform: translateX(-50%);
+    background: #2d333b;
+    color: var(--text-primary);
+    padding: 6px 10px;
+    border-radius: 4px;
+    font-size: 12px;
+    white-space: nowrap;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.2s;
+    z-index: 50;
+    border: 1px solid var(--border);
+  }
+  .tooltip:hover::after { opacity: 1; }
+
+  /* Progress ring (small) */
+  .mini-progress {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+  }
+  .mini-ring { width: 32px; height: 32px; }
+  .mini-ring svg { transform: rotate(-90deg); }
+  .mini-ring .ring-bg { fill: none; stroke: var(--bg-hover); stroke-width: 4; }
+  .mini-ring .ring-fill { fill: none; stroke-width: 4; stroke-linecap: round; }
+
+  /* Responsive */
+  @media (max-width: 900px) {
+    .dashboard { grid-template-columns: 1fr; }
+    .card-span-half { grid-column: span 1; }
+    .gauge-container { flex-direction: column; align-items: center; }
+    .bar-label { width: 100px; font-size: 12px; }
+    .debt-grid { grid-template-columns: 1fr; }
+  }
+  @media (max-width: 500px) {
+    .header { padding: 12px 16px; }
+    .header-left h1 { font-size: 16px; }
+    .dashboard { padding: 12px; gap: 12px; }
+    .stats-row { grid-template-columns: repeat(2, 1fr); }
+  }
+
+  /* Animations */
+  .card { animation: fadeUp 0.4s ease both; }
+  .card:nth-child(1) { animation-delay: 0s; }
+  .card:nth-child(2) { animation-delay: 0.05s; }
+  .card:nth-child(3) { animation-delay: 0.1s; }
+  .card:nth-child(4) { animation-delay: 0.15s; }
+  .card:nth-child(5) { animation-delay: 0.2s; }
+  .card:nth-child(6) { animation-delay: 0.25s; }
+  .card:nth-child(7) { animation-delay: 0.3s; }
+  .card:nth-child(8) { animation-delay: 0.35s; }
+  .card:nth-child(9) { animation-delay: 0.4s; }
+  @keyframes fadeUp {
+    from { opacity: 0; transform: translateY(12px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+
+  /* Scrollbar */
+  ::-webkit-scrollbar { width: 8px; }
+  ::-webkit-scrollbar-track { background: var(--bg-primary); }
+  ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 4px; }
+  ::-webkit-scrollbar-thumb:hover { background: var(--text-muted); }
+</style>
+</head>
+<body>
+
+<!-- HEADER -->
+<div class="header">
+  <div class="header-left">
+    <h1>🧬 <span>GDES</span> Engineering Dashboard</h1>
+    <span class="header-badge badge-ok"><span class="pulse">●</span> Factory Online</span>
+    <span class="header-badge badge-warn">⚠ Health 4.15/10</span>
+  </div>
+  <div class="header-right">
+    <span class="last-updated" id="lastUpdated">Last updated: —</span>
+    <button class="refresh-btn" onclick="refreshDashboard()" title="Refresh data">⟳ Refresh</button>
+  </div>
+</div>
+
+<!-- DASHBOARD GRID -->
+<div class="dashboard">
+
+  <!-- 1. Repository Health Score -->
+  <div class="card">
+    <div class="card-header">
+      <span class="card-title">Repository Health</span>
+      <span class="card-icon">🏥</span>
+    </div>
+    <div class="gauge-container">
+      <div class="gauge">
+        <svg width="140" height="140" viewBox="0 0 140 140">
+          <circle class="gauge-bg" cx="70" cy="70" r="58"/>
+          <circle class="gauge-fill" cx="70" cy="70" r="58"
+            stroke="var(--accent-orange)"
+            stroke-dasharray="364.4"
+            stroke-dashoffset="364.4"
+            data-target="213.4"/>
+        </svg>
+        <div class="gauge-text">
+          <div class="gauge-value" style="color:var(--accent-orange)">4.15</div>
+          <div class="gauge-label">of 10</div>
+        </div>
+      </div>
+      <div class="gauge-details">
+        <div class="gauge-detail-row"><span class="gauge-detail-label">Django Apps</span><span class="gauge-detail-value">30 (27 active)</span></div>
+        <div class="gauge-detail-row"><span class="gauge-detail-label">Models</span><span class="gauge-detail-value">86</span></div>
+        <div class="gauge-detail-row"><span class="gauge-detail-label">Views</span><span class="gauge-detail-value">130</span></div>
+        <div class="gauge-detail-row"><span class="gauge-detail-label">Endpoints</span><span class="gauge-detail-value">~162</span></div>
+        <div class="gauge-detail-row"><span class="gauge-detail-label">Status</span><span class="gauge-detail-value" style="color:var(--accent-yellow)">⚠ Needs Work</span></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 2. Agent Status -->
+  <div class="card">
+    <div class="card-header">
+      <span class="card-title">Agent Fleet</span>
+      <span class="card-icon">🤖</span>
+    </div>
+    <div class="agent-list">
+      <div class="agent-row">
+        <div class="agent-avatar" style="background:rgba(188,140,255,0.2); color:var(--accent-purple);">🎯</div>
+        <div class="agent-info"><div class="agent-name">Hermes</div><div class="agent-role">Project Manager & Orchestrator</div></div>
+        <span class="agent-status status-active">● Active</span>
+      </div>
+      <div class="agent-row">
+        <div class="agent-avatar" style="background:rgba(88,166,255,0.2); color:var(--accent-blue);">⚡</div>
+        <div class="agent-info"><div class="agent-name">OpenCode</div><div class="agent-role">Primary Implementation (90-95%)</div></div>
+        <span class="agent-status status-available">● Available</span>
+      </div>
+      <div class="agent-row">
+        <div class="agent-avatar" style="background:rgba(210,153,34,0.2); color:var(--accent-yellow);">🏗</div>
+        <div class="agent-info"><div class="agent-name">Claude Code</div><div class="agent-role">Architecture & Expert Review</div></div>
+        <span class="agent-status status-available">● Available</span>
+      </div>
+      <div class="agent-row">
+        <div class="agent-avatar" style="background:rgba(63,185,80,0.2); color:var(--accent-green);">🔀</div>
+        <div class="agent-info"><div class="agent-name">GitHub Agent</div><div class="agent-role">Version Control & CI/CD</div></div>
+        <span class="agent-status status-available">● Available</span>
+      </div>
+      <div class="agent-row">
+        <div class="agent-avatar" style="background:rgba(248,81,73,0.2); color:var(--accent-red);">🧪</div>
+        <div class="agent-info"><div class="agent-name">Testing Agent</div><div class="agent-role">Quality Validation</div></div>
+        <span class="agent-status status-available">● Available</span>
+      </div>
+      <div class="agent-row">
+        <div class="agent-avatar" style="background:rgba(57,210,192,0.2); color:var(--accent-cyan);">📚</div>
+        <div class="agent-info"><div class="agent-name">Docs Agent</div><div class="agent-role">Knowledge Management</div></div>
+        <span class="agent-status status-available">● Available</span>
+      </div>
+      <div class="agent-row">
+        <div class="agent-avatar" style="background:rgba(219,109,40,0.2); color:var(--accent-orange);">🚀</div>
+        <div class="agent-info"><div class="agent-name">Release Agent</div><div class="agent-role">Release Coordination</div></div>
+        <span class="agent-status status-available">● Available</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- 3. Testing Status -->
+  <div class="card">
+    <div class="card-header">
+      <span class="card-title">Testing Status</span>
+      <span class="card-icon">🧪</span>
+    </div>
+    <div class="bar-chart">
+      <div class="bar-row">
+        <span class="bar-label">Overall Coverage</span>
+        <div class="bar-track">
+          <div class="bar-fill c-red" style="width:0%" data-target="25">~25%</div>
+        </div>
+        <span class="bar-value">25%</span>
+      </div>
+      <div class="bar-row">
+        <span class="bar-label">New Test LOC</span>
+        <div class="bar-track">
+          <div class="bar-fill c-green" style="width:0%" data-target="61">1,838</div>
+        </div>
+        <span class="bar-value">1,838</span>
+      </div>
+      <div class="bar-row">
+        <span class="bar-label">Test Files</span>
+        <div class="bar-track">
+          <div class="bar-fill c-blue" style="width:0%" data-target="79">23</div>
+        </div>
+        <span class="bar-value">23</span>
+      </div>
+      <div class="bar-row">
+        <span class="bar-label">Untested Apps</span>
+        <div class="bar-track">
+          <div class="bar-fill c-orange" style="width:0%" data-target="34">10/29</div>
+        </div>
+        <span class="bar-value">10</span>
+      </div>
+    </div>
+    <div style="margin-top:14px; padding:10px; background:var(--bg-hover); border-radius:6px; font-size:12px; color:var(--text-secondary); border-left:3px solid var(--accent-red);">
+      <strong style="color:var(--accent-red);">Critical:</strong> clinical_reasoning (8,885 LOC) and clinic (2,276 LOC) have <strong>zero tests</strong>
+    </div>
+  </div>
+
+  <!-- 4. Documentation Coverage -->
+  <div class="card">
+    <div class="card-header">
+      <span class="card-title">Documentation Coverage</span>
+      <span class="card-icon">📖</span>
+    </div>
+    <div class="gauge-container">
+      <div class="gauge">
+        <svg width="140" height="140" viewBox="0 0 140 140">
+          <circle class="gauge-bg" cx="70" cy="70" r="58"/>
+          <circle class="gauge-fill" cx="70" cy="70" r="58"
+            stroke="var(--accent-yellow)"
+            stroke-dasharray="364.4"
+            stroke-dashoffset="364.4"
+            data-target="91.1"/>
+        </svg>
+        <div class="gauge-text">
+          <div class="gauge-value" style="color:var(--accent-yellow)">75%</div>
+          <div class="gauge-label">coverage</div>
+        </div>
+      </div>
+      <div class="gauge-details">
+        <div class="gauge-detail-row"><span class="gauge-detail-label">Root docs</span><span class="gauge-detail-value" style="color:var(--accent-yellow)">111+ files</span></div>
+        <div class="gauge-detail-row"><span class="gauge-detail-label">Templates</span><span class="gauge-detail-value">9</span></div>
+        <div class="gauge-detail-row"><span class="gauge-detail-label">AI Factory reports</span><span class="gauge-detail-value" style="color:var(--accent-green)">8</span></div>
+        <div class="gauge-detail-row"><span class="gauge-detail-label">Status</span><span class="gauge-detail-value" style="color:var(--accent-yellow)">⚠ Sprawl</span></div>
+        <div class="gauge-detail-row"><span class="gauge-detail-label">Consolidation</span><span class="gauge-detail-value">Needed</span></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 5. Technical Debt -->
+  <div class="card">
+    <div class="card-header">
+      <span class="card-title">Technical Debt</span>
+      <span class="card-icon">💰</span>
+    </div>
+    <div class="gauge-container">
+      <div class="gauge">
+        <svg width="140" height="140" viewBox="0 0 140 140">
+          <circle class="gauge-bg" cx="70" cy="70" r="58"/>
+          <circle class="gauge-fill" cx="70" cy="70" r="58"
+            stroke="var(--accent-orange)"
+            stroke-dasharray="364.4"
+            stroke-dashoffset="364.4"
+            data-target="116.5"/>
+        </svg>
+        <div class="gauge-text">
+          <div class="gauge-value" style="color:var(--accent-orange)">6.8</div>
+          <div class="gauge-label">of 10</div>
+        </div>
+      </div>
+      <div style="flex:1; min-width:180px;">
+        <div class="debt-grid">
+          <div class="debt-item">
+            <div class="debt-score" style="color:var(--accent-red)">6</div>
+            <div class="debt-label">God Files (&gt;1K LOC)</div>
+          </div>
+          <div class="debt-item">
+            <div class="debt-score" style="color:var(--accent-yellow)">10</div>
+            <div class="debt-label">Untested Apps</div>
+          </div>
+          <div class="debt-item">
+            <div class="debt-score" style="color:var(--accent-orange)">3</div>
+            <div class="debt-label">Hardcoded Creds</div>
+          </div>
+          <div class="debt-item">
+            <div class="debt-score" style="color:var(--accent-red)">0</div>
+            <div class="debt-label">CI/CD Pipelines</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 6. Automation Percentage -->
+  <div class="card">
+    <div class="card-header">
+      <span class="card-title">AI Factory — Automation</span>
+      <span class="card-icon">⚙️</span>
+    </div>
+    <div class="bar-chart">
+      <div class="bar-row">
+        <span class="bar-label">Factory Ready</span>
+        <div class="bar-track">
+          <div class="bar-fill c-cyan" style="width:0%" data-target="82.5">82.5%</div>
+        </div>
+        <span class="bar-value">82.5%</span>
+      </div>
+      <div class="bar-row">
+        <span class="bar-label">Automation</span>
+        <div class="bar-track">
+          <div class="bar-fill c-green" style="width:0%" data-target="77">~77%</div>
+        </div>
+        <span class="bar-value">~77%</span>
+      </div>
+    </div>
+    <div class="stats-row" style="margin-top:16px;">
+      <div class="stat-box">
+        <div class="stat-num" style="color:var(--accent-cyan)">54+</div>
+        <div class="stat-label">Files Created</div>
+      </div>
+      <div class="stat-box">
+        <div class="stat-num" style="color:var(--accent-purple)">12</div>
+        <div class="stat-label">Prompts</div>
+      </div>
+      <div class="stat-box">
+        <div class="stat-num" style="color:var(--accent-blue)">11</div>
+        <div class="stat-label">Workflows</div>
+      </div>
+      <div class="stat-box">
+        <div class="stat-num" style="color:var(--accent-green)">7</div>
+        <div class="stat-label">Scripts</div>
+      </div>
+      <div class="stat-box">
+        <div class="stat-num" style="color:var(--accent-yellow)">8</div>
+        <div class="stat-label">Quality Gates</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 7. Roadmap / Phase Progress -->
+  <div class="card">
+    <div class="card-header">
+      <span class="card-title">Factory Roadmap (10 Phases)</span>
+      <span class="card-icon">🗺</span>
+    </div>
+    <div style="margin-bottom:12px;">
+      <div class="bar-track" style="height:10px;">
+        <div class="bar-fill c-green" style="width:0%; height:100%;" data-target="100"></div>
+      </div>
+      <div style="text-align:right; font-size:12px; color:var(--accent-green); margin-top:4px; font-weight:600;">10/10 — 100% Complete</div>
+    </div>
+    <div class="roadmap" id="roadmapList">
+      <!-- populated by JS -->
+    </div>
+  </div>
+
+  <!-- 8. Critical Issues / Pending Tasks -->
+  <div class="card card-span-half">
+    <div class="card-header">
+      <span class="card-title">Critical Issues & Pending Tasks</span>
+      <span class="card-icon">🚨</span>
+    </div>
+
+    <div class="tab-bar">
+      <button class="tab-btn active" onclick="switchTab(event, 'tab-issues')">Issues (8)</button>
+      <button class="tab-btn" onclick="switchTab(event, 'tab-tasks')">Priorities</button>
+    </div>
+
+    <div class="tab-content active" id="tab-issues">
+      <div class="issue-list">
+        <div class="issue-row issue-critical">
+          <span class="issue-num">#1</span>
+          <div class="issue-text"><strong>Hardcoded admin credentials</strong> in 3 launcher files</div>
+          <span class="issue-severity sev-critical">CRITICAL</span>
+        </div>
+        <div class="issue-row issue-critical">
+          <span class="issue-num">#2</span>
+          <div class="issue-text"><strong>Missing <code>exports</code> app</strong> in INSTALLED_APPS</div>
+          <span class="issue-severity sev-critical">CRITICAL</span>
+        </div>
+        <div class="issue-row issue-critical">
+          <span class="issue-num">#3</span>
+          <div class="issue-text"><strong>Zero CI/CD pipeline</strong> — no automated quality checks</div>
+          <span class="issue-severity sev-critical">CRITICAL</span>
+        </div>
+        <div class="issue-row issue-critical">
+          <span class="issue-num">#4</span>
+          <div class="issue-text"><strong>10/29 apps have NO tests</strong> (incl. clinical_reasoning 8,885 LOC)</div>
+          <span class="issue-severity sev-critical">CRITICAL</span>
+        </div>
+        <div class="issue-row issue-high">
+          <span class="issue-num">#5</span>
+          <div class="issue-text"><strong>All dependencies unpinned</strong> — vulnerable to breaking changes</div>
+          <span class="issue-severity sev-high">HIGH</span>
+        </div>
+        <div class="issue-row issue-high">
+          <span class="issue-num">#6</span>
+          <div class="issue-text"><strong>No CSP headers or rate limiting</strong></div>
+          <span class="issue-severity sev-high">HIGH</span>
+        </div>
+        <div class="issue-row issue-medium">
+          <span class="issue-num">#7</span>
+          <div class="issue-text"><strong>111+ docs at root</strong> — documentation sprawl</div>
+          <span class="issue-severity sev-medium">MEDIUM</span>
+        </div>
+        <div class="issue-row issue-medium">
+          <span class="issue-num">#8</span>
+          <div class="issue-text"><strong>6 god files &gt; 1,000 LOC</strong> — maintenance complexity</div>
+          <span class="issue-severity sev-medium">MEDIUM</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="tab-content" id="tab-tasks">
+      <div class="priority-section">
+        <div class="priority-label" style="color:var(--accent-red);">🔴 Immediate (This Week)</div>
+        <ul class="priority-tasks">
+          <li class="p-immediate"><input type="checkbox"> Remove hardcoded credentials from launcher files</li>
+          <li class="p-immediate"><input type="checkbox"> Fix missing <code>exports</code> app (create stub or remove)</li>
+          <li class="p-immediate"><input type="checkbox"> Run full test suite to establish baseline</li>
+          <li class="p-immediate"><input type="checkbox"> Pin all dependencies in requirements.txt</li>
+        </ul>
+      </div>
+      <div class="priority-section">
+        <div class="priority-label" style="color:var(--accent-yellow);">🟡 Short-term (This Month)</div>
+        <ul class="priority-tasks">
+          <li class="p-short"><input type="checkbox"> Set up CI/CD pipeline (GitHub Actions)</li>
+          <li class="p-short"><input type="checkbox"> Create tests for clinical_reasoning (8,885 LOC)</li>
+          <li class="p-short"><input type="checkbox"> Create tests for clinic (2,276 LOC)</li>
+          <li class="p-short"><input type="checkbox"> Consolidate documentation into structured format</li>
+          <li class="p-short"><input type="checkbox"> Enable CSP headers and rate limiting</li>
+        </ul>
+      </div>
+      <div class="priority-section">
+        <div class="priority-label" style="color:var(--accent-green);">🟢 Medium-term (This Quarter)</div>
+        <ul class="priority-tasks">
+          <li class="p-medium"><input type="checkbox"> Refactor god files (especially management_plan.py 2,196 LOC)</li>
+          <li class="p-medium"><input type="checkbox"> Reduce coupling in clinic/forms.py (imports from 8 apps)</li>
+          <li class="p-medium"><input type="checkbox"> Clean up temp/debug scripts at root</li>
+          <li class="p-medium"><input type="checkbox"> Establish test coverage tracking (target: 80%)</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+
+  <!-- 9. Recent Activity -->
+  <div class="card">
+    <div class="card-header">
+      <span class="card-title">Recent Activity</span>
+      <span class="card-icon">📋</span>
+    </div>
+    <div class="activity-feed">
+      <div class="activity-item">
+        <div class="activity-dot" style="background:var(--accent-green);"></div>
+        <div class="activity-content">
+          <div class="activity-text"><strong>AI Factory v1.0 bootstrap completed</strong> — all 10 phases delivered</div>
+          <div class="activity-time">2026-07-21 · 54+ files created</div>
+        </div>
+      </div>
+      <div class="activity-item">
+        <div class="activity-dot" style="background:var(--accent-cyan);"></div>
+        <div class="activity-content">
+          <div class="activity-text">3 parallel analysis agents scanned codebase</div>
+          <div class="activity-time">2026-07-21 · 30 apps, 86 models, 129 views</div>
+        </div>
+      </div>
+      <div class="activity-item">
+        <div class="activity-dot" style="background:var(--accent-purple);"></div>
+        <div class="activity-content">
+          <div class="activity-text">8 comprehensive reports generated</div>
+          <div class="activity-time">2026-07-21 · Health, debt, security, tests, deps</div>
+        </div>
+      </div>
+      <div class="activity-item">
+        <div class="activity-dot" style="background:var(--accent-red);"></div>
+        <div class="activity-content">
+          <div class="activity-text"><strong>5 critical issues identified</strong> requiring immediate action</div>
+          <div class="activity-time">2026-07-21 · Security & quality findings</div>
+        </div>
+      </div>
+      <div class="activity-item">
+        <div class="activity-dot" style="background:var(--accent-yellow);"></div>
+        <div class="activity-content">
+          <div class="activity-text">7 agents defined with full specs</div>
+          <div class="activity-time">2026-07-21 · Roles, responsibilities, workflows</div>
+        </div>
+      </div>
+      <div class="activity-item">
+        <div class="activity-dot" style="background:var(--accent-blue);"></div>
+        <div class="activity-content">
+          <div class="activity-text">12 prompts + 11 workflows + 7 scripts deployed</div>
+          <div class="activity-time">2026-07-21 · Automation infrastructure ready</div>
+        </div>
+      </div>
+      <div class="activity-item">
+        <div class="activity-dot" style="background:var(--accent-green);"></div>
+        <div class="activity-content">
+          <div class="activity-text">Project memory system initialized with real metrics</div>
+          <div class="activity-time">2026-07-21 · 4 memory files populated</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Repository Intelligence Stats -->
+  <div class="card card-span-half">
+    <div class="card-header">
+      <span class="card-title">Repository Intelligence</span>
+      <span class="card-icon">📊</span>
+    </div>
+    <div class="tab-bar">
+      <button class="tab-btn active" onclick="switchTab(event, 'tab-stats')">Stats</button>
+      <button class="tab-btn" onclick="switchTab(event, 'tab-complex')">Most Complex Apps</button>
+      <button class="tab-btn" onclick="switchTab(event, 'tab-tech')">Tech Stack</button>
+    </div>
+
+    <div class="tab-content active" id="tab-stats">
+      <div class="bar-chart">
+        <div class="bar-row"><span class="bar-label">Django Apps</span><div class="bar-track"><div class="bar-fill c-purple" style="width:0%" data-target="100">30 (27 active)</div></div><span class="bar-value">30</span></div>
+        <div class="bar-row"><span class="bar-label">Models</span><div class="bar-track"><div class="bar-fill c-blue" style="width:0%" data-target="86">86</div></div><span class="bar-value">86</span></div>
+        <div class="bar-row"><span class="bar-label">Views (FBV)</span><div class="bar-track"><div class="bar-fill c-cyan" style="width:0%" data-target="100">129</div></div><span class="bar-value">129</span></div>
+        <div class="bar-row"><span class="bar-label">ViewSets</span><div class="bar-track"><div class="bar-fill c-green" style="width:0%" data-target="58">58</div></div><span class="bar-value">58</span></div>
+        <div class="bar-row"><span class="bar-label">Serializers</span><div class="bar-track"><div class="bar-fill c-yellow" style="width:0%" data-target="86">86</div></div><span class="bar-value">86</span></div>
+        <div class="bar-row"><span class="bar-label">Admin Classes</span><div class="bar-track"><div class="bar-fill c-orange" style="width:0%" data-target="73">73</div></div><span class="bar-value">73</span></div>
+        <div class="bar-row"><span class="bar-label">Mgmt Commands</span><div class="bar-track"><div class="bar-fill c-red" style="width:0%" data-target="35">35</div></div><span class="bar-value">35</span></div>
+        <div class="bar-row"><span class="bar-label">URL Patterns</span><div class="bar-track"><div class="bar-fill c-purple" style="width:0%" data-target="100">~162</div></div><span class="bar-value">~162</span></div>
+        <div class="bar-row"><span class="bar-label">Service Fns</span><div class="bar-track"><div class="bar-fill c-blue" style="width:0%" data-target="75">~102</div></div><span class="bar-value">~102</span></div>
+        <div class="bar-row"><span class="bar-label">DB Tables</span><div class="bar-track"><div class="bar-fill c-cyan" style="width:0%" data-target="42">42</div></div><span class="bar-value">42</span></div>
+        <div class="bar-row"><span class="bar-label">Middleware</span><div class="bar-track"><div class="bar-fill c-green" style="width:0%" data-target="10">10</div></div><span class="bar-value">10</span></div>
+        <div class="bar-row"><span class="bar-label">Celery Tasks</span><div class="bar-track"><div class="bar-fill c-yellow" style="width:0%" data-target="11">11</div></div><span class="bar-value">11</span></div>
+        <div class="bar-row"><span class="bar-label">Forms</span><div class="bar-track"><div class="bar-fill c-orange" style="width:0%" data-target="22">22</div></div><span class="bar-value">22</span></div>
+      </div>
+    </div>
+
+    <div class="tab-content" id="tab-complex">
+      <div class="bar-chart">
+        <div class="bar-row">
+          <span class="bar-label">knowledge</span>
+          <div class="bar-track"><div class="bar-fill c-purple" style="width:0%" data-target="95">20 models · 19 views · 29 serializers</div></div>
+        </div>
+        <div class="bar-row">
+          <span class="bar-label">clinical_reasoning</span>
+          <div class="bar-track"><div class="bar-fill c-red" style="width:0%" data-target="89">8,885 LOC · 2 models · 12 serializers</div></div>
+        </div>
+        <div class="bar-row">
+          <span class="bar-label">feedback</span>
+          <div class="bar-track"><div class="bar-fill c-orange" style="width:0%" data-target="80">15 models · 26 views · 10 serializers</div></div>
+        </div>
+        <div class="bar-row">
+          <span class="bar-label">clinic</span>
+          <div class="bar-track"><div class="bar-fill c-yellow" style="width:0%" data-target="70">45 views · 2,276 LOC</div></div>
+        </div>
+        <div class="bar-row">
+          <span class="bar-label">pathology</span>
+          <div class="bar-track"><div class="bar-fill c-blue" style="width:0%" data-target="55">8 models</div></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="tab-content" id="tab-tech">
+      <div style="display:grid; grid-template-columns:1fr 1fr; gap:8px;">
+        <div class="gauge-detail-row" style="padding:8px 12px; background:var(--bg-hover); border-radius:6px; border:none; flex-direction:column;"><span class="gauge-detail-label">Backend</span><span class="gauge-detail-value" style="margin-top:4px;">Python 3.11+ · Django 5.0+ · DRF</span></div>
+        <div class="gauge-detail-row" style="padding:8px 12px; background:var(--bg-hover); border-radius:6px; border:none; flex-direction:column;"><span class="gauge-detail-label">Database</span><span class="gauge-detail-value" style="margin-top:4px;">PostgreSQL (prod) · SQLite (desktop)</span></div>
+        <div class="gauge-detail-row" style="padding:8px 12px; background:var(--bg-hover); border-radius:6px; border:none; flex-direction:column;"><span class="gauge-detail-label">Frontend</span><span class="gauge-detail-value" style="margin-top:4px;">Django Templates · Tailwind CSS · JS</span></div>
+        <div class="gauge-detail-row" style="padding:8px 12px; background:var(--bg-hover); border-radius:6px; border:none; flex-direction:column;"><span class="gauge-detail-label">Deployment</span><span class="gauge-detail-value" style="margin-top:4px;">Docker Compose · Nginx · Gunicorn</span></div>
+        <div class="gauge-detail-row" style="padding:8px 12px; background:var(--bg-hover); border-radius:6px; border:none; flex-direction:column;"><span class="gauge-detail-label">Desktop</span><span class="gauge-detail-value" style="margin-top:4px;">Waitress · PyInstaller · Windows</span></div>
+        <div class="gauge-detail-row" style="padding:8px 12px; background:var(--bg-hover); border-radius:6px; border:none; flex-direction:column;"><span class="gauge-detail-label">Task Queue</span><span class="gauge-detail-value" style="margin-top:4px;">Celery + Redis</span></div>
+        <div class="gauge-detail-row" style="padding:8px 12px; background:var(--bg-hover); border-radius:6px; border:none; flex-direction:column; grid-column:1/-1;"><span class="gauge-detail-label">Statistical Engine</span><span class="gauge-detail-value" style="margin-top:4px;">Pure Python (KM, Cox PH, LMM, Aalen-Johansen, MICE)</span></div>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<script>
+// === DATA ===
+const phases = [
+  { num: 1, name: 'Repository Intelligence', desc: '30 apps inventoried, 86 models, JSON + MD reports' },
+  { num: 2, name: 'Repository Health', desc: '6 reports: debt, security, tests, deps, complexity, health' },
+  { num: 3, name: 'Project Memory', desc: 'Complete knowledge base with real metrics' },
+  { num: 4, name: 'Agent Definitions', desc: '7 agents with full specs' },
+  { num: 5, name: 'Prompt Library', desc: '12 production-quality reusable prompts' },
+  { num: 6, name: 'Workflow Library', desc: '11 standardized workflows' },
+  { num: 7, name: 'Quality Gates', desc: '8 mandatory gates (clinical safety = highest)' },
+  { num: 8, name: 'Automation Scripts', desc: '7 scripts (startup, scan, validate, release, etc.)' },
+  { num: 9, name: 'Dashboard', desc: 'Real-time metrics with critical findings' },
+  { num: 10, name: 'Final Review', desc: 'Status report and next steps defined' },
+];
+
+// === INIT ===
+function init() {
+  updateTimestamp();
+  renderRoadmap();
+  animateBars();
+  animateGauges();
+  loadCheckboxState();
+}
+
+function updateTimestamp() {
+  const now = new Date();
+  const ts = now.toISOString().slice(0,16).replace('T',' ') + ' UTC';
+  document.getElementById('lastUpdated').textContent = 'Last updated: ' + ts;
+}
+
+function renderRoadmap() {
+  const el = document.getElementById('roadmapList');
+  el.innerHTML = phases.map(p => `
+    <div class="roadmap-phase">
+      <div class="roadmap-num phase-complete">${p.num}</div>
+      <div class="roadmap-info">
+        <div class="roadmap-name">${p.name}</div>
+        <div class="roadmap-desc">${p.desc}</div>
+      </div>
+      <span class="roadmap-check">✓</span>
+    </div>
+  `).join('');
+}
+
+function animateBars() {
+  setTimeout(() => {
+    document.querySelectorAll('.bar-fill[data-target]').forEach(el => {
+      el.style.width = el.dataset.target + '%';
+    });
+  }, 200);
+}
+
+function animateGauges() {
+  setTimeout(() => {
+    document.querySelectorAll('.gauge-fill[data-target]').forEach(el => {
+      const circumference = 2 * Math.PI * 58; // r=58
+      el.style.strokeDasharray = circumference;
+      const target = parseFloat(el.dataset.target);
+      el.style.strokeDashoffset = circumference - target;
+    });
+  }, 300);
+}
+
+function refreshDashboard() {
+  // Re-run animations
+  document.querySelectorAll('.bar-fill').forEach(el => el.style.width = '0%');
+  document.querySelectorAll('.gauge-fill').forEach(el => {
+    el.style.strokeDashoffset = el.getAttribute('stroke-dasharray') || 364.4;
+  });
+  setTimeout(() => {
+    animateBars();
+    animateGauges();
+    updateTimestamp();
+  }, 100);
+}
+
+// === TABS ===
+function switchTab(e, tabId) {
+  const tabBar = e.target.closest('.tab-bar');
+  const card = tabBar.closest('.card');
+  tabBar.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+  e.target.classList.add('active');
+  card.querySelectorAll('.tab-content').forEach(tc => tc.classList.remove('active'));
+  document.getElementById(tabId).classList.add('active');
+  // Re-animate bars in newly visible tab
+  setTimeout(animateBars, 50);
+}
+
+// === CHECKBOX PERSISTENCE ===
+function loadCheckboxState() {
+  try {
+    const saved = JSON.parse(localStorage.getItem('gdes_tasks') || '{}');
+    document.querySelectorAll('.priority-tasks input[type="checkbox"]').forEach((cb, i) => {
+      if (saved[i]) {
+        cb.checked = true;
+        cb.closest('li').classList.add('done');
+      }
+      cb.addEventListener('change', () => {
+        const s = {};
+        document.querySelectorAll('.priority-tasks input[type="checkbox"]').forEach((c, j) => {
+          if (c.checked) s[j] = true;
+          c.closest('li').classList.toggle('done', c.checked);
+        });
+        localStorage.setItem('gdes_tasks', JSON.stringify(s));
+      });
+    });
+  } catch(e) { /* ignore */ }
+}
+
+// === GO LIVE ===
+document.addEventListener('DOMContentLoaded', init);
+</script>
+</body>
+</html>

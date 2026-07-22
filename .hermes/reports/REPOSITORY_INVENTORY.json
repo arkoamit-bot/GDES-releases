@@ -1,0 +1,4849 @@
+{
+  "project": "GDES - Glomerular Disease Expert System",
+  "settings_module": "bgddr.settings",
+  "framework": "Django 5.0+ / DRF 3.15+",
+  "celery": true,
+  "database": "SQLite (dev) / PostgreSQL (prod)",
+  "apps": {
+    "analytics": {
+      "name": "analytics",
+      "exists": true,
+      "path": "analytics",
+      "files": [
+        "analytics\\__init__.py",
+        "analytics\\admin.py",
+        "analytics\\dashboard_data.py",
+        "analytics\\models.py",
+        "analytics\\tests.py",
+        "analytics\\tests_stats.py",
+        "analytics\\urls.py",
+        "analytics\\views.py"
+      ],
+      "models": [
+        {
+          "name": "PatientOutcome",
+          "fields": [
+            "patient",
+            "index_date",
+            "baseline_egfr",
+            "baseline_creatinine",
+            "baseline_upcr",
+            "last_contact_date",
+            "followup_days",
+            "n_egfr",
+            "latest_egfr",
+            "egfr_slope",
+            "sustained_40_decline",
+            "sustained_40_date",
+            "sustained_50_decline",
+            "sustained_50_date",
+            "doubling_creatinine",
+            "doubling_date",
+            "eskd",
+            "eskd_date",
+            "death",
+            "death_date",
+            "composite_kidney_event",
+            "composite_date",
+            "composite_cause",
+            "remission_definition",
+            "proteinuria_source",
+            "latest_upcr",
+            "nadir_upcr",
+            "best_proteinuria_reduction_pct",
+            "igan_proteinuria_response",
+            "igan_proteinuria_response_date",
+            "complete_remission",
+            "complete_remission_date",
+            "partial_remission",
+            "partial_remission_date",
+            "any_remission_date",
+            "proteinuria_relapse",
+            "proteinuria_relapse_date",
+            "remission_status",
+            "any_relapse",
+            "computed_at"
+          ],
+          "methods": [
+            "__str__",
+            "any_remission",
+            "duration_event"
+          ],
+          "meta": {}
+        }
+      ],
+      "views": {
+        "functions": [
+          "patient_outcome",
+          "_serialize_cohort",
+          "cohort_survival_view",
+          "cohort_survival_plot",
+          "cohort_cox_view",
+          "cohort_egfr_slope_view",
+          "cohort_cif_view",
+          "cohort_summary_view",
+          "_f",
+          "_ev"
+        ],
+        "classes": [],
+        "viewsets": []
+      },
+      "serializers": [],
+      "forms": [],
+      "admin": {
+        "registered_models": [
+          {
+            "model": "PatientOutcome",
+            "decorator": true
+          }
+        ],
+        "admin_classes": [
+          "PatientOutcomeAdmin"
+        ]
+      },
+      "urls": {
+        "patterns": [
+          "views.patient_outcome",
+          "views.cohort_survival_view",
+          "views.cohort_survival_plot",
+          "views.cohort_cox_view",
+          "views.cohort_egfr_slope_view",
+          "views.cohort_cif_view",
+          "views.cohort_summary_view"
+        ],
+        "app_name": "analytics"
+      },
+      "management_commands": [
+        {
+          "name": "compute_outcomes",
+          "file": "analytics\\management\\commands\\compute_outcomes.py",
+          "help": "Recompute PatientOutcome rows (the outcome engine).",
+          "functions": []
+        }
+      ],
+      "signals": [],
+      "templates": [],
+      "migrations": {
+        "count": 3,
+        "files": [
+          "0001_initial.py",
+          "0002_patientoutcome_any_remission_date_and_more.py",
+          "0003_patientoutcome_igan_proteinuria_response_and_more.py"
+        ]
+      },
+      "static_files": [],
+      "tests": {
+        "test_files": [
+          "analytics\\tests.py",
+          "analytics\\tests_stats.py"
+        ],
+        "test_count": 2
+      },
+      "celery_tasks": [],
+      "middleware": [],
+      "templatetags": [],
+      "apps_config": "",
+      "docstrings": "",
+      "models_module_doc": "PatientOutcome — the computed \"Outcome Engine\" row, one per patient.\n\nPer the registry's guiding principle, outcomes are NOT entered by hand: this row\nis derived from the longitudinal labs, the treatment exposures, and the dated\nclinical events, with the operational endpoint definitions fixed in code\n(analytics/services/outcomes.py). Re-runnable any time via `compute_outcomes`.\n\nIt is also the denormalized, ML-ready \"one row per patient\" table the portfolio\nasks for, and the source of the (duration, event) pairs the survival analysis\nconsumes."
+    },
+    "api": {
+      "name": "api",
+      "exists": true,
+      "path": "api",
+      "files": [
+        "api\\__init__.py",
+        "api\\base.py",
+        "api\\permissions.py",
+        "api\\renderers.py",
+        "api\\serializers.py",
+        "api\\tests.py",
+        "api\\urls.py",
+        "api\\views.py"
+      ],
+      "models": [],
+      "views": {
+        "functions": [],
+        "classes": [],
+        "viewsets": [
+          "SiteViewSet",
+          "UserSiteRoleViewSet",
+          "PatientViewSet",
+          "ClinicalEncounterViewSet",
+          "ClinicalEventViewSet",
+          "LabResultViewSet",
+          "TreatmentExposureViewSet",
+          "BiopsyViewSet",
+          "PathologyReviewViewSet",
+          "AdverseEventViewSet",
+          "ScheduledVisitViewSet",
+          "PrescriptionViewSet",
+          "PatientOutcomeViewSet",
+          "BiomarkerKineticsViewSet",
+          "DrugMasterViewSet"
+        ]
+      },
+      "serializers": [
+        "SiteSerializer",
+        "UserSiteRoleSerializer",
+        "PatientSerializer",
+        "ClinicalEncounterSerializer",
+        "ClinicalEventSerializer",
+        "LabResultSerializer",
+        "TreatmentExposureSerializer",
+        "BiopsySerializer",
+        "PathologyReviewSerializer",
+        "AdverseEventSerializer",
+        "ScheduledVisitSerializer",
+        "PrescriptionSerializer",
+        "PatientOutcomeSerializer",
+        "BiomarkerKineticsSerializer",
+        "DrugMasterSerializer"
+      ],
+      "forms": [],
+      "admin": {
+        "registered_models": [],
+        "admin_classes": []
+      },
+      "urls": {
+        "patterns": [
+          "views.SiteViewSet",
+          "views.UserSiteRoleViewSet",
+          "views.PatientViewSet",
+          "views.ClinicalEncounterViewSet",
+          "views.ClinicalEventViewSet",
+          "views.LabResultViewSet",
+          "views.TreatmentExposureViewSet",
+          "views.BiopsyViewSet",
+          "views.PathologyReviewViewSet",
+          "views.AdverseEventViewSet",
+          "views.ScheduledVisitViewSet",
+          "views.PrescriptionViewSet",
+          "views.PatientOutcomeViewSet",
+          "views.BiomarkerKineticsViewSet",
+          "views.DrugMasterViewSet"
+        ],
+        "app_name": "api"
+      },
+      "management_commands": [
+        {
+          "name": "seed_roles",
+          "file": "api\\management\\commands\\seed_roles.py",
+          "help": "Create roles (Groups) and assign per-model permissions.",
+          "functions": [
+            "_perm",
+            "_all_registry_perms"
+          ]
+        }
+      ],
+      "signals": [],
+      "templates": [],
+      "migrations": {
+        "count": 0,
+        "files": []
+      },
+      "static_files": [],
+      "tests": {
+        "test_files": [
+          "api\\tests.py"
+        ],
+        "test_count": 1
+      },
+      "celery_tasks": [],
+      "middleware": [],
+      "templatetags": [],
+      "apps_config": "",
+      "docstrings": ""
+    },
+    "audit": {
+      "name": "audit",
+      "exists": true,
+      "path": "audit",
+      "files": [
+        "audit\\__init__.py",
+        "audit\\admin.py",
+        "audit\\apps.py",
+        "audit\\local.py",
+        "audit\\middleware.py",
+        "audit\\models.py",
+        "audit\\recording.py",
+        "audit\\tests.py"
+      ],
+      "models": [
+        {
+          "name": "AuditLog",
+          "fields": [
+            "model_label",
+            "object_pk",
+            "object_repr",
+            "action",
+            "field_name",
+            "old_value",
+            "new_value",
+            "changed_by",
+            "change_reason",
+            "changed_at"
+          ],
+          "methods": [
+            "__str__"
+          ],
+          "meta": {}
+        },
+        {
+          "name": "Consent",
+          "fields": [
+            "patient",
+            "consent_type",
+            "form_version",
+            "status",
+            "consent_date",
+            "withdrawn_date",
+            "obtained_by",
+            "scope",
+            "document",
+            "notes",
+            "supersedes",
+            "is_current",
+            "created_at",
+            "updated_at"
+          ],
+          "methods": [
+            "__str__",
+            "is_active"
+          ],
+          "meta": {}
+        }
+      ],
+      "views": {
+        "functions": [],
+        "classes": [],
+        "viewsets": []
+      },
+      "serializers": [],
+      "forms": [],
+      "admin": {
+        "registered_models": [
+          {
+            "model": "AuditLog",
+            "decorator": true
+          },
+          {
+            "model": "Consent",
+            "decorator": true
+          }
+        ],
+        "admin_classes": [
+          "AuditLogAdmin",
+          "ConsentAdmin"
+        ]
+      },
+      "urls": {
+        "patterns": [],
+        "app_name": ""
+      },
+      "management_commands": [
+        {
+          "name": "restore_backup",
+          "file": "audit\\management\\commands\\restore_backup.py",
+          "help": "Restore the database from a backup ZIP (or legacy .sqlite3 snapshot).",
+          "functions": []
+        }
+      ],
+      "signals": [],
+      "templates": [],
+      "migrations": {
+        "count": 1,
+        "files": [
+          "0001_initial.py"
+        ]
+      },
+      "static_files": [],
+      "tests": {
+        "test_files": [
+          "audit\\tests.py"
+        ],
+        "test_count": 1
+      },
+      "celery_tasks": [],
+      "middleware": [
+        "AuditMiddleware"
+      ],
+      "templatetags": [],
+      "apps_config": "audit",
+      "docstrings": "",
+      "models_module_doc": "AuditLog  — append-only per-field change history (who / when / old -> new).\nConsent   — versioned, withdrawable patient consent.\n\nThese are the two pieces a prospective registry needs before it can feed\nregistry-embedded trials: a defensible record of every data change, and a\nconsent trail with versions and withdrawal."
+    },
+    "baseline": {
+      "name": "baseline",
+      "exists": true,
+      "path": "baseline",
+      "files": [
+        "baseline\\__init__.py",
+        "baseline\\admin.py",
+        "baseline\\apps.py",
+        "baseline\\models.py",
+        "baseline\\tests.py"
+      ],
+      "models": [
+        {
+          "name": "BaselineAssessment",
+          "fields": [
+            "patient",
+            "assessment_date",
+            "division_residence",
+            "socioeconomic_status",
+            "monthly_income_bdt",
+            "education",
+            "occupation",
+            "smoking",
+            "alcohol_use",
+            "previous_kidney_disease",
+            "autoimmune_disease",
+            "chronic_infection",
+            "malignancy",
+            "prior_immunosuppression",
+            "drug_history",
+            "height_cm",
+            "weight_kg",
+            "bmi",
+            "bmi_category",
+            "systolic_bp",
+            "diastolic_bp",
+            "dm_duration_years",
+            "hba1c",
+            "diabetic_retinopathy",
+            "neuropathy",
+            "diabetic_foot_history",
+            "hypertension",
+            "cvd_history",
+            "presentation_syndrome",
+            "presentation_syndromes",
+            "presenting_symptoms",
+            "oedema_grade",
+            "active_urinary_sediment",
+            "rbc_casts",
+            "family_history_kidney",
+            "pulse_bpm",
+            "temperature_c",
+            "respiratory_rate",
+            "volume_status",
+            "skin_findings",
+            "joint_findings",
+            "fundoscopy",
+            "notes",
+            "created_at",
+            "updated_at",
+            "_SYNDROME_MAP"
+          ],
+          "methods": [
+            "__str__",
+            "save",
+            "_sync_level2_to_patient"
+          ],
+          "meta": {}
+        }
+      ],
+      "views": {
+        "functions": [],
+        "classes": [],
+        "viewsets": []
+      },
+      "serializers": [],
+      "forms": [],
+      "admin": {
+        "registered_models": [
+          {
+            "model": "BaselineAssessment",
+            "decorator": true
+          }
+        ],
+        "admin_classes": [
+          "BaselineAssessmentAdmin"
+        ]
+      },
+      "urls": {
+        "patterns": [],
+        "app_name": ""
+      },
+      "management_commands": [],
+      "signals": [],
+      "templates": [],
+      "migrations": {
+        "count": 3,
+        "files": [
+          "0001_initial.py",
+          "0002_alter_baselineassessment_education_and_more.py",
+          "0003_baselineassessment_alcohol_use_and_more.py"
+        ]
+      },
+      "static_files": [],
+      "tests": {
+        "test_files": [
+          "baseline\\tests.py"
+        ],
+        "test_count": 1
+      },
+      "celery_tasks": [],
+      "middleware": [],
+      "templatetags": [],
+      "apps_config": "baseline",
+      "docstrings": "",
+      "models_module_doc": "BaselineAssessment — the at-enrollment clinical/demographic snapshot (Excel\nsheet 2). One per patient. BMI and its Asian-cutoff category are auto-derived."
+    },
+    "bgddr": {
+      "name": "bgddr",
+      "exists": true,
+      "path": "bgddr",
+      "files": [
+        "bgddr\\__init__.py",
+        "bgddr\\admin_backup.py",
+        "bgddr\\backup.py",
+        "bgddr\\celery.py",
+        "bgddr\\context_processors.py",
+        "bgddr\\settings.py",
+        "bgddr\\settings_deploy.py",
+        "bgddr\\settings_desktop.py",
+        "bgddr\\settings_prod.py",
+        "bgddr\\updater.py",
+        "bgddr\\urls.py",
+        "bgddr\\version-Dr-Wasim.py",
+        "bgddr\\version.py",
+        "bgddr\\views.py",
+        "bgddr\\wsgi.py"
+      ],
+      "models": [],
+      "views": {
+        "functions": [
+          "_enroll_date",
+          "dashboard",
+          "partial_overview_stats",
+          "partial_worklist",
+          "partial_enrollment_summary",
+          "partial_cohort_breakdown",
+          "partial_enrollment_trend",
+          "partial_demographics",
+          "partial_outcomes_summary",
+          "partial_compliance",
+          "dashboard_enrollment",
+          "dashboard_outcomes",
+          "dashboard_compliance",
+          "_render_partial",
+          "health_check"
+        ],
+        "classes": [],
+        "viewsets": []
+      },
+      "serializers": [],
+      "forms": [],
+      "admin": {
+        "registered_models": [],
+        "admin_classes": []
+      },
+      "urls": {
+        "patterns": [
+          "views.dashboard",
+          "views.health_check",
+          "views.partial_overview_stats",
+          "views.partial_worklist",
+          "views.partial_enrollment_summary",
+          "views.partial_cohort_breakdown",
+          "views.partial_enrollment_trend",
+          "views.partial_demographics",
+          "views.partial_outcomes_summary",
+          "views.partial_compliance",
+          "views.dashboard_enrollment",
+          "views.dashboard_outcomes",
+          "views.dashboard_compliance",
+          "include: clinic.urls",
+          "include: users.urls",
+          "include: api.urls",
+          "include: prescriptions.urls",
+          "include: analytics.urls",
+          "include: studies.urls",
+          "include: safety.urls",
+          "include: scheduling.urls",
+          "include: reminders.urls",
+          "include: pathology.urls",
+          "include: biomarkers.urls",
+          "include: exports.urls",
+          "include: clinical.urls",
+          "include: knowledge.urls",
+          "include: decision.urls",
+          "include: timeline.urls",
+          "include: clinical_reasoning.urls",
+          "include: followup.urls",
+          "include: treatments.urls",
+          "include: feedback.urls",
+          "include: fhir.urls"
+        ],
+        "app_name": ""
+      },
+      "management_commands": [],
+      "signals": [],
+      "templates": [],
+      "migrations": {
+        "count": 0,
+        "files": []
+      },
+      "static_files": [],
+      "tests": {
+        "test_files": [],
+        "test_count": 0
+      },
+      "celery_tasks": [],
+      "middleware": [],
+      "templatetags": [],
+      "apps_config": "",
+      "docstrings": ""
+    },
+    "biobank": {
+      "name": "biobank",
+      "exists": true,
+      "path": "biobank",
+      "files": [
+        "biobank\\__init__.py",
+        "biobank\\admin.py",
+        "biobank\\apps.py",
+        "biobank\\models.py",
+        "biobank\\tests.py"
+      ],
+      "models": [
+        {
+          "name": "Sample",
+          "fields": [
+            "patient",
+            "sample_type",
+            "collection_date",
+            "volume_ml",
+            "aliquots",
+            "storage_location",
+            "status",
+            "notes",
+            "created_at"
+          ],
+          "methods": [
+            "__str__",
+            "clean"
+          ],
+          "meta": {}
+        }
+      ],
+      "views": {
+        "functions": [],
+        "classes": [],
+        "viewsets": []
+      },
+      "serializers": [],
+      "forms": [],
+      "admin": {
+        "registered_models": [
+          {
+            "model": "Sample",
+            "decorator": true
+          }
+        ],
+        "admin_classes": [
+          "SampleAdmin"
+        ]
+      },
+      "urls": {
+        "patterns": [],
+        "app_name": ""
+      },
+      "management_commands": [],
+      "signals": [],
+      "templates": [],
+      "migrations": {
+        "count": 1,
+        "files": [
+          "0001_initial.py"
+        ]
+      },
+      "static_files": [],
+      "tests": {
+        "test_files": [
+          "biobank\\tests.py"
+        ],
+        "test_count": 1
+      },
+      "celery_tasks": [],
+      "middleware": [],
+      "templatetags": [],
+      "apps_config": "biobank",
+      "docstrings": "",
+      "models_module_doc": "Biobank — serial sample storage (serum, plasma, urine, DNA, tissue) for the\nfuture biomarker work (Gd-IgA1, complement, genetics) the portfolio describes.\n\nEvery sample requires biobank consent. The gate is enforced in clean() so admin\nforms validate, and in store_sample() for programmatic use."
+    },
+    "biomarkers": {
+      "name": "biomarkers",
+      "exists": true,
+      "path": "biomarkers",
+      "files": [
+        "biomarkers\\__init__.py",
+        "biomarkers\\admin.py",
+        "biomarkers\\apps.py",
+        "biomarkers\\models.py",
+        "biomarkers\\tests.py",
+        "biomarkers\\urls.py",
+        "biomarkers\\views.py"
+      ],
+      "models": [
+        {
+          "name": "BiomarkerKinetics",
+          "fields": [
+            "patient",
+            "pla2r_baseline",
+            "pla2r_latest",
+            "pla2r_nadir",
+            "pla2r_baseline_date",
+            "pla2r_pct_decline",
+            "pla2r_50pct_decline",
+            "pla2r_50pct_date",
+            "pla2r_50pct_days",
+            "pla2r_immunological_remission",
+            "pla2r_remission_date",
+            "c3_recovered",
+            "c3_recovered_date",
+            "c4_recovered",
+            "c4_recovered_date",
+            "dsdna_baseline",
+            "dsdna_latest",
+            "dsdna_normalized",
+            "dsdna_normalized_date",
+            "computed_at"
+          ],
+          "methods": [
+            "__str__",
+            "early_pla2r_responder"
+          ],
+          "meta": {}
+        }
+      ],
+      "views": {
+        "functions": [
+          "_f",
+          "patient_biomarkers",
+          "pla2r_predictor"
+        ],
+        "classes": [],
+        "viewsets": []
+      },
+      "serializers": [],
+      "forms": [],
+      "admin": {
+        "registered_models": [
+          {
+            "model": "BiomarkerKinetics",
+            "decorator": true
+          }
+        ],
+        "admin_classes": [
+          "BiomarkerKineticsAdmin"
+        ]
+      },
+      "urls": {
+        "patterns": [
+          "views.patient_biomarkers",
+          "views.pla2r_predictor"
+        ],
+        "app_name": "biomarkers"
+      },
+      "management_commands": [
+        {
+          "name": "compute_biomarkers",
+          "file": "biomarkers\\management\\commands\\compute_biomarkers.py",
+          "help": "Recompute BiomarkerKinetics rows from the lab series.",
+          "functions": []
+        }
+      ],
+      "signals": [],
+      "templates": [],
+      "migrations": {
+        "count": 1,
+        "files": [
+          "0001_initial.py"
+        ]
+      },
+      "static_files": [],
+      "tests": {
+        "test_files": [
+          "biomarkers\\tests.py"
+        ],
+        "test_count": 1
+      },
+      "celery_tasks": [],
+      "middleware": [],
+      "templatetags": [],
+      "apps_config": "biomarkers",
+      "docstrings": "",
+      "models_module_doc": "Biomarker kinetics (protocol §9.3, portfolio Study 6).\n\nComputed per-patient from the longitudinal LabResult series — like PatientOutcome,\nnot hand-entered. Headline is anti-PLA2R in membranous nephropathy:\n\n  * >=50% decline (early decline = strong predictor of later remission)\n  * seroconversion to negative = IMMUNOLOGICAL REMISSION (precedes proteinuria\n    remission), with first-achieved dates so it is a time-to-event endpoint\n\nPlus complement recovery (C3/C4 normalisation in LN/C3G) and anti-dsDNA\nnormalisation (LN)."
+    },
+    "clinic": {
+      "name": "clinic",
+      "exists": true,
+      "path": "clinic",
+      "files": [
+        "clinic\\__init__.py",
+        "clinic\\forms.py",
+        "clinic\\urls.py",
+        "clinic\\views.py"
+      ],
+      "models": [],
+      "views": {
+        "functions": [
+          "_save_labs",
+          "patients_list",
+          "quicksearch",
+          "patient_dupcheck",
+          "patient_create",
+          "patient_delete",
+          "patient_edit",
+          "_get_recommendation_audit_records",
+          "patient_detail",
+          "baseline_edit",
+          "_sync_level2_from_followup",
+          "followup_create",
+          "patient_register",
+          "relapse_create",
+          "admission_create",
+          "adverse_event_create",
+          "_sync_biopsy_to_patient",
+          "biopsy_create",
+          "study_enroll",
+          "consent_manage",
+          "treatment_add",
+          "prescription_create",
+          "outcome_recompute",
+          "prescriptions_list",
+          "quality_page",
+          "analytics_page",
+          "export_page",
+          "worklist_page",
+          "_safe_call",
+          "studies_page",
+          "drug_intelligence_page",
+          "drug_intelligence_detail",
+          "recommendation_feedback",
+          "safety_page",
+          "pathology_page",
+          "biomarkers_page",
+          "lab_order_create",
+          "lab_results_entry",
+          "cox_results",
+          "egfr_slope_results",
+          "cif_results",
+          "help_index",
+          "help_user",
+          "help_admin",
+          "help_developer"
+        ],
+        "classes": [],
+        "viewsets": []
+      },
+      "serializers": [],
+      "forms": [
+        "PatientForm",
+        "BaselineForm",
+        "AdverseEventForm",
+        "BiopsyForm",
+        "GNDiagnosisForm",
+        "IgANScoreForm",
+        "LupusPathologyForm",
+        "FSGSPathologyForm",
+        "MembranousPathologyForm",
+        "StudyEnrollmentForm",
+        "TreatmentExposureForm",
+        "ConsentForm",
+        "FollowupForm",
+        "RelapseForm",
+        "AdmissionForm",
+        "RegisterForm",
+        "LabResultsForm",
+        "LabOrderForm"
+      ],
+      "admin": {
+        "registered_models": [],
+        "admin_classes": []
+      },
+      "urls": {
+        "patterns": [
+          "views.patients_list",
+          "views.quicksearch",
+          "views.patient_dupcheck",
+          "views.patient_create",
+          "views.patient_detail",
+          "views.patient_edit",
+          "views.patient_delete",
+          "views.baseline_edit",
+          "views.followup_create",
+          "views.prescription_create",
+          "views.adverse_event_create",
+          "views.patient_register",
+          "views.relapse_create",
+          "views.admission_create",
+          "views.biopsy_create",
+          "views.study_enroll",
+          "views.consent_manage",
+          "views.treatment_add",
+          "views.lab_order_create",
+          "views.lab_results_entry",
+          "views.outcome_recompute",
+          "views.worklist_page",
+          "views.quality_page",
+          "views.prescriptions_list",
+          "views.analytics_page",
+          "views.studies_page",
+          "views.safety_page",
+          "views.pathology_page",
+          "views.biomarkers_page",
+          "views.drug_intelligence_page",
+          "views.drug_intelligence_detail",
+          "views.recommendation_feedback",
+          "views.export_page",
+          "views.help_index",
+          "views.help_user",
+          "views.help_admin",
+          "views.help_developer",
+          "views.cox_results",
+          "views.egfr_slope_results",
+          "views.cif_results"
+        ],
+        "app_name": "clinic"
+      },
+      "management_commands": [],
+      "signals": [],
+      "templates": [],
+      "migrations": {
+        "count": 0,
+        "files": []
+      },
+      "static_files": [
+        "clinic\\static\\clinic\\chart.umd.min.js"
+      ],
+      "tests": {
+        "test_files": [],
+        "test_count": 0
+      },
+      "celery_tasks": [],
+      "middleware": [],
+      "templatetags": [
+        "asset_tags"
+      ],
+      "apps_config": "",
+      "docstrings": ""
+    },
+    "clinical": {
+      "name": "clinical",
+      "exists": true,
+      "path": "clinical",
+      "files": [
+        "clinical\\__init__.py",
+        "clinical\\admin.py",
+        "clinical\\apps.py",
+        "clinical\\models.py",
+        "clinical\\serializers.py",
+        "clinical\\tests.py",
+        "clinical\\urls.py",
+        "clinical\\views.py"
+      ],
+      "models": [
+        {
+          "name": "ClinicalAssessment",
+          "fields": [
+            "encounter",
+            "chief_complaint",
+            "time_course",
+            "features",
+            "syndrome_classification",
+            "syndrome_classified_at",
+            "severity_flags",
+            "created_at",
+            "updated_at"
+          ],
+          "methods": [
+            "__str__"
+          ],
+          "meta": {}
+        },
+        {
+          "name": "VitalSign",
+          "fields": [
+            "encounter",
+            "bp_systolic",
+            "bp_diastolic",
+            "heart_rate",
+            "weight_kg",
+            "height_cm",
+            "recorded_at"
+          ],
+          "methods": [],
+          "meta": {}
+        }
+      ],
+      "views": {
+        "functions": [],
+        "classes": [],
+        "viewsets": [
+          "ClinicalAssessmentViewSet",
+          "VitalSignViewSet"
+        ]
+      },
+      "serializers": [
+        "ClinicalAssessmentSerializer",
+        "VitalSignSerializer"
+      ],
+      "forms": [],
+      "admin": {
+        "registered_models": [
+          {
+            "model": "ClinicalAssessment",
+            "decorator": true
+          },
+          {
+            "model": "VitalSign",
+            "decorator": true
+          }
+        ],
+        "admin_classes": [
+          "ClinicalAssessmentAdmin",
+          "VitalSignAdmin"
+        ]
+      },
+      "urls": {
+        "patterns": [
+          "views.ClinicalAssessmentViewSet",
+          "views.VitalSignViewSet"
+        ],
+        "app_name": "clinical"
+      },
+      "management_commands": [],
+      "signals": [],
+      "templates": [],
+      "migrations": {
+        "count": 1,
+        "files": [
+          "0001_initial.py"
+        ]
+      },
+      "static_files": [],
+      "tests": {
+        "test_files": [
+          "clinical\\tests.py"
+        ],
+        "test_count": 1
+      },
+      "celery_tasks": [],
+      "middleware": [],
+      "templatetags": [],
+      "apps_config": "clinical",
+      "docstrings": "",
+      "models_module_doc": ""
+    },
+    "clinical_reasoning": {
+      "name": "clinical_reasoning",
+      "exists": true,
+      "path": "clinical_reasoning",
+      "files": [
+        "clinical_reasoning\\__init__.py",
+        "clinical_reasoning\\admin.py",
+        "clinical_reasoning\\apps.py",
+        "clinical_reasoning\\checks.py",
+        "clinical_reasoning\\event_handlers.py",
+        "clinical_reasoning\\json_util.py",
+        "clinical_reasoning\\models.py",
+        "clinical_reasoning\\serializers.py",
+        "clinical_reasoning\\tasks.py",
+        "clinical_reasoning\\urls.py",
+        "clinical_reasoning\\views.py"
+      ],
+      "models": [
+        {
+          "name": "ClinicalProfile",
+          "fields": [
+            "patient",
+            "features_snapshot",
+            "differential",
+            "disease_trajectory",
+            "care_pathway",
+            "risk_assessment",
+            "evidence_summary",
+            "reasoning_chain",
+            "information_gaps",
+            "milestones",
+            "last_updated",
+            "version"
+          ],
+          "methods": [
+            "__str__"
+          ],
+          "meta": {}
+        },
+        {
+          "name": "ClinicalInsight",
+          "fields": [
+            "patient",
+            "category",
+            "priority",
+            "title",
+            "description",
+            "evidence",
+            "guidelines",
+            "reasoning",
+            "actionable",
+            "dismissed",
+            "created_at",
+            "expires_at"
+          ],
+          "methods": [
+            "__str__"
+          ],
+          "meta": {}
+        }
+      ],
+      "views": {
+        "functions": [],
+        "classes": [],
+        "viewsets": [
+          "ClinicalProfileViewSet",
+          "ClinicalInsightViewSet",
+          "RecommendationAuditViewSet"
+        ]
+      },
+      "serializers": [
+        "ClinicalProfileSerializer",
+        "ClinicalInsightSerializer",
+        "ReasoningRequestSerializer",
+        "RecommendationAuditSerializer",
+        "ReviewRecommendationSerializer",
+        "ExplainabilityRequestSerializer",
+        "ManagementPlanRequestSerializer",
+        "MonitoringPlanRequestSerializer",
+        "FollowUpScheduleRequestSerializer",
+        "PatientRequestSerializer",
+        "InvestigationRecommendationRequestSerializer",
+        "DiseaseValidationRequestSerializer"
+      ],
+      "forms": [],
+      "admin": {
+        "registered_models": [
+          {
+            "model": "ClinicalProfile",
+            "decorator": true
+          },
+          {
+            "model": "ClinicalInsight",
+            "decorator": true
+          }
+        ],
+        "admin_classes": [
+          "ClinicalProfileAdmin",
+          "ClinicalInsightAdmin"
+        ]
+      },
+      "urls": {
+        "patterns": [
+          "views.ClinicalProfileViewSet",
+          "views.ClinicalInsightViewSet",
+          "views.RecommendationAuditViewSet"
+        ],
+        "app_name": "clinical_reasoning"
+      },
+      "management_commands": [
+        {
+          "name": "deactivate_test_rules",
+          "file": "clinical_reasoning\\management\\commands\\deactivate_test_rules.py",
+          "help": "Deactivate all TEST-* knowledge base rules to draft status",
+          "functions": []
+        }
+      ],
+      "signals": [],
+      "templates": [],
+      "migrations": {
+        "count": 2,
+        "files": [
+          "0001_initial.py",
+          "0002_clinicalprofile_milestones.py"
+        ]
+      },
+      "static_files": [],
+      "tests": {
+        "test_files": [],
+        "test_count": 0
+      },
+      "celery_tasks": [
+        "async_reason_about_patient",
+        "async_compute_outcome",
+        "async_reason_and_outcome"
+      ],
+      "middleware": [],
+      "templatetags": [],
+      "apps_config": "clinical_reasoning",
+      "docstrings": "",
+      "models_module_doc": "Clinical Reasoning Engine models.\n\nContinuously updated per-patient profiles aggregating data from all\nclinical modules into structured reasoning artifacts."
+    },
+    "decision": {
+      "name": "decision",
+      "exists": true,
+      "path": "decision",
+      "files": [
+        "decision\\__init__.py",
+        "decision\\admin.py",
+        "decision\\apps.py",
+        "decision\\explainability.py",
+        "decision\\models.py",
+        "decision\\serializers.py",
+        "decision\\services.py",
+        "decision\\urls.py",
+        "decision\\views.py"
+      ],
+      "models": [
+        {
+          "name": "DecisionRequest",
+          "fields": [
+            "patient",
+            "encounter",
+            "input_snapshot",
+            "created_at"
+          ],
+          "methods": [
+            "__str__"
+          ],
+          "meta": {}
+        },
+        {
+          "name": "DecisionResult",
+          "fields": [
+            "request",
+            "phenotype",
+            "urgency_level",
+            "urgency_tone",
+            "urgency_reasons",
+            "ranked_differential",
+            "next_steps",
+            "traceability",
+            "explanation",
+            "created_at",
+            "override_reason",
+            "alternative_diagnosis",
+            "clinician_notes",
+            "overridden_by",
+            "override_at"
+          ],
+          "methods": [
+            "__str__"
+          ],
+          "meta": {}
+        }
+      ],
+      "views": {
+        "functions": [],
+        "classes": [],
+        "viewsets": [
+          "DecisionViewSet",
+          "DecisionResultViewSet"
+        ]
+      },
+      "serializers": [
+        "DecisionRequestSerializer",
+        "DecisionResultSerializer",
+        "OverrideDecisionSerializer",
+        "CalculatorRequestSerializer",
+        "EGFRCalculatorSerializer",
+        "BSACalculatorSerializer",
+        "ProteinuriaConverterSerializer",
+        "RenalDoseSerializer",
+        "KDIGOHeatmapSerializer"
+      ],
+      "forms": [],
+      "admin": {
+        "registered_models": [
+          {
+            "model": "DecisionRequest",
+            "decorator": true
+          },
+          {
+            "model": "DecisionResult",
+            "decorator": true
+          }
+        ],
+        "admin_classes": [
+          "DecisionRequestAdmin",
+          "DecisionResultAdmin"
+        ]
+      },
+      "urls": {
+        "patterns": [],
+        "app_name": ""
+      },
+      "management_commands": [],
+      "signals": [],
+      "templates": [],
+      "migrations": {
+        "count": 2,
+        "files": [
+          "0001_initial.py",
+          "0002_decisionresult_alternative_diagnosis_and_more.py"
+        ]
+      },
+      "static_files": [],
+      "tests": {
+        "test_files": [],
+        "test_count": 0
+      },
+      "celery_tasks": [],
+      "middleware": [],
+      "templatetags": [],
+      "apps_config": "decision",
+      "docstrings": "",
+      "models_module_doc": ""
+    },
+    "desktop": {
+      "name": "desktop",
+      "exists": true,
+      "path": "desktop",
+      "files": [
+        "desktop\\__init__.py",
+        "desktop\\hardening.py",
+        "desktop\\launcher-Dr-Wasim-2.py",
+        "desktop\\launcher-Dr-Wasim.py",
+        "desktop\\launcher.py",
+        "desktop\\safe_migrate.py"
+      ],
+      "models": [],
+      "views": {
+        "functions": [],
+        "classes": [],
+        "viewsets": []
+      },
+      "serializers": [],
+      "forms": [],
+      "admin": {
+        "registered_models": [],
+        "admin_classes": []
+      },
+      "urls": {
+        "patterns": [],
+        "app_name": ""
+      },
+      "management_commands": [],
+      "signals": [],
+      "templates": [],
+      "migrations": {
+        "count": 0,
+        "files": []
+      },
+      "static_files": [],
+      "tests": {
+        "test_files": [],
+        "test_count": 0
+      },
+      "celery_tasks": [],
+      "middleware": [],
+      "templatetags": [],
+      "apps_config": "",
+      "docstrings": ""
+    },
+    "encounters": {
+      "name": "encounters",
+      "exists": true,
+      "path": "encounters",
+      "files": [
+        "encounters\\__init__.py",
+        "encounters\\admin.py",
+        "encounters\\apps.py",
+        "encounters\\models.py"
+      ],
+      "models": [
+        {
+          "name": "ClinicalEncounter",
+          "fields": [
+            "patient",
+            "encounter_date",
+            "encounter_type",
+            "seen_by",
+            "clinic_location",
+            "systolic_bp",
+            "diastolic_bp",
+            "weight_kg",
+            "edema_grade",
+            "symptoms",
+            "clinician_response",
+            "disease_phase",
+            "treatment_adjusted",
+            "advice",
+            "next_due_date",
+            "created_at"
+          ],
+          "methods": [
+            "clean",
+            "__str__"
+          ],
+          "meta": {}
+        },
+        {
+          "name": "Admission",
+          "fields": [
+            "patient",
+            "admit_date",
+            "discharge_date",
+            "ward",
+            "reason",
+            "biopsy",
+            "baseline_captured",
+            "discharge_advice",
+            "created_at"
+          ],
+          "methods": [
+            "__str__"
+          ],
+          "meta": {}
+        },
+        {
+          "name": "RelapseEpisode",
+          "fields": [
+            "patient",
+            "encounter",
+            "relapse_date",
+            "relapse_type",
+            "criteria",
+            "action_taken",
+            "created_at"
+          ],
+          "methods": [
+            "__str__"
+          ],
+          "meta": {}
+        },
+        {
+          "name": "ClinicalEvent",
+          "fields": [
+            "HARD_KIDNEY",
+            "patient",
+            "event_type",
+            "event_date",
+            "encounter",
+            "notes",
+            "created_at"
+          ],
+          "methods": [
+            "__str__"
+          ],
+          "meta": {}
+        }
+      ],
+      "views": {
+        "functions": [],
+        "classes": [],
+        "viewsets": []
+      },
+      "serializers": [],
+      "forms": [],
+      "admin": {
+        "registered_models": [
+          {
+            "model": "ClinicalEvent",
+            "decorator": true
+          },
+          {
+            "model": "ClinicalEncounter",
+            "decorator": true
+          }
+        ],
+        "admin_classes": [
+          "ClinicalEventAdmin",
+          "ClinicalEncounterAdmin"
+        ]
+      },
+      "urls": {
+        "patterns": [],
+        "app_name": ""
+      },
+      "management_commands": [],
+      "signals": [],
+      "templates": [],
+      "migrations": {
+        "count": 3,
+        "files": [
+          "0001_initial.py",
+          "0002_clinicalevent.py",
+          "0003_clinicalencounter_clinician_response_and_more.py"
+        ]
+      },
+      "static_files": [],
+      "tests": {
+        "test_files": [],
+        "test_count": 0
+      },
+      "celery_tasks": [],
+      "middleware": [],
+      "templatetags": [],
+      "apps_config": "encounters",
+      "docstrings": "",
+      "models_module_doc": "ClinicalEncounter — the hub of the real-world workflow. One encounter per visit.\nThe prescription, the follow-up clinical data, and the lab orders all hang off\nit, so the single act of \"seeing the patient\" populates the whole registry.\n\nFollowUpVisit here is intentionally light: the longitudinal clinical fields the\nresearch portfolio needs. In the full build it would carry the complete sheet-6\nvariable set; the prescription module only needs the encounter spine."
+    },
+    "events": {
+      "name": "events",
+      "exists": true,
+      "path": "events",
+      "files": [
+        "events\\__init__.py",
+        "events\\admin.py",
+        "events\\apps.py",
+        "events\\celery_tasks.py",
+        "events\\dispatcher.py",
+        "events\\event_types.py",
+        "events\\models.py",
+        "events\\signal_handlers.py"
+      ],
+      "models": [
+        {
+          "name": "Event",
+          "fields": [
+            "event_type",
+            "source_model",
+            "source_pk",
+            "payload",
+            "occurred_at",
+            "processed"
+          ],
+          "methods": [
+            "__str__"
+          ],
+          "meta": {}
+        },
+        {
+          "name": "EventSubscription",
+          "fields": [
+            "event_type",
+            "handler_path",
+            "active",
+            "created_at"
+          ],
+          "methods": [
+            "__str__"
+          ],
+          "meta": {}
+        }
+      ],
+      "views": {
+        "functions": [],
+        "classes": [],
+        "viewsets": []
+      },
+      "serializers": [],
+      "forms": [],
+      "admin": {
+        "registered_models": [
+          {
+            "model": "Event",
+            "decorator": true
+          },
+          {
+            "model": "EventSubscription",
+            "decorator": true
+          }
+        ],
+        "admin_classes": [
+          "EventAdmin",
+          "EventSubscriptionAdmin"
+        ]
+      },
+      "urls": {
+        "patterns": [],
+        "app_name": ""
+      },
+      "management_commands": [],
+      "signals": [],
+      "templates": [],
+      "migrations": {
+        "count": 1,
+        "files": [
+          "0001_initial.py"
+        ]
+      },
+      "static_files": [],
+      "tests": {
+        "test_files": [],
+        "test_count": 0
+      },
+      "celery_tasks": [],
+      "middleware": [],
+      "templatetags": [],
+      "apps_config": "events",
+      "docstrings": "",
+      "models_module_doc": "Event orchestration models — persisted event log and subscriptions."
+    },
+    "feedback": {
+      "name": "feedback",
+      "exists": true,
+      "path": "feedback",
+      "files": [
+        "feedback\\__init__.py",
+        "feedback\\admin.py",
+        "feedback\\apps.py",
+        "feedback\\html_urls.py",
+        "feedback\\middleware.py",
+        "feedback\\models.py",
+        "feedback\\serializers.py",
+        "feedback\\services.py",
+        "feedback\\tests.py",
+        "feedback\\urls.py",
+        "feedback\\views.py"
+      ],
+      "models": [
+        {
+          "name": "FeedbackConfig",
+          "fields": [
+            "key",
+            "value"
+          ],
+          "methods": [
+            "__str__"
+          ],
+          "meta": {}
+        },
+        {
+          "name": "ErrorLog",
+          "fields": [
+            "SEVERITY_CHOICES",
+            "timestamp",
+            "app_version",
+            "knowledge_version",
+            "os_version",
+            "db_version",
+            "user",
+            "module",
+            "page",
+            "action",
+            "stack_trace",
+            "error_type",
+            "severity",
+            "recovered_automatically",
+            "request_data"
+          ],
+          "methods": [
+            "__str__"
+          ],
+          "meta": {}
+        },
+        {
+          "name": "CrashReport",
+          "fields": [
+            "timestamp",
+            "exception_type",
+            "exception_message",
+            "stack_trace",
+            "module",
+            "patient_id_hash",
+            "encounter_id_hash",
+            "url",
+            "workflow",
+            "memory_usage_mb",
+            "recent_actions",
+            "app_version",
+            "knowledge_version"
+          ],
+          "methods": [
+            "__str__"
+          ],
+          "meta": {}
+        },
+        {
+          "name": "ClinicalConflict",
+          "fields": [
+            "timestamp",
+            "patient_id_hash",
+            "disease",
+            "ai_recommendation",
+            "clinician_decision",
+            "difference",
+            "reason",
+            "ai_confidence",
+            "guideline_ref",
+            "knowledge_rule_id",
+            "resolved"
+          ],
+          "methods": [
+            "__str__"
+          ],
+          "meta": {}
+        },
+        {
+          "name": "KnowledgeConflict",
+          "fields": [
+            "CONFLICT_TYPES",
+            "SEVERITY_CHOICES",
+            "timestamp",
+            "conflict_type",
+            "patient_id_hash",
+            "disease",
+            "description",
+            "rule_id_a",
+            "rule_id_b",
+            "severity",
+            "resolved"
+          ],
+          "methods": [
+            "__str__"
+          ],
+          "meta": {}
+        },
+        {
+          "name": "AIFailureLog",
+          "fields": [
+            "FAILURE_TYPES",
+            "timestamp",
+            "failure_type",
+            "patient_id_hash",
+            "disease",
+            "missing_data",
+            "reasoning_chain",
+            "rules_evaluated",
+            "confidence",
+            "knowledge_version",
+            "evidence_retrieved",
+            "ai_output"
+          ],
+          "methods": [
+            "__str__"
+          ],
+          "meta": {}
+        },
+        {
+          "name": "RuleFailureLog",
+          "fields": [
+            "timestamp",
+            "rule_id",
+            "disease",
+            "condition",
+            "missing_feature",
+            "exception_message",
+            "knowledge_version",
+            "patient_feature_summary"
+          ],
+          "methods": [
+            "__str__"
+          ],
+          "meta": {}
+        },
+        {
+          "name": "UserFeedback",
+          "fields": [
+            "FEEDBACK_TYPES",
+            "created_at",
+            "user",
+            "feedback_type",
+            "title",
+            "description",
+            "screenshot",
+            "page_url",
+            "resolved",
+            "resolution_notes"
+          ],
+          "methods": [
+            "__str__"
+          ],
+          "meta": {}
+        },
+        {
+          "name": "WorkflowFeedback",
+          "fields": [
+            "FEEDBACK_TYPES",
+            "created_at",
+            "user",
+            "patient",
+            "feedback_type",
+            "rating",
+            "ACTION_CHOICES",
+            "action",
+            "recommendation_ref",
+            "comments",
+            "recommendation_audit"
+          ],
+          "methods": [
+            "__str__"
+          ],
+          "meta": {}
+        },
+        {
+          "name": "PerformanceLog",
+          "fields": [
+            "METRIC_CHOICES",
+            "timestamp",
+            "metric_name",
+            "duration_ms",
+            "value",
+            "module",
+            "page",
+            "url",
+            "user",
+            "metadata"
+          ],
+          "methods": [
+            "__str__"
+          ],
+          "meta": {}
+        },
+        {
+          "name": "KnowledgeImprovementSuggestion",
+          "fields": [
+            "STATUS_CHOICES",
+            "created_at",
+            "rule_id",
+            "disease",
+            "override_count",
+            "common_override_reason",
+            "current_recommendation",
+            "suggested_change",
+            "supporting_evidence",
+            "status",
+            "reviewed_by",
+            "reviewed_at",
+            "reviewer_notes"
+          ],
+          "methods": [
+            "__str__"
+          ],
+          "meta": {}
+        },
+        {
+          "name": "FeedbackExport",
+          "fields": [
+            "exported_at",
+            "exported_by",
+            "filename",
+            "size_bytes",
+            "date_from",
+            "date_to",
+            "included_sections",
+            "export_hash"
+          ],
+          "methods": [
+            "__str__"
+          ],
+          "meta": {}
+        },
+        {
+          "name": "TelemetrySettings",
+          "fields": [
+            "SYNC_CHOICES",
+            "enabled",
+            "sync_interval",
+            "auto_crash_reporting",
+            "auto_performance_reporting",
+            "github_repo",
+            "github_token",
+            "last_upload",
+            "pending_count"
+          ],
+          "methods": [
+            "__str__",
+            "load"
+          ],
+          "meta": {}
+        },
+        {
+          "name": "ErrorOccurrence",
+          "fields": [
+            "SEVERITY_CHOICES",
+            "QUEUE_STATE_CHOICES",
+            "fingerprint",
+            "exception_type",
+            "exception_message",
+            "module",
+            "function_name",
+            "line_number",
+            "stack_trace",
+            "stack_hash",
+            "severity",
+            "occurrence_count",
+            "first_seen",
+            "last_seen",
+            "queue_state",
+            "github_issue_number",
+            "github_issue_url",
+            "last_upload_attempt",
+            "upload_fail_count",
+            "app_version",
+            "os_version",
+            "python_version",
+            "django_version",
+            "sample_context"
+          ],
+          "methods": [
+            "__str__"
+          ],
+          "meta": {}
+        },
+        {
+          "name": "UploadBatch",
+          "fields": [
+            "STATE_CHOICES",
+            "started_at",
+            "finished_at",
+            "state",
+            "errors_uploaded",
+            "errors_failed",
+            "errors_skipped",
+            "trigger",
+            "log_output"
+          ],
+          "methods": [
+            "__str__"
+          ],
+          "meta": {}
+        }
+      ],
+      "views": {
+        "functions": [
+          "report_clinical_conflict",
+          "report_knowledge_conflict",
+          "log_ai_failure",
+          "log_rule_failure",
+          "generate_suggestions",
+          "summary_report",
+          "export_package",
+          "submit_workflow_feedback",
+          "feedback_dashboard",
+          "report_problem",
+          "conflict_list",
+          "resolve_conflict",
+          "workflow_feedback_page",
+          "improvement_suggestions",
+          "summary_report_view"
+        ],
+        "classes": [],
+        "viewsets": [
+          "FeedbackViewSet",
+          "ErrorLogViewSet",
+          "CrashReportViewSet",
+          "ClinicalConflictViewSet",
+          "KnowledgeConflictViewSet",
+          "AIFailureLogViewSet",
+          "RuleFailureLogViewSet",
+          "UserFeedbackViewSet",
+          "WorkflowFeedbackViewSet",
+          "PerformanceLogViewSet",
+          "KnowledgeImprovementSuggestionViewSet"
+        ]
+      },
+      "serializers": [
+        "ErrorLogSerializer",
+        "CrashReportSerializer",
+        "ClinicalConflictSerializer",
+        "KnowledgeConflictSerializer",
+        "AIFailureLogSerializer",
+        "RuleFailureLogSerializer",
+        "UserFeedbackSerializer",
+        "WorkflowFeedbackSerializer",
+        "PerformanceLogSerializer",
+        "KnowledgeImprovementSuggestionSerializer"
+      ],
+      "forms": [],
+      "admin": {
+        "registered_models": [
+          {
+            "model": "ErrorLog",
+            "decorator": true
+          },
+          {
+            "model": "CrashReport",
+            "decorator": true
+          },
+          {
+            "model": "ClinicalConflict",
+            "decorator": true
+          },
+          {
+            "model": "KnowledgeConflict",
+            "decorator": true
+          },
+          {
+            "model": "AIFailureLog",
+            "decorator": true
+          },
+          {
+            "model": "RuleFailureLog",
+            "decorator": true
+          },
+          {
+            "model": "UserFeedback",
+            "decorator": true
+          },
+          {
+            "model": "WorkflowFeedback",
+            "decorator": true
+          },
+          {
+            "model": "PerformanceLog",
+            "decorator": true
+          },
+          {
+            "model": "KnowledgeImprovementSuggestion",
+            "decorator": true
+          },
+          {
+            "model": "FeedbackExport",
+            "decorator": true
+          },
+          {
+            "model": "FeedbackConfig",
+            "decorator": true
+          },
+          {
+            "model": "TelemetrySettings",
+            "decorator": true
+          },
+          {
+            "model": "ErrorOccurrence",
+            "decorator": true
+          },
+          {
+            "model": "UploadBatch",
+            "decorator": true
+          }
+        ],
+        "admin_classes": [
+          "ErrorLogAdmin",
+          "CrashReportAdmin",
+          "ClinicalConflictAdmin",
+          "KnowledgeConflictAdmin",
+          "AIFailureLogAdmin",
+          "RuleFailureLogAdmin",
+          "UserFeedbackAdmin",
+          "WorkflowFeedbackAdmin",
+          "PerformanceLogAdmin",
+          "KnowledgeImprovementSuggestionAdmin",
+          "FeedbackExportAdmin",
+          "FeedbackConfigAdmin",
+          "TelemetrySettingsAdmin",
+          "ErrorOccurrenceAdmin",
+          "UploadBatchAdmin"
+        ]
+      },
+      "urls": {
+        "patterns": [
+          "views.ErrorLogViewSet",
+          "views.CrashReportViewSet",
+          "views.ClinicalConflictViewSet",
+          "views.KnowledgeConflictViewSet",
+          "views.AIFailureLogViewSet",
+          "views.RuleFailureLogViewSet",
+          "views.UserFeedbackViewSet",
+          "views.WorkflowFeedbackViewSet",
+          "views.PerformanceLogViewSet",
+          "views.KnowledgeImprovementSuggestionViewSet",
+          "views.report_clinical_conflict",
+          "views.report_knowledge_conflict",
+          "views.log_ai_failure",
+          "views.log_rule_failure",
+          "views.generate_suggestions",
+          "views.export_package",
+          "views.submit_workflow_feedback",
+          "views.summary_report"
+        ],
+        "app_name": "",
+        "html_urls": [
+          "views.feedback_dashboard",
+          "views.report_problem",
+          "views.conflict_list",
+          "views.resolve_conflict",
+          "views.workflow_feedback_page",
+          "views.improvement_suggestions",
+          "views.summary_report_view"
+        ]
+      },
+      "management_commands": [
+        {
+          "name": "export_feedback_package",
+          "file": "feedback\\management\\commands\\export_feedback_package.py",
+          "help": "Export a de-identified feedback package ZIP",
+          "functions": []
+        },
+        {
+          "name": "import_feedback",
+          "file": "feedback\\management\\commands\\import_feedback.py",
+          "help": "Import feedback packages for analysis (developer PC)",
+          "functions": [
+            "parse_dt"
+          ]
+        },
+        {
+          "name": "upload_logs",
+          "file": "feedback\\management\\commands\\upload_logs.py",
+          "help": "Upload pending error reports to GitHub",
+          "functions": []
+        }
+      ],
+      "signals": [],
+      "templates": [],
+      "migrations": {
+        "count": 4,
+        "files": [
+          "0001_initial.py",
+          "0002_telemetrysettings_uploadbatch_erroroccurrence.py",
+          "0003_workflowfeedback_action_and_more.py",
+          "0004_fix_github_repo_default.py"
+        ]
+      },
+      "static_files": [],
+      "tests": {
+        "test_files": [
+          "feedback\\tests.py"
+        ],
+        "test_count": 1
+      },
+      "celery_tasks": [],
+      "middleware": [
+        "FeedbackMiddleware"
+      ],
+      "templatetags": [],
+      "apps_config": "feedback",
+      "docstrings": "",
+      "models_module_doc": ""
+    },
+    "fhir": {
+      "name": "fhir",
+      "exists": true,
+      "path": "fhir",
+      "files": [
+        "fhir\\__init__.py",
+        "fhir\\apps.py",
+        "fhir\\export.py",
+        "fhir\\import_fhir.py",
+        "fhir\\urls.py",
+        "fhir\\views.py"
+      ],
+      "models": [],
+      "views": {
+        "functions": [
+          "fhir_capabilities",
+          "fhir_export_patient",
+          "fhir_export_all",
+          "fhir_import"
+        ],
+        "classes": [],
+        "viewsets": []
+      },
+      "serializers": [],
+      "forms": [],
+      "admin": {
+        "registered_models": [],
+        "admin_classes": []
+      },
+      "urls": {
+        "patterns": [
+          "views.fhir_capabilities",
+          "views.fhir_export_patient",
+          "views.fhir_export_all",
+          "views.fhir_import",
+          "views.fhir_export_all"
+        ],
+        "app_name": "fhir"
+      },
+      "management_commands": [],
+      "signals": [],
+      "templates": [],
+      "migrations": {
+        "count": 0,
+        "files": []
+      },
+      "static_files": [],
+      "tests": {
+        "test_files": [],
+        "test_count": 0
+      },
+      "celery_tasks": [],
+      "middleware": [],
+      "templatetags": [],
+      "apps_config": "fhir",
+      "docstrings": ""
+    },
+    "followup": {
+      "name": "followup",
+      "exists": true,
+      "path": "followup",
+      "files": [
+        "followup\\__init__.py",
+        "followup\\admin.py",
+        "followup\\apps.py",
+        "followup\\event_handlers.py",
+        "followup\\models.py",
+        "followup\\tests.py",
+        "followup\\urls.py",
+        "followup\\views.py"
+      ],
+      "models": [
+        {
+          "name": "FollowUpTask",
+          "fields": [
+            "patient",
+            "task_type",
+            "priority",
+            "reason",
+            "clinical_reason",
+            "due_date",
+            "overdue_date",
+            "status",
+            "assigned_to",
+            "completed_at",
+            "completed_by",
+            "escalation_level",
+            "escalated_at",
+            "protocol_label",
+            "related_encounter",
+            "created_at",
+            "updated_at"
+          ],
+          "methods": [
+            "__str__"
+          ],
+          "meta": {}
+        }
+      ],
+      "views": {
+        "functions": [],
+        "classes": [
+          "FollowUpTaskSerializer"
+        ],
+        "viewsets": [
+          "FollowUpTaskViewSet",
+          "FollowUpPlanViewSet"
+        ]
+      },
+      "serializers": [],
+      "forms": [],
+      "admin": {
+        "registered_models": [
+          {
+            "model": "FollowUpTask",
+            "decorator": true
+          }
+        ],
+        "admin_classes": [
+          "FollowUpTaskAdmin"
+        ]
+      },
+      "urls": {
+        "patterns": [
+          "views.FollowUpTaskViewSet",
+          "views.FollowUpPlanViewSet"
+        ],
+        "app_name": "followup"
+      },
+      "management_commands": [
+        {
+          "name": "followup_engine",
+          "file": "followup\\management\\commands\\followup_engine.py",
+          "help": "Interact with the follow-up engine",
+          "functions": []
+        }
+      ],
+      "signals": [],
+      "templates": [],
+      "migrations": {
+        "count": 1,
+        "files": [
+          "0001_initial.py"
+        ]
+      },
+      "static_files": [],
+      "tests": {
+        "test_files": [
+          "followup\\tests.py"
+        ],
+        "test_count": 1
+      },
+      "celery_tasks": [],
+      "middleware": [],
+      "templatetags": [],
+      "apps_config": "followup",
+      "docstrings": "",
+      "models_module_doc": ""
+    },
+    "knowledge": {
+      "name": "knowledge",
+      "exists": true,
+      "path": "knowledge",
+      "files": [
+        "knowledge\\__init__.py",
+        "knowledge\\admin.py",
+        "knowledge\\apps.py",
+        "knowledge\\authoring.py",
+        "knowledge\\bootstrap.py",
+        "knowledge\\evidence_engine.py",
+        "knowledge\\graph_reasoning.py",
+        "knowledge\\graph_service.py",
+        "knowledge\\guideline_import.py",
+        "knowledge\\guideline_parser.py",
+        "knowledge\\guideline_reference.py",
+        "knowledge\\kb_update.py",
+        "knowledge\\kb_version.py",
+        "knowledge\\knowledge_versioning.py",
+        "knowledge\\models.py",
+        "knowledge\\rule_tester.py",
+        "knowledge\\rule_validator.py",
+        "knowledge\\serializers.py",
+        "knowledge\\services.py",
+        "knowledge\\tests.py",
+        "knowledge\\tests_api.py",
+        "knowledge\\tests_service_modules.py",
+        "knowledge\\urls.py",
+        "knowledge\\views.py"
+      ],
+      "models": [
+        {
+          "name": "GuidelineSource",
+          "fields": [
+            "title",
+            "abbreviation",
+            "version_year",
+            "url",
+            "effective_date",
+            "retired_date"
+          ],
+          "methods": [
+            "__str__"
+          ],
+          "meta": {}
+        },
+        {
+          "name": "KnowledgeBaseEntry",
+          "fields": [
+            "entry_id",
+            "disease_id",
+            "rule_data",
+            "source",
+            "evidence_grade",
+            "rule_type",
+            "status",
+            "effective_date",
+            "retired_date",
+            "tags",
+            "review_notes",
+            "created_at",
+            "updated_at",
+            "guideline_chapter",
+            "guideline_paragraph",
+            "guideline_quote",
+            "evidence_url",
+            "author",
+            "approved_by",
+            "approved_at",
+            "next_review_date",
+            "confidence_score",
+            "explanation",
+            "override_allowed",
+            "recommendation_id",
+            "knowledge_version",
+            "date_validated"
+          ],
+          "methods": [
+            "transition_to",
+            "__str__"
+          ],
+          "meta": {}
+        },
+        {
+          "name": "KnowledgeBaseVersion",
+          "fields": [
+            "entry",
+            "version_number",
+            "rule_data",
+            "rule_data_diff",
+            "evidence_grade",
+            "guideline_chapter",
+            "guideline_paragraph",
+            "guideline_quote",
+            "change_summary",
+            "changed_by",
+            "created_at"
+          ],
+          "methods": [
+            "__str__"
+          ],
+          "meta": {}
+        },
+        {
+          "name": "RuleTemplate",
+          "fields": [
+            "template_id",
+            "name",
+            "description",
+            "category",
+            "condition_schema",
+            "created_at"
+          ],
+          "methods": [
+            "__str__"
+          ],
+          "meta": {}
+        },
+        {
+          "name": "RuleReview",
+          "fields": [
+            "entry",
+            "version",
+            "status",
+            "reviewer",
+            "review_notes",
+            "created_at"
+          ],
+          "methods": [
+            "__str__"
+          ],
+          "meta": {}
+        },
+        {
+          "name": "RuleTestResult",
+          "fields": [
+            "entry",
+            "patient",
+            "test_name",
+            "expected_score",
+            "actual_score",
+            "matched",
+            "test_input",
+            "test_output",
+            "created_at"
+          ],
+          "methods": [
+            "__str__"
+          ],
+          "meta": {}
+        },
+        {
+          "name": "GuidelineDocument",
+          "fields": [
+            "title",
+            "source",
+            "document_type",
+            "content",
+            "import_status",
+            "parsed_rules",
+            "import_log",
+            "imported_at"
+          ],
+          "methods": [
+            "__str__"
+          ],
+          "meta": {}
+        },
+        {
+          "name": "EvidenceEntry",
+          "fields": [
+            "entry",
+            "title",
+            "authors",
+            "journal",
+            "year",
+            "doi",
+            "pmid",
+            "evidence_level",
+            "summary",
+            "url",
+            "created_at"
+          ],
+          "methods": [
+            "__str__"
+          ],
+          "meta": {}
+        },
+        {
+          "name": "Disease",
+          "fields": [
+            "id",
+            "name",
+            "category",
+            "parent_disease",
+            "definition",
+            "epidemiology",
+            "etiology",
+            "pathophysiology",
+            "clinical_presentation",
+            "diagnostic_criteria",
+            "differential_diagnosis",
+            "lab_findings",
+            "biopsy_findings",
+            "classification_systems",
+            "risk_stratification",
+            "treatment_overview",
+            "treatment_algorithms",
+            "monitoring_protocol",
+            "complications",
+            "relapse_information",
+            "long_term_prognosis",
+            "evidence_summary",
+            "guideline_recommendations",
+            "key_references",
+            "notes",
+            "is_active",
+            "created_at",
+            "updated_at"
+          ],
+          "methods": [
+            "__str__"
+          ],
+          "meta": {}
+        },
+        {
+          "name": "ClinicalCase",
+          "fields": [
+            "case_id",
+            "title",
+            "disease",
+            "presentation_type",
+            "history",
+            "examination",
+            "lab_data",
+            "biopsy_data",
+            "diagnosis",
+            "expected_differential",
+            "expected_reasoning",
+            "expected_recommendations",
+            "expected_monitoring",
+            "expected_followup",
+            "treatment",
+            "outcome",
+            "status",
+            "author",
+            "reviewer",
+            "review_notes",
+            "source",
+            "is_gold_standard",
+            "created_at",
+            "updated_at"
+          ],
+          "methods": [
+            "__str__"
+          ],
+          "meta": {}
+        },
+        {
+          "name": "ClinicalPathway",
+          "fields": [
+            "disease",
+            "stage_id",
+            "stage_name",
+            "stage_order",
+            "description",
+            "required_actions",
+            "expected_duration_days",
+            "next_stages",
+            "criteria_to_proceed",
+            "warnings",
+            "is_active"
+          ],
+          "methods": [
+            "__str__"
+          ],
+          "meta": {}
+        },
+        {
+          "name": "Syndrome",
+          "fields": [
+            "id",
+            "name",
+            "definition",
+            "diagnostic_criteria",
+            "common_causes",
+            "rare_causes",
+            "clinical_clues",
+            "lab_clues",
+            "biopsy_clues",
+            "recommended_investigations",
+            "associated_diseases",
+            "immediate_management",
+            "long_term_evaluation",
+            "expected_outcomes",
+            "is_active",
+            "created_at",
+            "updated_at"
+          ],
+          "methods": [
+            "__str__"
+          ],
+          "meta": {}
+        },
+        {
+          "name": "PathologyEntity",
+          "fields": [
+            "id",
+            "name",
+            "definition",
+            "histological_appearance",
+            "clinical_significance",
+            "associated_diseases",
+            "prognostic_value",
+            "treatment_implications",
+            "guideline_references",
+            "is_active",
+            "created_at",
+            "updated_at"
+          ],
+          "methods": [
+            "__str__"
+          ],
+          "meta": {}
+        },
+        {
+          "name": "LabEntity",
+          "fields": [
+            "id",
+            "name",
+            "reference_ranges",
+            "interpretation",
+            "clinical_implications",
+            "associated_diseases",
+            "false_positives",
+            "false_negatives",
+            "repeat_testing",
+            "monitoring_recommendations",
+            "is_active",
+            "created_at",
+            "updated_at"
+          ],
+          "methods": [
+            "__str__"
+          ],
+          "meta": {}
+        },
+        {
+          "name": "DrugIntelligence",
+          "fields": [
+            "id",
+            "name",
+            "drug_class",
+            "mechanism_of_action",
+            "indications",
+            "contraindications",
+            "renal_dosing",
+            "dialysis_dosing",
+            "transplant_considerations",
+            "pregnancy",
+            "lactation",
+            "drug_interactions",
+            "laboratory_monitoring",
+            "vaccination_advice",
+            "common_side_effects",
+            "serious_side_effects",
+            "stopping_criteria",
+            "evidence_level",
+            "guideline_references",
+            "is_active",
+            "created_at",
+            "updated_at"
+          ],
+          "methods": [
+            "__str__"
+          ],
+          "meta": {}
+        },
+        {
+          "name": "MonitoringProtocol",
+          "fields": [
+            "id",
+            "name",
+            "drug",
+            "associated_diseases",
+            "baseline_investigations",
+            "monitoring_schedule",
+            "safety_monitoring",
+            "response_assessment",
+            "dose_adjustment",
+            "treatment_discontinuation",
+            "long_term_surveillance",
+            "is_active",
+            "created_at",
+            "updated_at"
+          ],
+          "methods": [
+            "__str__"
+          ],
+          "meta": {}
+        },
+        {
+          "name": "Complication",
+          "fields": [
+            "id",
+            "name",
+            "risk_factors",
+            "clinical_features",
+            "prevention",
+            "early_detection",
+            "treatment",
+            "monitoring",
+            "long_term_consequences",
+            "associated_diseases",
+            "associated_drugs",
+            "is_active",
+            "created_at",
+            "updated_at"
+          ],
+          "methods": [
+            "__str__"
+          ],
+          "meta": {}
+        },
+        {
+          "name": "KnowledgeGraphNode",
+          "fields": [
+            "node_id",
+            "node_type",
+            "label",
+            "description",
+            "metadata",
+            "is_active",
+            "created_at",
+            "updated_at"
+          ],
+          "methods": [
+            "__str__"
+          ],
+          "meta": {}
+        },
+        {
+          "name": "KnowledgeGraphEdge",
+          "fields": [
+            "source",
+            "target",
+            "edge_type",
+            "weight",
+            "metadata",
+            "is_active",
+            "created_at"
+          ],
+          "methods": [
+            "__str__"
+          ],
+          "meta": {}
+        },
+        {
+          "name": "RecommendationAudit",
+          "fields": [
+            "recommendation_id",
+            "recommendation_type",
+            "patient",
+            "clinician",
+            "disease_id",
+            "recommendation_text",
+            "clinical_rationale",
+            "guideline",
+            "guideline_version",
+            "guideline_section",
+            "guideline_recommendation_id",
+            "evidence_grade",
+            "evidence_source",
+            "confidence_score",
+            "kb_rule_id",
+            "kb_version",
+            "validation_date",
+            "next_review_date",
+            "expert_reviewer",
+            "approval_status",
+            "override_allowed",
+            "override_reason",
+            "explanation",
+            "issued_at",
+            "reviewed_at"
+          ],
+          "methods": [
+            "__str__"
+          ],
+          "meta": {}
+        }
+      ],
+      "views": {
+        "functions": [],
+        "classes": [],
+        "viewsets": [
+          "GuidelineSourceViewSet",
+          "RuleTemplateViewSet",
+          "RuleReviewViewSet",
+          "RuleTestResultViewSet",
+          "GuidelineDocumentViewSet",
+          "EvidenceEntryViewSet",
+          "KnowledgeBaseEntryViewSet",
+          "DiseaseViewSet",
+          "ClinicalCaseViewSet",
+          "ClinicalPathwayViewSet",
+          "SyndromeViewSet",
+          "PathologyEntityViewSet",
+          "LabEntityViewSet",
+          "DrugIntelligenceViewSet",
+          "MonitoringProtocolViewSet",
+          "ComplicationViewSet",
+          "KnowledgeGraphNodeViewSet",
+          "KnowledgeGraphEdgeViewSet",
+          "GraphReasoningViewSet"
+        ]
+      },
+      "serializers": [
+        "GuidelineSourceSerializer",
+        "KnowledgeBaseEntrySerializer",
+        "KnowledgeBaseVersionSerializer",
+        "RuleTemplateSerializer",
+        "RuleReviewSerializer",
+        "RuleTestResultSerializer",
+        "GuidelineDocumentSerializer",
+        "EvidenceEntrySerializer",
+        "RuleEvaluationRequestSerializer",
+        "RuleResultSerializer",
+        "ValidationRequestSerializer",
+        "ValidationResultSerializer",
+        "TestRuleRequestSerializer",
+        "BulkTestRequestSerializer",
+        "ImportGuidelineRequestSerializer",
+        "RollbackRequestSerializer",
+        "DiseaseSerializer",
+        "ClinicalCaseSerializer",
+        "ClinicalPathwaySerializer",
+        "SyndromeSerializer",
+        "PathologyEntitySerializer",
+        "LabEntitySerializer",
+        "DrugIntelligenceSerializer",
+        "MonitoringProtocolSerializer",
+        "ComplicationSerializer",
+        "KnowledgeGraphNodeSerializer",
+        "KnowledgeGraphEdgeSerializer",
+        "ReasoningChainSerializer",
+        "PathResultSerializer"
+      ],
+      "forms": [],
+      "admin": {
+        "registered_models": [
+          {
+            "model": "GuidelineSource",
+            "decorator": true
+          },
+          {
+            "model": "KnowledgeBaseEntry",
+            "decorator": true
+          },
+          {
+            "model": "KnowledgeBaseVersion",
+            "decorator": true
+          },
+          {
+            "model": "RuleTemplate",
+            "decorator": true
+          },
+          {
+            "model": "RuleReview",
+            "decorator": true
+          },
+          {
+            "model": "RuleTestResult",
+            "decorator": true
+          },
+          {
+            "model": "GuidelineDocument",
+            "decorator": true
+          },
+          {
+            "model": "EvidenceEntry",
+            "decorator": true
+          },
+          {
+            "model": "Disease",
+            "decorator": true
+          },
+          {
+            "model": "ClinicalCase",
+            "decorator": true
+          },
+          {
+            "model": "ClinicalPathway",
+            "decorator": true
+          },
+          {
+            "model": "Syndrome",
+            "decorator": true
+          },
+          {
+            "model": "PathologyEntity",
+            "decorator": true
+          },
+          {
+            "model": "LabEntity",
+            "decorator": true
+          },
+          {
+            "model": "DrugIntelligence",
+            "decorator": true
+          },
+          {
+            "model": "MonitoringProtocol",
+            "decorator": true
+          },
+          {
+            "model": "Complication",
+            "decorator": true
+          },
+          {
+            "model": "KnowledgeGraphNode",
+            "decorator": true
+          },
+          {
+            "model": "KnowledgeGraphEdge",
+            "decorator": true
+          },
+          {
+            "model": "RecommendationAudit",
+            "decorator": true
+          }
+        ],
+        "admin_classes": [
+          "GuidelineSourceAdmin",
+          "KnowledgeBaseEntryAdmin",
+          "KnowledgeBaseVersionAdmin",
+          "RuleTemplateAdmin",
+          "RuleReviewAdmin",
+          "RuleTestResultAdmin",
+          "GuidelineDocumentAdmin",
+          "EvidenceEntryAdmin",
+          "DiseaseAdmin",
+          "ClinicalCaseAdmin",
+          "ClinicalPathwayAdmin",
+          "SyndromeAdmin",
+          "PathologyEntityAdmin",
+          "LabEntityAdmin",
+          "DrugIntelligenceAdmin",
+          "MonitoringProtocolAdmin",
+          "ComplicationAdmin",
+          "KnowledgeGraphNodeAdmin",
+          "KnowledgeGraphEdgeAdmin",
+          "RecommendationAuditAdmin"
+        ]
+      },
+      "urls": {
+        "patterns": [
+          "views.GuidelineSourceViewSet",
+          "views.KnowledgeBaseEntryViewSet",
+          "views.RuleTemplateViewSet",
+          "views.RuleReviewViewSet",
+          "views.RuleTestResultViewSet",
+          "views.GuidelineDocumentViewSet",
+          "views.EvidenceEntryViewSet",
+          "views.DiseaseViewSet",
+          "views.ClinicalCaseViewSet",
+          "views.ClinicalPathwayViewSet",
+          "views.SyndromeViewSet",
+          "views.PathologyEntityViewSet",
+          "views.LabEntityViewSet",
+          "views.DrugIntelligenceViewSet",
+          "views.MonitoringProtocolViewSet",
+          "views.ComplicationViewSet",
+          "views.KnowledgeGraphNodeViewSet",
+          "views.KnowledgeGraphEdgeViewSet",
+          "views.GraphReasoningViewSet"
+        ],
+        "app_name": "knowledge"
+      },
+      "management_commands": [
+        {
+          "name": "activate_entries",
+          "file": "knowledge\\management\\commands\\activate_entries.py",
+          "help": "Activate DRAFT knowledge base entries",
+          "functions": []
+        },
+        {
+          "name": "backfill_governance",
+          "file": "knowledge\\management\\commands\\backfill_governance.py",
+          "help": "Backfill missing governance metadata on KB entries",
+          "functions": []
+        },
+        {
+          "name": "export_knowledge_base",
+          "file": "knowledge\\management\\commands\\export_knowledge_base.py",
+          "help": "Export knowledge base entries to a JSON file",
+          "functions": []
+        },
+        {
+          "name": "import_guideline",
+          "file": "knowledge\\management\\commands\\import_guideline.py",
+          "help": "Import rules from a guideline file (JSON, YAML, CSV, markdown)",
+          "functions": []
+        },
+        {
+          "name": "knowledge_dashboard",
+          "file": "knowledge\\management\\commands\\knowledge_dashboard.py",
+          "help": "Display the Knowledge Quality Dashboard",
+          "functions": []
+        },
+        {
+          "name": "load_test_knowledge",
+          "file": "knowledge\\management\\commands\\load_test_knowledge.py",
+          "help": "Load deterministic test knowledge base for integration testing",
+          "functions": []
+        },
+        {
+          "name": "run_rule_tests",
+          "file": "knowledge\\management\\commands\\run_rule_tests.py",
+          "help": "Run tests against active knowledge base rules",
+          "functions": []
+        },
+        {
+          "name": "seed_clinical_cases",
+          "file": "knowledge\\management\\commands\\seed_clinical_cases.py",
+          "help": "Seed V4.0 clinical case library for validation",
+          "functions": []
+        },
+        {
+          "name": "seed_drug_intelligence",
+          "file": "knowledge\\management\\commands\\seed_drug_intelligence.py",
+          "help": "Seed/refresh the DrugIntelligence knowledge base for GN drugs (idempotent).",
+          "functions": []
+        },
+        {
+          "name": "seed_knowledge_base",
+          "file": "knowledge\\management\\commands\\seed_knowledge_base.py",
+          "help": "Seed the knowledge base with expanded disease profiles (200+ rules)",
+          "functions": []
+        },
+        {
+          "name": "seed_missing_diseases",
+          "file": "knowledge\\management\\commands\\seed_missing_diseases.py",
+          "help": "Scaffold missing diseases + DRAFT rules (for expert authoring).",
+          "functions": []
+        },
+        {
+          "name": "seed_v4_knowledge",
+          "file": "knowledge\\management\\commands\\seed_v4_knowledge.py",
+          "help": "Seed V4.0 medical knowledge expansion: diseases, guidelines, pathways, drugs",
+          "functions": []
+        },
+        {
+          "name": "validate_governance",
+          "file": "knowledge\\management\\commands\\validate_governance.py",
+          "help": "Validate governance metadata on ACTIVE knowledge base entries",
+          "functions": []
+        },
+        {
+          "name": "validate_rules",
+          "file": "knowledge\\management\\commands\\validate_rules.py",
+          "help": "Validate knowledge base entries for data integrity",
+          "functions": []
+        }
+      ],
+      "signals": [],
+      "templates": [],
+      "migrations": {
+        "count": 9,
+        "files": [
+          "0001_initial.py",
+          "0002_knowledgebaseentry_evidence_url_and_more.py",
+          "0003_evidenceentry_guidelinedocument_rulereview_and_more.py",
+          "0004_alter_knowledgebaseentry_status_disease_and_more.py",
+          "0005_v42_reusable_knowledge_objects.py",
+          "0006_v42_knowledge_graph.py",
+          "0007_knowledgebaseentry_approved_at_and_more.py",
+          "0008_recommendationaudit.py",
+          "0009_alter_recommendationaudit_evidence_grade.py"
+        ]
+      },
+      "static_files": [],
+      "tests": {
+        "test_files": [
+          "knowledge\\tests.py",
+          "knowledge\\tests_api.py",
+          "knowledge\\tests_service_modules.py"
+        ],
+        "test_count": 3
+      },
+      "celery_tasks": [],
+      "middleware": [],
+      "templatetags": [],
+      "apps_config": "knowledge",
+      "docstrings": "",
+      "models_module_doc": ""
+    },
+    "labs": {
+      "name": "labs",
+      "exists": true,
+      "path": "labs",
+      "files": [
+        "labs\\__init__.py",
+        "labs\\admin.py",
+        "labs\\apps.py",
+        "labs\\models.py",
+        "labs\\tasks.py",
+        "labs\\test_trend_alerts.py",
+        "labs\\tests.py",
+        "labs\\trend_alerts.py"
+      ],
+      "models": [
+        {
+          "name": "LabTest",
+          "fields": [
+            "code",
+            "name",
+            "loinc",
+            "default_unit",
+            "value_type",
+            "ref_low",
+            "ref_high",
+            "is_derived",
+            "is_active"
+          ],
+          "methods": [
+            "__str__"
+          ],
+          "meta": {}
+        },
+        {
+          "name": "LabPanel",
+          "fields": [
+            "code",
+            "name",
+            "tests"
+          ],
+          "methods": [
+            "__str__"
+          ],
+          "meta": {}
+        },
+        {
+          "name": "LabOrder",
+          "fields": [
+            "encounter",
+            "patient",
+            "ordered_date",
+            "status",
+            "notes",
+            "created_at"
+          ],
+          "methods": [
+            "__str__",
+            "refresh_status"
+          ],
+          "meta": {}
+        },
+        {
+          "name": "LabOrderItem",
+          "fields": [
+            "order",
+            "test"
+          ],
+          "methods": [
+            "__str__",
+            "is_resulted"
+          ],
+          "meta": {}
+        },
+        {
+          "name": "LabResult",
+          "fields": [
+            "patient",
+            "test",
+            "order_item",
+            "value_numeric",
+            "value_text",
+            "unit",
+            "sample_date",
+            "result_date",
+            "flag",
+            "source",
+            "derived_from",
+            "formula_version",
+            "created_at"
+          ],
+          "methods": [
+            "clean",
+            "__str__",
+            "series"
+          ],
+          "meta": {}
+        }
+      ],
+      "views": {
+        "functions": [],
+        "classes": [],
+        "viewsets": []
+      },
+      "serializers": [],
+      "forms": [],
+      "admin": {
+        "registered_models": [
+          {
+            "model": "LabTest",
+            "decorator": true
+          },
+          {
+            "model": "LabPanel",
+            "decorator": true
+          },
+          {
+            "model": "LabOrder",
+            "decorator": true
+          },
+          {
+            "model": "LabResult",
+            "decorator": true
+          }
+        ],
+        "admin_classes": [
+          "LabTestAdmin",
+          "LabPanelAdmin",
+          "LabOrderAdmin",
+          "LabResultAdmin"
+        ]
+      },
+      "urls": {
+        "patterns": [],
+        "app_name": ""
+      },
+      "management_commands": [
+        {
+          "name": "seed_labs",
+          "file": "labs\\management\\commands\\seed_labs.py",
+          "help": "Seed lab test catalog and ordering panels.",
+          "functions": []
+        }
+      ],
+      "signals": [],
+      "templates": [],
+      "migrations": {
+        "count": 1,
+        "files": [
+          "0001_initial.py"
+        ]
+      },
+      "static_files": [],
+      "tests": {
+        "test_files": [
+          "labs\\test_trend_alerts.py",
+          "labs\\tests.py"
+        ],
+        "test_count": 2
+      },
+      "celery_tasks": [
+        "detect_lab_trends",
+        "_create_trend_reminders"
+      ],
+      "middleware": [],
+      "templatetags": [],
+      "apps_config": "labs",
+      "docstrings": "",
+      "models_module_doc": "Longitudinal laboratory model.\n\nReal-world flow: a lab is ORDERED at one visit and RESULTED at a later date.\nSo results cannot live as flat baseline columns — they are time-series rows, one\nper (patient, test, date). This is what feeds the trajectories the research\nportfolio depends on: eGFR slope, anti-PLA2R kinetics, proteinuria trends.\n\n    LabTest      — the test catalog (LOINC-ready), reference ranges, units\n    LabPanel     — a named bundle of tests for one-click ordering\n    LabOrder     — placed at a ClinicalEncounter (the \"record the lab\" step)\n    LabOrderItem — one ordered test; gets fulfilled by a LabResult\n    LabResult    — the longitudinal value; eGFR is auto-derived from creatinine"
+    },
+    "pathology": {
+      "name": "pathology",
+      "exists": true,
+      "path": "pathology",
+      "files": [
+        "pathology\\__init__.py",
+        "pathology\\admin.py",
+        "pathology\\apps.py",
+        "pathology\\models.py",
+        "pathology\\tests.py",
+        "pathology\\urls.py",
+        "pathology\\views.py"
+      ],
+      "models": [
+        {
+          "name": "Biopsy",
+          "fields": [
+            "patient",
+            "biopsy_date",
+            "adequacy",
+            "indication",
+            "result_category",
+            "review_status",
+            "total_glomeruli",
+            "global_sclerosis_pct",
+            "ifta_pct",
+            "arteriosclerosis",
+            "arteriolar_hyalinosis",
+            "dkd_lesion_present",
+            "crescents_present",
+            "crescent_pct",
+            "necrosis_present",
+            "if_pattern",
+            "em_findings",
+            "notes",
+            "created_at",
+            "updated_at"
+          ],
+          "methods": [
+            "__str__"
+          ],
+          "meta": {}
+        },
+        {
+          "name": "GNDiagnosis",
+          "fields": [
+            "biopsy",
+            "diagnosis",
+            "broad_group",
+            "pathogenesis_group",
+            "primary_secondary",
+            "secondary_cause"
+          ],
+          "methods": [
+            "__str__"
+          ],
+          "meta": {}
+        },
+        {
+          "name": "IgANScore",
+          "fields": [
+            "biopsy",
+            "M",
+            "E",
+            "S",
+            "T",
+            "C"
+          ],
+          "methods": [
+            "__str__"
+          ],
+          "meta": {}
+        },
+        {
+          "name": "LupusPathology",
+          "fields": [
+            "biopsy",
+            "isn_rps_class",
+            "activity_index",
+            "chronicity_index"
+          ],
+          "methods": [
+            "__str__"
+          ],
+          "meta": {}
+        },
+        {
+          "name": "FSGSPathology",
+          "fields": [
+            "biopsy",
+            "primary_secondary",
+            "variant"
+          ],
+          "methods": [
+            "__str__"
+          ],
+          "meta": {}
+        },
+        {
+          "name": "MembranousPathology",
+          "fields": [
+            "biopsy",
+            "pla2r_tissue",
+            "thsd7a_tissue",
+            "mn_stage"
+          ],
+          "methods": [
+            "__str__"
+          ],
+          "meta": {}
+        },
+        {
+          "name": "BiopsyImage",
+          "fields": [
+            "biopsy",
+            "image",
+            "stain",
+            "description",
+            "uploaded_at"
+          ],
+          "methods": [
+            "__str__",
+            "clean"
+          ],
+          "meta": {}
+        },
+        {
+          "name": "PathologyReview",
+          "fields": [
+            "KEY_FIELDS",
+            "biopsy",
+            "role",
+            "reviewer",
+            "review_date",
+            "diagnosis",
+            "broad_group",
+            "mest_m",
+            "mest_e",
+            "mest_s",
+            "mest_t",
+            "mest_c",
+            "isn_rps_class",
+            "fsgs_variant",
+            "is_final",
+            "notes",
+            "created_at"
+          ],
+          "methods": [
+            "__str__"
+          ],
+          "meta": {}
+        }
+      ],
+      "views": {
+        "functions": [
+          "_review_dict",
+          "biopsy_review",
+          "discordant",
+          "agreement"
+        ],
+        "classes": [],
+        "viewsets": []
+      },
+      "serializers": [],
+      "forms": [],
+      "admin": {
+        "registered_models": [
+          {
+            "model": "PathologyReview",
+            "decorator": true
+          },
+          {
+            "model": "Biopsy",
+            "decorator": true
+          },
+          {
+            "model": "GNDiagnosis",
+            "decorator": true
+          }
+        ],
+        "admin_classes": [
+          "PathologyReviewAdmin",
+          "BiopsyAdmin",
+          "GNDiagnosisAdmin"
+        ]
+      },
+      "urls": {
+        "patterns": [
+          "views.biopsy_review",
+          "views.discordant",
+          "views.agreement"
+        ],
+        "app_name": "pathology"
+      },
+      "management_commands": [],
+      "signals": [],
+      "templates": [],
+      "migrations": {
+        "count": 7,
+        "files": [
+          "0001_initial.py",
+          "0002_biopsy_review_status_pathologyreview.py",
+          "0003_alter_gndiagnosis_broad_group_and_more.py",
+          "0004_alter_pathologyreview_fsgs_variant_and_more.py",
+          "0005_biopsy_indication_biopsy_result_category.py",
+          "0006_if_pattern_choices.py",
+          "0007_em_findings_choices.py"
+        ]
+      },
+      "static_files": [],
+      "tests": {
+        "test_files": [
+          "pathology\\tests.py"
+        ],
+        "test_count": 1
+      },
+      "celery_tasks": [],
+      "middleware": [],
+      "templatetags": [],
+      "apps_config": "pathology",
+      "docstrings": "",
+      "models_module_doc": "Histopathology (Excel sheet 4) — the research-grade biopsy dataset.\n\n    Biopsy              core biopsy + lesion descriptors\n    GNDiagnosis         the diagnosis (specific + broad + pathogenesis groups)\n    IgANScore           Oxford MEST-C (discrete fields, per the portfolio)\n    LupusPathology      ISN/RPS class + NIH activity/chronicity indices\n    FSGSPathology       primary/secondary + histologic variant\n    MembranousPathology PLA2R/THSD7A tissue staining + MN stage\n    BiopsyImage         digital-pathology slide images (imaging-consent gated)\n\nCapturing the scores as discrete ordinal fields (not buried in narrative) is the\nsingle change that makes the biopsy archive research-grade."
+    },
+    "patients": {
+      "name": "patients",
+      "exists": true,
+      "path": "patients",
+      "files": [
+        "patients\\__init__.py",
+        "patients\\admin.py",
+        "patients\\apps.py",
+        "patients\\choices.py",
+        "patients\\models.py",
+        "patients\\services.py",
+        "patients\\tests_e2e.py",
+        "patients\\workflow.py"
+      ],
+      "models": [
+        {
+          "name": "Site",
+          "fields": [
+            "code",
+            "name",
+            "address",
+            "phone",
+            "email",
+            "config",
+            "is_active",
+            "created_at"
+          ],
+          "methods": [
+            "__str__"
+          ],
+          "meta": {}
+        },
+        {
+          "name": "Patient",
+          "fields": [
+            "patient_id",
+            "hospital_id",
+            "name",
+            "phone",
+            "sex",
+            "dob",
+            "enrollment_date",
+            "site",
+            "cohort",
+            "diabetes_status",
+            "primary_diagnosis",
+            "hypertension",
+            "autoimmune_disease",
+            "chronic_infection",
+            "smoking_status",
+            "hepatitis_status",
+            "hiv_status",
+            "biopsy_diagnosis",
+            "gn_broad_group",
+            "gn_primary_secondary",
+            "oxford_mestc",
+            "isn_rps_class",
+            "ckd_etiology",
+            "transplant_status",
+            "latest_egfr",
+            "registration_status",
+            "registration_date",
+            "current_phase",
+            "created_at",
+            "updated_at"
+          ],
+          "methods": [
+            "__str__",
+            "clean",
+            "delete",
+            "save"
+          ],
+          "meta": {}
+        },
+        {
+          "name": "UserSiteRole",
+          "fields": [
+            "user",
+            "site",
+            "role",
+            "is_primary",
+            "created_at"
+          ],
+          "methods": [
+            "__str__"
+          ],
+          "meta": {}
+        }
+      ],
+      "views": {
+        "functions": [],
+        "classes": [],
+        "viewsets": []
+      },
+      "serializers": [],
+      "forms": [],
+      "admin": {
+        "registered_models": [
+          {
+            "model": "Patient",
+            "decorator": true
+          }
+        ],
+        "admin_classes": [
+          "PatientAdmin"
+        ]
+      },
+      "urls": {
+        "patterns": [],
+        "app_name": ""
+      },
+      "management_commands": [
+        {
+          "name": "backup_db",
+          "file": "patients\\management\\commands\\backup_db.py",
+          "help": "Create a timestamped backup of the database (or list existing backups).",
+          "functions": []
+        },
+        {
+          "name": "check_data_integrity",
+          "file": "patients\\management\\commands\\check_data_integrity.py",
+          "help": "Run comprehensive data integrity checks across all clinical models.",
+          "functions": []
+        },
+        {
+          "name": "delete_patient",
+          "file": "patients\\management\\commands\\delete_patient.py",
+          "help": "Delete a patient and all their clinical data.",
+          "functions": []
+        },
+        {
+          "name": "reset_demo_data",
+          "file": "patients\\management\\commands\\reset_demo_data.py",
+          "help": "Remove demo/synthetic patient data (preview unless --yes).",
+          "functions": []
+        },
+        {
+          "name": "restore_db",
+          "file": "patients\\management\\commands\\restore_db.py",
+          "help": "Restore the database from a backup file (overwrites the current DB).",
+          "functions": []
+        },
+        {
+          "name": "validate_patients",
+          "file": "patients\\management\\commands\\validate_patients.py",
+          "help": "Validate patient registry: dedupe, missing fields, coverage gaps.",
+          "functions": []
+        }
+      ],
+      "signals": [],
+      "templates": [],
+      "migrations": {
+        "count": 7,
+        "files": [
+          "0001_initial.py",
+          "0002_alter_patient_cohort_alter_patient_patient_id_and_more.py",
+          "0003_alter_patient_hospital_id_alter_patient_phone.py",
+          "0004_patient_current_phase_patient_registration_date_and_more.py",
+          "0005_site_patient_site_usersiterole.py",
+          "0006_longitudinal_level2_fields.py",
+          "0007_longitudinal_gn_category.py"
+        ]
+      },
+      "static_files": [],
+      "tests": {
+        "test_files": [
+          "patients\\tests_e2e.py"
+        ],
+        "test_count": 1
+      },
+      "celery_tasks": [],
+      "middleware": [],
+      "templatetags": [],
+      "apps_config": "patients",
+      "docstrings": "",
+      "models_module_doc": "Minimal Patient model — just enough of the core registry for the prescription\nmodule to hang off. The full registry (baseline, labs, pathology, outcomes)\nplugs in around this without changing the prescription workflow."
+    },
+    "prescriptions": {
+      "name": "prescriptions",
+      "exists": true,
+      "path": "prescriptions",
+      "files": [
+        "prescriptions\\__init__.py",
+        "prescriptions\\admin.py",
+        "prescriptions\\apps.py",
+        "prescriptions\\models.py",
+        "prescriptions\\pdf.py",
+        "prescriptions\\tests.py",
+        "prescriptions\\urls.py",
+        "prescriptions\\views.py"
+      ],
+      "models": [
+        {
+          "name": "Prescription",
+          "fields": [
+            "encounter",
+            "version",
+            "status",
+            "diagnosis_text",
+            "comorbidities",
+            "investigations_advised",
+            "advice",
+            "stop_notes",
+            "printed_at",
+            "printed_by",
+            "pdf_file",
+            "content_hash",
+            "reconciled_at",
+            "created_at",
+            "updated_at"
+          ],
+          "methods": [
+            "__str__",
+            "patient",
+            "is_final",
+            "compute_hash"
+          ],
+          "meta": {}
+        },
+        {
+          "name": "PrescriptionItem",
+          "fields": [
+            "prescription",
+            "drug",
+            "brand",
+            "strength",
+            "dose",
+            "dose_unit",
+            "route",
+            "frequency",
+            "timing",
+            "duration",
+            "instruction_bn",
+            "sort_order"
+          ],
+          "methods": [
+            "__str__",
+            "signature",
+            "route_value"
+          ],
+          "meta": {}
+        },
+        {
+          "name": "AdviceTemplate",
+          "fields": [
+            "title",
+            "body",
+            "is_active",
+            "sort_order",
+            "created_at"
+          ],
+          "methods": [
+            "__str__"
+          ],
+          "meta": {}
+        }
+      ],
+      "views": {
+        "functions": [
+          "_wants_json",
+          "preview",
+          "html_download",
+          "reconcile_preview",
+          "finalize",
+          "pdf"
+        ],
+        "classes": [],
+        "viewsets": []
+      },
+      "serializers": [],
+      "forms": [],
+      "admin": {
+        "registered_models": [
+          {
+            "model": "AdviceTemplate",
+            "decorator": true
+          },
+          {
+            "model": "Prescription",
+            "decorator": true
+          }
+        ],
+        "admin_classes": [
+          "AdviceTemplateAdmin",
+          "PrescriptionAdmin"
+        ]
+      },
+      "urls": {
+        "patterns": [
+          "views.preview",
+          "views.html_download",
+          "views.reconcile_preview",
+          "views.finalize",
+          "views.pdf"
+        ],
+        "app_name": "prescriptions"
+      },
+      "management_commands": [
+        {
+          "name": "seed_drugs",
+          "file": "prescriptions\\management\\commands\\seed_drugs.py",
+          "help": "Seed the nephrology DrugMaster formulary (Bangladeshi brands).",
+          "functions": []
+        }
+      ],
+      "signals": [],
+      "templates": [
+        "prescriptions\\templates\\prescriptions\\prescription.html",
+        "prescriptions\\templates\\prescriptions\\preview_wrapper.html"
+      ],
+      "migrations": {
+        "count": 5,
+        "files": [
+          "0001_initial.py",
+          "0002_prescription_advice.py",
+          "0003_prescriptionitem_route.py",
+          "0004_advicetemplate_prescription_stop_notes.py",
+          "0005_prescription_comorbidities.py"
+        ]
+      },
+      "static_files": [],
+      "tests": {
+        "test_files": [
+          "prescriptions\\tests.py"
+        ],
+        "test_count": 1
+      },
+      "celery_tasks": [],
+      "middleware": [],
+      "templatetags": [],
+      "apps_config": "prescriptions",
+      "docstrings": "",
+      "models_module_doc": "Prescription   — the printable clinical artifact, one per encounter, versioned\n                 and immutable once finalized (medico-legal + audit).\nPrescriptionItem — a single \"what to take now\" line. Because we print the FULL\n                 current medication list each visit, the set of items at finalize\n                 time IS the patient's standing regimen — which is exactly what\n                 the reconciliation engine diffs against open exposures."
+    },
+    "reminders": {
+      "name": "reminders",
+      "exists": true,
+      "path": "reminders",
+      "files": [
+        "reminders\\__init__.py",
+        "reminders\\admin.py",
+        "reminders\\apps.py",
+        "reminders\\html_urls.py",
+        "reminders\\models.py",
+        "reminders\\serializers.py",
+        "reminders\\tasks.py",
+        "reminders\\tests.py",
+        "reminders\\urls.py",
+        "reminders\\views.py"
+      ],
+      "models": [
+        {
+          "name": "ReminderSchedule",
+          "fields": [
+            "patient",
+            "reminder_type",
+            "channel",
+            "title",
+            "message",
+            "scheduled_at",
+            "sent_at",
+            "status",
+            "scheduled_visit",
+            "error_message",
+            "retry_count",
+            "created_at"
+          ],
+          "methods": [
+            "__str__"
+          ],
+          "meta": {}
+        },
+        {
+          "name": "ReminderTemplate",
+          "fields": [
+            "reminder_type",
+            "channel",
+            "name",
+            "subject",
+            "template_body",
+            "is_active",
+            "created_at",
+            "updated_at"
+          ],
+          "methods": [
+            "__str__"
+          ],
+          "meta": {}
+        },
+        {
+          "name": "PatientCommunicationPreference",
+          "fields": [
+            "patient",
+            "preferred_channel",
+            "phone",
+            "email",
+            "reminder_follow_up",
+            "reminder_lab",
+            "reminder_medication",
+            "quiet_hours_start",
+            "quiet_hours_end",
+            "created_at"
+          ],
+          "methods": [
+            "__str__"
+          ],
+          "meta": {}
+        }
+      ],
+      "views": {
+        "functions": [
+          "reminder_log",
+          "reminder_done",
+          "reminder_cancel",
+          "send_custom_reminder",
+          "schedule_reminders"
+        ],
+        "classes": [],
+        "viewsets": [
+          "ReminderScheduleViewSet",
+          "ReminderTemplateViewSet",
+          "PatientCommunicationPreferenceViewSet"
+        ]
+      },
+      "serializers": [
+        "ReminderScheduleSerializer",
+        "ReminderTemplateSerializer",
+        "PatientCommunicationPreferenceSerializer",
+        "SendCustomReminderSerializer",
+        "ScheduleVisitRemindersSerializer"
+      ],
+      "forms": [],
+      "admin": {
+        "registered_models": [
+          {
+            "model": "ReminderSchedule",
+            "decorator": true
+          },
+          {
+            "model": "ReminderTemplate",
+            "decorator": true
+          },
+          {
+            "model": "PatientCommunicationPreference",
+            "decorator": true
+          }
+        ],
+        "admin_classes": [
+          "ReminderScheduleAdmin",
+          "ReminderTemplateAdmin",
+          "PatientCommunicationPreferenceAdmin"
+        ]
+      },
+      "urls": {
+        "patterns": [
+          "views.ReminderScheduleViewSet",
+          "views.ReminderTemplateViewSet",
+          "views.PatientCommunicationPreferenceViewSet",
+          "views.send_custom_reminder",
+          "views.schedule_reminders"
+        ],
+        "app_name": "",
+        "html_urls": [
+          "views.reminder_log",
+          "views.reminder_done",
+          "views.reminder_cancel"
+        ]
+      },
+      "management_commands": [],
+      "signals": [],
+      "templates": [],
+      "migrations": {
+        "count": 1,
+        "files": [
+          "0001_initial.py"
+        ]
+      },
+      "static_files": [],
+      "tests": {
+        "test_files": [
+          "reminders\\tests.py"
+        ],
+        "test_count": 1
+      },
+      "celery_tasks": [
+        "send_sms",
+        "send_whatsapp",
+        "send_reminder",
+        "send_due_visit_reminders",
+        "send_overdue_visit_reminders",
+        "schedule_visit_reminders"
+      ],
+      "middleware": [],
+      "templatetags": [],
+      "apps_config": "reminders",
+      "docstrings": "",
+      "models_module_doc": ""
+    },
+    "safety": {
+      "name": "safety",
+      "exists": true,
+      "path": "safety",
+      "files": [
+        "safety\\__init__.py",
+        "safety\\admin.py",
+        "safety\\apps.py",
+        "safety\\models.py",
+        "safety\\tests.py",
+        "safety\\urls.py",
+        "safety\\views.py"
+      ],
+      "models": [
+        {
+          "name": "AdverseEvent",
+          "fields": [
+            "SERIOUS_SEVERITIES",
+            "patient",
+            "onset_date",
+            "category",
+            "infection_type",
+            "description",
+            "severity",
+            "serious",
+            "hospitalization",
+            "outcome",
+            "suspected_drug",
+            "relatedness",
+            "encounter",
+            "notes",
+            "created_at"
+          ],
+          "methods": [
+            "__str__",
+            "save"
+          ],
+          "meta": {}
+        }
+      ],
+      "views": {
+        "functions": [
+          "summary",
+          "infection_incidence_view",
+          "study_safety_view"
+        ],
+        "classes": [],
+        "viewsets": []
+      },
+      "serializers": [],
+      "forms": [],
+      "admin": {
+        "registered_models": [
+          {
+            "model": "AdverseEvent",
+            "decorator": true
+          }
+        ],
+        "admin_classes": [
+          "AdverseEventAdmin"
+        ]
+      },
+      "urls": {
+        "patterns": [
+          "views.summary",
+          "views.infection_incidence_view",
+          "views.study_safety_view"
+        ],
+        "app_name": "safety"
+      },
+      "management_commands": [],
+      "signals": [],
+      "templates": [],
+      "migrations": {
+        "count": 1,
+        "files": [
+          "0001_initial.py"
+        ]
+      },
+      "static_files": [],
+      "tests": {
+        "test_files": [
+          "safety\\tests.py"
+        ],
+        "test_count": 1
+      },
+      "celery_tasks": [],
+      "middleware": [],
+      "templatetags": [],
+      "apps_config": "safety",
+      "docstrings": "",
+      "models_module_doc": "Adverse-event / safety capture (protocol §9.4).\n\nThe registry's safety co-primary: serious adverse events, infections (a major\nburden in Bangladesh and under immunosuppression), steroid toxicity, and the\ncounts the DSMB reviews. Coded so the portfolio's infection studies (Study 20:\ninfection risk by agent and diabetes status; Study 23: diabetic IRGN) are\nanswerable, and so per-study SAE rates can be tabulated by arm.\n\nThis is distinct from encounters.ClinicalEvent (efficacy endpoints like ESKD /\ndeath / remission) — AdverseEvent is the harms side."
+    },
+    "scheduling": {
+      "name": "scheduling",
+      "exists": true,
+      "path": "scheduling",
+      "files": [
+        "scheduling\\__init__.py",
+        "scheduling\\admin.py",
+        "scheduling\\apps.py",
+        "scheduling\\models.py",
+        "scheduling\\tests.py",
+        "scheduling\\urls.py",
+        "scheduling\\views.py"
+      ],
+      "models": [
+        {
+          "name": "ScheduledVisit",
+          "fields": [
+            "patient",
+            "kind",
+            "label",
+            "target_date",
+            "window_start",
+            "window_end",
+            "clinic_date",
+            "status",
+            "encounter",
+            "created_at"
+          ],
+          "methods": [
+            "__str__",
+            "is_due",
+            "is_overdue"
+          ],
+          "meta": {}
+        }
+      ],
+      "views": {
+        "functions": [
+          "_parse",
+          "_visit_dict",
+          "due",
+          "overdue",
+          "roster",
+          "monitoring"
+        ],
+        "classes": [],
+        "viewsets": []
+      },
+      "serializers": [],
+      "forms": [],
+      "admin": {
+        "registered_models": [
+          {
+            "model": "ScheduledVisit",
+            "decorator": true
+          }
+        ],
+        "admin_classes": [
+          "ScheduledVisitAdmin"
+        ]
+      },
+      "urls": {
+        "patterns": [
+          "views.due",
+          "views.overdue",
+          "views.roster",
+          "views.monitoring"
+        ],
+        "app_name": "scheduling"
+      },
+      "management_commands": [],
+      "signals": [],
+      "templates": [],
+      "migrations": {
+        "count": 1,
+        "files": [
+          "0001_initial.py"
+        ]
+      },
+      "static_files": [],
+      "tests": {
+        "test_files": [
+          "scheduling\\tests.py"
+        ],
+        "test_count": 1
+      },
+      "celery_tasks": [],
+      "middleware": [],
+      "templatetags": [],
+      "apps_config": "scheduling",
+      "docstrings": "",
+      "models_module_doc": "Follow-up scheduling (protocol §7.6).\n\nA prospective GN registry runs on a defined visit cadence delivered at the weekly\nTuesday GN clinic (max 15 participants/session), with each visit scheduled within\na ±7-day window of its protocol timepoint, and early safety visits (weeks 1, 2, 4)\nfor participants on active immunosuppression.\n\nScheduledVisit is one protocol-mandated slot per patient per timepoint. An\nencounter (the actual visit) fulfils it. This is the operational layer that lets\nthe coordinator see who is due, who is overdue, and the roster for a given clinic\nday — replacing the spreadsheet's Patient_Tracking / Followup_Schedule sheets."
+    },
+    "studies": {
+      "name": "studies",
+      "exists": true,
+      "path": "studies",
+      "files": [
+        "studies\\__init__.py",
+        "studies\\admin.py",
+        "studies\\apps.py",
+        "studies\\event_handlers.py",
+        "studies\\models.py",
+        "studies\\tests.py",
+        "studies\\urls.py",
+        "studies\\views.py"
+      ],
+      "models": [
+        {
+          "name": "Study",
+          "fields": [
+            "code",
+            "title",
+            "study_type",
+            "status",
+            "target_enrollment",
+            "primary_endpoint",
+            "randomization_scheme",
+            "block_multipliers",
+            "stratify_by",
+            "random_seed",
+            "requires_trial_consent",
+            "created_at"
+          ],
+          "methods": [
+            "__str__",
+            "is_randomized",
+            "arms_ordered"
+          ],
+          "meta": {}
+        },
+        {
+          "name": "StudyArm",
+          "fields": [
+            "study",
+            "code",
+            "name",
+            "ratio",
+            "order",
+            "is_control"
+          ],
+          "methods": [
+            "__str__"
+          ],
+          "meta": {}
+        },
+        {
+          "name": "StudyEnrollment",
+          "fields": [
+            "study",
+            "patient",
+            "status",
+            "screened_date",
+            "eligible",
+            "ineligibility_reasons",
+            "enrolled_date",
+            "arm",
+            "stratum",
+            "sequence_position",
+            "randomized_by",
+            "randomized_at",
+            "withdrawn_date",
+            "completion_date"
+          ],
+          "methods": [
+            "__str__"
+          ],
+          "meta": {}
+        }
+      ],
+      "views": {
+        "functions": [
+          "dashboard"
+        ],
+        "classes": [],
+        "viewsets": []
+      },
+      "serializers": [],
+      "forms": [],
+      "admin": {
+        "registered_models": [
+          {
+            "model": "Study",
+            "decorator": true
+          },
+          {
+            "model": "StudyEnrollment",
+            "decorator": true
+          }
+        ],
+        "admin_classes": [
+          "StudyAdmin",
+          "StudyEnrollmentAdmin"
+        ]
+      },
+      "urls": {
+        "patterns": [
+          "views.dashboard"
+        ],
+        "app_name": "studies"
+      },
+      "management_commands": [
+        {
+          "name": "auto_screen_patients",
+          "file": "studies\\management\\commands\\auto_screen_patients.py",
+          "help": "Run automatic study eligibility screening across all patients.",
+          "functions": []
+        },
+        {
+          "name": "seed_studies",
+          "file": "studies\\management\\commands\\seed_studies.py",
+          "help": "Seed the BGDDR research portfolio as selectable studies.",
+          "functions": []
+        }
+      ],
+      "signals": [],
+      "templates": [],
+      "migrations": {
+        "count": 1,
+        "files": [
+          "0001_initial.py"
+        ]
+      },
+      "static_files": [],
+      "tests": {
+        "test_files": [
+          "studies\\tests.py"
+        ],
+        "test_count": 1
+      },
+      "celery_tasks": [],
+      "middleware": [],
+      "templatetags": [],
+      "apps_config": "studies",
+      "docstrings": "",
+      "models_module_doc": "Registry-embedded trial platform.\n\n    Study           — a study/trial definition (observational, quasi-exp, or RCT)\n    StudyArm        — its arms, each with an allocation weight\n    StudyEnrollment — a patient's screening + (for RCTs) randomized allocation\n\nDesigned so the registry doubles as a trial platform: enrol eligible patients,\nrandomize them with a reproducible stratified-block scheme, and then analyse the\narms with the existing survival / Cox engine (group_by=\"study:<code>\")."
+    },
+    "timeline": {
+      "name": "timeline",
+      "exists": true,
+      "path": "timeline",
+      "files": [
+        "timeline\\__init__.py",
+        "timeline\\admin.py",
+        "timeline\\apps.py",
+        "timeline\\models.py",
+        "timeline\\serializers.py",
+        "timeline\\services.py",
+        "timeline\\tests.py",
+        "timeline\\urls.py",
+        "timeline\\views.py"
+      ],
+      "models": [
+        {
+          "name": "TimelineEvent",
+          "fields": [
+            "patient",
+            "domain",
+            "event_type",
+            "event_date",
+            "summary",
+            "details",
+            "source_id",
+            "source_url",
+            "created_at"
+          ],
+          "methods": [
+            "__str__"
+          ],
+          "meta": {}
+        }
+      ],
+      "views": {
+        "functions": [],
+        "classes": [],
+        "viewsets": [
+          "TimelineEventViewSet"
+        ]
+      },
+      "serializers": [
+        "TimelineEventSerializer"
+      ],
+      "forms": [],
+      "admin": {
+        "registered_models": [
+          {
+            "model": "TimelineEvent",
+            "decorator": true
+          }
+        ],
+        "admin_classes": [
+          "TimelineEventAdmin"
+        ]
+      },
+      "urls": {
+        "patterns": [],
+        "app_name": ""
+      },
+      "management_commands": [],
+      "signals": [],
+      "templates": [],
+      "migrations": {
+        "count": 1,
+        "files": [
+          "0001_initial.py"
+        ]
+      },
+      "static_files": [],
+      "tests": {
+        "test_files": [
+          "timeline\\tests.py"
+        ],
+        "test_count": 1
+      },
+      "celery_tasks": [],
+      "middleware": [],
+      "templatetags": [],
+      "apps_config": "timeline",
+      "docstrings": "",
+      "models_module_doc": ""
+    },
+    "treatments": {
+      "name": "treatments",
+      "exists": true,
+      "path": "treatments",
+      "files": [
+        "treatments\\__init__.py",
+        "treatments\\admin.py",
+        "treatments\\apps.py",
+        "treatments\\contraindications.py",
+        "treatments\\interactions.py",
+        "treatments\\models.py",
+        "treatments\\serializers.py",
+        "treatments\\urls.py",
+        "treatments\\views.py"
+      ],
+      "models": [
+        {
+          "name": "DrugMaster",
+          "fields": [
+            "generic_name",
+            "brand_names",
+            "drug_class",
+            "available_strengths",
+            "default_frequency",
+            "default_route",
+            "available_routes",
+            "strengths_by_route",
+            "renal_dose_adjust",
+            "egfr_caution_below",
+            "nephrotoxic",
+            "hepatic_dose_adjust",
+            "dialysis_dose_adjust",
+            "pregnancy_category",
+            "lactation_safety",
+            "indications",
+            "mechanism_of_action",
+            "common_side_effects",
+            "serious_side_effects",
+            "monitoring_parameters",
+            "stopping_criteria",
+            "evidence_level",
+            "guideline_recommendations",
+            "typical_dosage",
+            "maximum_dose",
+            "transplant_considerations",
+            "is_active"
+          ],
+          "methods": [
+            "__str__",
+            "routes",
+            "strengths_for_route"
+          ],
+          "meta": {}
+        },
+        {
+          "name": "TreatmentExposure",
+          "fields": [
+            "patient",
+            "drug",
+            "drug_name",
+            "dose",
+            "dose_unit",
+            "frequency",
+            "route",
+            "start_date",
+            "stop_date",
+            "ongoing",
+            "stop_reason",
+            "opened_by_encounter",
+            "closed_by_encounter",
+            "created_at"
+          ],
+          "methods": [
+            "clean",
+            "__str__",
+            "signature"
+          ],
+          "meta": {}
+        }
+      ],
+      "views": {
+        "functions": [
+          "drug_interactions_check",
+          "drug_contraindications_check"
+        ],
+        "classes": [],
+        "viewsets": []
+      },
+      "serializers": [
+        "DrugInteractionCheckSerializer",
+        "DrugContraindicationCheckSerializer",
+        "MultiDrugContraindicationCheckSerializer"
+      ],
+      "forms": [],
+      "admin": {
+        "registered_models": [
+          {
+            "model": "DrugMaster",
+            "decorator": true
+          },
+          {
+            "model": "TreatmentExposure",
+            "decorator": true
+          }
+        ],
+        "admin_classes": [
+          "DrugMasterAdmin",
+          "TreatmentExposureAdmin"
+        ]
+      },
+      "urls": {
+        "patterns": [
+          "views.drug_interactions_check",
+          "views.drug_contraindications_check"
+        ],
+        "app_name": "treatments"
+      },
+      "management_commands": [
+        {
+          "name": "seed_drug_knowledge",
+          "file": "treatments\\management\\commands\\seed_drug_knowledge.py",
+          "help": "Seed V4.0 drug knowledge: mechanism, side effects, monitoring, dosage",
+          "functions": []
+        }
+      ],
+      "signals": [],
+      "templates": [],
+      "migrations": {
+        "count": 5,
+        "files": [
+          "0001_initial.py",
+          "0002_drugmaster_available_routes_and_more.py",
+          "0003_alter_drugmaster_drug_class.py",
+          "0004_v35_drug_certification_fields.py",
+          "0005_drugmaster_common_side_effects_and_more.py"
+        ]
+      },
+      "static_files": [],
+      "tests": {
+        "test_files": [],
+        "test_count": 0
+      },
+      "celery_tasks": [],
+      "middleware": [],
+      "templatetags": [],
+      "apps_config": "treatments",
+      "docstrings": "",
+      "models_module_doc": "DrugMaster      — the clinic formulary AND the research-coding bridge.\nTreatmentExposure — one row per *episode* of a drug at a dose. This is the\nresearch-grade table the portfolio depends on (new-user cohorts, target-trial\nemulation). It is written automatically by the reconciliation engine from the\nprescription — clinicians never edit it directly."
+    },
+    "users": {
+      "name": "users",
+      "exists": true,
+      "path": "users",
+      "files": [
+        "users\\__init__.py",
+        "users\\admin.py",
+        "users\\forms.py",
+        "users\\models.py",
+        "users\\urls.py",
+        "users\\views.py"
+      ],
+      "models": [
+        {
+          "name": "UserProfile",
+          "fields": [
+            "user",
+            "role",
+            "department",
+            "phone",
+            "is_clinician",
+            "created_at",
+            "updated_at"
+          ],
+          "methods": [
+            "__str__",
+            "save"
+          ],
+          "meta": {}
+        },
+        {
+          "name": "Invitation",
+          "fields": [
+            "email",
+            "role",
+            "token",
+            "created_by",
+            "created_at",
+            "used_at",
+            "used_by",
+            "EXPIRY_DAYS"
+          ],
+          "methods": [
+            "__str__",
+            "is_expired",
+            "is_valid",
+            "accept",
+            "create"
+          ],
+          "meta": {}
+        }
+      ],
+      "views": {
+        "functions": [
+          "_is_admin",
+          "_ensure_profile",
+          "login_view",
+          "logout_view",
+          "password_reset_request",
+          "password_reset_confirm",
+          "invitation_accept",
+          "profile_view",
+          "user_list",
+          "invite_user"
+        ],
+        "classes": [],
+        "viewsets": []
+      },
+      "serializers": [],
+      "forms": [
+        "LoginForm",
+        "InvitationAcceptForm",
+        "ProfileForm",
+        "InviteUserForm"
+      ],
+      "admin": {
+        "registered_models": [
+          {
+            "model": "User",
+            "admin_class": "CustomUserAdmin"
+          },
+          {
+            "model": "Invitation",
+            "decorator": true
+          }
+        ],
+        "admin_classes": [
+          "InvitationAdmin"
+        ]
+      },
+      "urls": {
+        "patterns": [
+          "views.login_view",
+          "views.logout_view",
+          "views.password_reset_request",
+          "views.password_reset_confirm",
+          "views.invitation_accept",
+          "views.profile_view",
+          "views.user_list",
+          "views.invite_user"
+        ],
+        "app_name": "users"
+      },
+      "management_commands": [
+        {
+          "name": "invite_user",
+          "file": "users\\management\\commands\\invite_user.py",
+          "help": "Invite a user to the BGDDR registry by email.",
+          "functions": []
+        }
+      ],
+      "signals": [],
+      "templates": [
+        "users\\templates\\users\\invitation_accept.html",
+        "users\\templates\\users\\invite_user.html",
+        "users\\templates\\users\\login.html",
+        "users\\templates\\users\\password_reset_confirm.html",
+        "users\\templates\\users\\password_reset_request.html",
+        "users\\templates\\users\\profile.html",
+        "users\\templates\\users\\user_list.html"
+      ],
+      "migrations": {
+        "count": 2,
+        "files": [
+          "0001_initial.py",
+          "0002_alter_invitation_role_alter_userprofile_role.py"
+        ]
+      },
+      "static_files": [],
+      "tests": {
+        "test_files": [],
+        "test_count": 0
+      },
+      "celery_tasks": [],
+      "middleware": [],
+      "templatetags": [],
+      "apps_config": "",
+      "docstrings": "",
+      "models_module_doc": "User profile and invitation models for multi-user BGDDR deployment.\n\nExtends Django's built-in User with registry-specific fields (role, department,\nphone). Uses a one-to-one UserProfile so we don't replace the auth User model.\n\nInvitation flow:\n1. Admin creates an Invitation (email + role).\n2. System emails a link with a token (or prints it for hand-delivery in clinics\n   without reliable email).\n3. User clicks link, sets password, account is created and role assigned."
+    },
+    "exports": {
+      "name": "exports",
+      "exists": false,
+      "error": "Directory not found"
+    }
+  },
+  "root_config": {
+    "url_patterns": [],
+    "middleware": [
+      "django.middleware.security.SecurityMiddleware",
+      "whitenoise.middleware.WhiteNoiseMiddleware",
+      "django.contrib.sessions.middleware.SessionMiddleware",
+      "django.middleware.common.CommonMiddleware",
+      "django.middleware.csrf.CsrfViewMiddleware",
+      "django.contrib.auth.middleware.AuthenticationMiddleware",
+      "django.contrib.messages.middleware.MessageMiddleware",
+      "django.middleware.clickjacking.XFrameOptionsMiddleware",
+      "audit.middleware.AuditMiddleware",
+      "feedback.middleware.FeedbackMiddleware"
+    ],
+    "installed_apps": [
+      "jazzmin",
+      "rest_framework",
+      "patients",
+      "encounters",
+      "baseline",
+      "labs",
+      "pathology",
+      "treatments",
+      "prescriptions",
+      "biobank",
+      "analytics",
+      "audit",
+      "studies",
+      "safety",
+      "scheduling",
+      "biomarkers",
+      "exports",
+      "api",
+      "users",
+      "clinic",
+      "clinical",
+      "knowledge",
+      "timeline",
+      "reminders",
+      "fhir",
+      "events",
+      "clinical_reasoning",
+      "followup",
+      "feedback"
+    ]
+  },
+  "root_files": [
+    "_tmp_ms_test.py",
+    "check_patient_221.py",
+    "conftest.py",
+    "find_dups.py",
+    "inspect_db.py",
+    "manage.py",
+    "migrate_to_postgres.py",
+    "tmp_audit_c3.py",
+    "requirements.txt",
+    "ROADMAP.md.txt",
+    "sources.txt",
+    "package-lock.json",
+    "package.json",
+    "docker-compose.yml",
+    "pytest.ini",
+    "Start-BGDDR.bat",
+    "start_gdes.bat",
+    "setup_production.ps1",
+    "tailwind.config.js",
+    "bgddr/admin_backup.py",
+    "bgddr/backup.py",
+    "bgddr/context_processors.py",
+    "bgddr/settings_deploy.py",
+    "bgddr/settings_desktop.py",
+    "bgddr/settings_prod.py",
+    "bgddr/updater.py",
+    "bgddr/version-Dr-Wasim.py",
+    "bgddr/version.py",
+    "bgddr/views.py",
+    "bgddr/wsgi.py"
+  ],
+  "documentation_files": [
+    "API_INVENTORY.md",
+    "APPLICATION_MAP.md",
+    "AUTOMATION_AUDIT.md",
+    "BUGLOG.md",
+    "CHANGELOG_2026-07-16.md",
+    "CLAUDE_FINAL_INDEPENDENT_AUDIT_REQUEST.md",
+    "CLAUDECODE_DESKTOP_DEPLOYMENT_TASKS.md",
+    "CLINICAL_RECOMMENDATION_VALIDATION.md",
+    "CLINICAL_USABILITY_REVIEW.md",
+    "CODE_REVIEW.md",
+    "CURRENT_SYSTEM_ANALYSIS.md",
+    "CURRENT_VS_TARGET.md",
+    "DATA_FLOW.md",
+    "DATA_QUALITY_AUDIT.md",
+    "DATABASE_SCHEMA.md",
+    "DEPENDENCY_GRAPH.md",
+    "DEPLOYMENT.md",
+    "DEPLOYMENT_RUNBOOK.md",
+    "DESKTOP_DEPLOYMENT.md",
+    "DOMAIN_MODEL.md",
+    "FOLLOW_UP_VALIDATION.md",
+    "FOLLOWUP_ENGINE_ARCHITECTURE.md",
+    "FOLLOWUP_PROTOCOL_LIBRARY.md",
+    "FOLLOWUP_VALIDATION_REPORT.md",
+    "GDES Version 7.2 – Final Independent Clinical & Technical Review.md",
+    "GDES_AI_CLINICAL_DECISION_SUPPORT_VISION.md",
+    "GDES_AI_VALIDATION.md",
+    "GDES_ARCHITECTURE_STABILIZATION_AND_DOMAIN_CONSOLIDATION_V2_5.md",
+    "GDES_BGDDR_UI_INTEGRATION.md",
+    "GDES_CLAUDE_REVIEW_REQUEST.md",
+    "GDES_CLAUDE_REVIEW_RESOLUTION_REPORT.md",
+    "GDES_CLINICAL_ACCEPTANCE_REPORT.md",
+    "GDES_CLINICAL_GOVERNANCE.md",
+    "GDES_CLINICAL_WORKFLOW_VALIDATION.md",
+    "GDES_CONTINUOUS_KNOWLEDGE_IMPROVEMENT.md",
+    "GDES_DESKTOP_PACKAGE_COMPLETENESS.md",
+    "GDES_FINAL_ARCHITECTURE_AUDIT.md",
+    "GDES_FINAL_CLINICAL_SAFETY_AUDIT.md",
+    "GDES_FINAL_CODE_QUALITY_REPORT.md",
+    "GDES_FINAL_KNOWLEDGE_AUDIT.md",
+    "GDES_FINAL_PILOT_READINESS_REPORT.md",
+    "GDES_FINAL_RECOMMENDATIONS.md",
+    "GDES_FINAL_WORKFLOW_AUDIT.md",
+    "GDES_FIX_INSTRUCTIONS.md",
+    "GDES_FOLLOWUP_VALIDATION.md",
+    "GDES_GITHUB_ERROR_REPORTING_SYSTEM.md",
+    "GDES_INTEGRATION_AUDIT.md",
+    "GDES_INTEGRATION_AUDIT_MISSION.md",
+    "GDES_KNOWLEDGE_GOVERNANCE.md",
+    "GDES_KNOWLEDGE_VALIDATION.md",
+    "GDES_PATIENT_MANAGEMENT_VALIDATION.md",
+    "GDES_PILOT_DEPLOYMENT_GUIDE.md",
+    "GDES_PILOT_METRICS_FRAMEWORK.md",
+    "GDES_PILOT_VALIDATION_REPORT.md",
+    "GDES_PRODUCTION_READINESS_REPORT.md",
+    "GDES_RECOMMENDATION_TRACEABILITY.md",
+    "GDES_RELEASE_CANDIDATE_REPORT.md",
+    "GDES_RESEARCH_WORKFLOW_VALIDATION.md",
+    "GDES_SYSTEM_CONSISTENCY_AUDIT.md",
+    "GDES_USER_MANUAL_AND_PATIENT_JOURNEY.md",
+    "GDES_V1_RELEASE_READINESS.md",
+    "GDES_V2_NEXT_MISSION.md",
+    "GDES_V2_PHASE5_NEXT_MISSION.md",
+    "GDES_V3_5_RELEASE_CERTIFICATION.md",
+    "GDES_V3_6_KNOWLEDGE_PLATFORM_CERTIFICATION.md",
+    "GDES_V3_7_SYSTEM_CERTIFICATION.md",
+    "GDES_V3_8_CLINICAL_PLATFORM_VERIFICATION.md",
+    "GDES_V3_8_VERIFICATION_REPORT.md",
+    "GDES_V3_PRODUCTION_RELEASE_MISSION.md",
+    "GDES_V4_0_MEDICAL_KNOWLEDGE_EXPANSION.md",
+    "GDES_V4_1_MEDICAL_KNOWLEDGE_ENGINEERING.md",
+    "GDES_V4_2_CLINICAL_KNOWLEDGE_INTEGRATION.md",
+    "GDES_V5_0_PHASE2_FOLLOWUP_AUTOMATION.md",
+    "GDES_V5_0_RELEASE_BLOCKER_RESOLUTION.md",
+    "GDES_V5_0_SYSTEM_INTEGRATION_AND_CLINICAL_VALIDATION.md",
+    "GDES_V6_5_CLAUDE_REVIEW_PREPARATION.md",
+    "GDES_V6_5_INDEPENDENT_REVIEW.md",
+    "GDES_V6_DEVELOPMENT_ROADMAP.md",
+    "GDES_V6_NEXT_PHASE_INTEGRATION_AND_CLINICAL_VALIDATION.md",
+    "GDES_V7.2_INDEPENDENT_REVIEW.md",
+    "GDES_V7_1_DESKTOP_REVIEW_AND_REBUILD.md",
+    "GDES_V7_1_LONGITUDINAL_CLINICAL_MANAGEMENT_AND_PILOT_VALIDATION.md",
+    "GDES_V7_3_READINESS_REPORT.md",
+    "GDES_V7_CLINICAL_PILOT_PREPARATION.md",
+    "GDES_V8_1_CLINICAL_LEARNING_ENGINE.md",
+    "GDES_V8_AI_KNOWLEDGE_ENGINE_ROADMAP.md",
+    "GDES_V8_FIELD_ERROR_REPORTING_AND_FEEDBACK_SYSTEM.md",
+    "GDES_V8_GAP_ANALYSIS_AND_IMPLEMENTATION.md",
+    "GDES_WORKFLOW_OPTIMIZATION_REPORT.md",
+    "Longitudinal Clinical Data Model (Highest Priority).md",
+    "MEDICAL_KNOWLEDGE_CERTIFICATION_REPORT.md",
+    "NEXT_PHASE_MISSION.md",
+    "OPENCODE_BUILD_INSTALLER.md",
+    "OPENCODE_REVIEW_INSTRUCTIONS.md",
+    "PATIENT_CLEANUP_REPORT.md",
+    "PERMISSION_MATRIX.md",
+    "PROJECT_CONSTITUTION.md",
+    "PROJECT_INVENTORY.md",
+    "README.md",
+    "RESEARCH_PLATFORM_VALIDATION.md",
+    "SERVICE_MAP.md",
+    "STATUS_REPORT.md",
+    "SYSTEM_CERTIFICATION_REPORT.md",
+    "SYSTEM_INTEGRATION_REPORT.md",
+    "TECHNICAL_DEBT.md",
+    "TRACK.md",
+    "URL_MAP.md",
+    "USER_MANUAL.md",
+    "WORKFLOW_DOCUMENTATION.md",
+    "WORKFLOW_GAP_ANALYSIS.md",
+    "WORKFLOW_VALIDATION_REPORT.md"
+  ]
+}
