@@ -19,7 +19,7 @@ from encounters.models import ClinicalEncounter
 from prescriptions.models import AdviceTemplate, Prescription, PrescriptionItem
 from treatments.models import DrugMaster
 
-from .forms import (AdmissionForm, AdverseEventForm, BaselineForm, BiopsyForm,
+from ..forms import (AdmissionForm, AdverseEventForm, BaselineForm, BiopsyForm,
                     FollowupForm, FSGSPathologyForm, GNDiagnosisForm,
                     IgANScoreForm, ConsentForm, LabResultsForm,
                     LupusPathologyForm, MembranousPathologyForm, PatientForm,

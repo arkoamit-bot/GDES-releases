@@ -15,7 +15,6 @@ All PostgreSQL-compatible features are preserved:
 - No SQLite-specific features used
 """
 import os
-from pathlib import Path
 
 from .settings import *  # noqa: F401,F403
 

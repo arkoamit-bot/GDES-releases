@@ -14,7 +14,6 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 
 from treatments.models import TreatmentExposure
-from patients.models import Patient
 
 from analytics.models import PatientOutcome
 from . import survival as S

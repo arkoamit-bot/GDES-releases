@@ -4,7 +4,6 @@ GDES AI Factory — Repository Scanner
 Performs comprehensive analysis of the repository structure.
 """
 
-import os
 import json
 from pathlib import Path
 from collections import defaultdict
