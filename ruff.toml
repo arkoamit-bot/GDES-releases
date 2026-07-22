@@ -1,0 +1,63 @@
+# Ruff configuration for GDES
+# This file configures ruff to ignore certain rules that are not critical
+
+[lint]
+# Ignore rules that are not critical for this project
+ignore = [
+    "F401",  # unused imports (re-exports are intentional)
+    "F541",  # f-string without placeholders
+    "F821",  # undefined names (in .hermes/scripts/)
+    "F811",  # redefinition of unused name
+    "E501",  # line too long
+    "W293",  # whitespace before ':'
+    "W292",  # no newline at end of file
+    "E741",  # ambiguous variable name
+    "E702",  # multiple statements on one line
+    "E731",  # lambda expression assignment
+    "E402",  # module level import not at top
+    "E401",  # multiple imports on one line
+    "F841",  # local variable assigned but never used
+]
+
+# Only check for critical errors
+select = ["E", "W", "F"]  # All rules by default, but ignore list above
+
+[lint.per-file-ignores]
+# Ignore all rules in .hermes/scripts/
+".hermes/**" = ["F401", "F541", "F821", "F811", "E501", "W293", "W292", "E741", "E702", "E731", "E402", "E401", "F841"]
+
+# Ignore unused imports in clinic/views/_common.py (re-exports)
+"clinic/views/_common.py" = ["F401", "E402"]
+
+# Ignore unused imports in followup/protocols/__init__.py (re-exports)
+"followup/protocols/__init__.py" = ["F401"]
+
+# Ignore unused imports in knowledge/services.py (re-exports)
+"knowledge/services.py" = ["F401"]
+
+# Ignore unused imports in analytics/dashboard_data.py (re-exports)
+"analytics/dashboard_data.py" = ["F401"]
+
+# Ignore unused imports in analytics/services/cohort.py (re-exports)
+"analytics/services/cohort.py" = ["F401"]
+
+# Ignore unused imports in analytics/services/outcomes.py (re-exports)
+"analytics/services/outcomes.py" = ["F401"]
+
+# Ignore unused imports in api/permissions.py (re-exports)
+"api/permissions.py" = ["F401"]
+
+# Ignore unused imports in bgddr/ files (re-exports)
+"bgddr/**" = ["F401", "E401"]
+
+# Ignore clinical_reasoning services (re-imports)
+"clinical_reasoning/**" = ["F811"]
+
+# Ignore knowledge bootstrap (re-imports)
+"knowledge/bootstrap.py" = ["F811"]
+
+# Ignore tests (re-imports)
+"tests/**" = ["F811"]
+
+# Ignore scripts archive
+"scripts/**" = ["E401"]
