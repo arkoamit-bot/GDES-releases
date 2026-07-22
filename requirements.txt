@@ -33,7 +33,7 @@ xhtml2pdf~=0.2.16
 
 # Background task infrastructure (Phase 3.2)
 celery~=5.4.0
-redis>=4.5.0,<5.0.0
+redis>=8.0.1,<9.0.0
 
 # SMS and email integrations (reminders)
 # twilio~=9.0.0            # SMS / WhatsApp Business API
