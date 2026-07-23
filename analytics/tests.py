@@ -543,10 +543,95 @@ class PatientTrajectoryTests(TestCase):
         self.assertEqual(resp.status_code, 404)
 
 
+
+
+class PredictionValidationTests(TestCase):
+    """Validate kidney survival prediction math."""
+
+    DISEASES = {
+        "IgA nephropathy": (0.97, 0.88, 0.78),
+        "Membranous nephropathy": (0.95, 0.82, 0.70),
+        "Lupus nephritis": (0.94, 0.80, 0.68),
+        "FSGS": (0.93, 0.78, 0.65),
+        "Minimal change disease": (0.98, 0.92, 0.85),
+    }
+
+    def test_monotonic_probabilities(self):
+        """1-year >= 3-year >= 5-year for all diseases."""
+        from analytics.services.prediction import predict_kidney_survival
+        for disease, (s1, s3, s5) in self.DISEASES.items():
+            result = predict_kidney_survival(
+                patient_data={"age": 45, "sex": "F", "baseline_egfr": 80},
+                disease=disease,
+            )
+            probs = result["survival_probs"]
+            assert probs["1_year"] >= probs["3_year"], (
+                f"{disease}: 1y ({probs['1_year']}) < 3y ({probs['3_year']})"
+            )
+            assert probs["3_year"] >= probs["5_year"], (
+                f"{disease}: 3y ({probs['3_year']}) < 5y ({probs['5_year']})"
+            )
+
+    def test_all_disease_baselines_produce_valid_probs(self):
+        from analytics.services.prediction import predict_kidney_survival
+        for disease in self.DISEASES:
+            result = predict_kidney_survival(
+                patient_data={"age": 50, "sex": "M"},
+                disease=disease,
+            )
+            probs = result["survival_probs"]
+            for key in ("1_year", "3_year", "5_year"):
+                assert 0.0 <= probs[key] <= 1.0, (
+                    f"{disease} {key}={probs[key]} out of [0,1]"
+                )
+
+    def test_risk_factor_attribution_sums_to_approx_100(self):
+        from analytics.services.prediction import predict_kidney_survival
+        result = predict_kidney_survival(
+            patient_data={"age": 55, "sex": "M", "baseline_egfr": 25},
+            disease="IgA nephropathy",
+        )
+        attr = result["risk_factor_attribution"]
+        total = sum(a["impact_pct"] for a in attr)
+        assert 95.0 <= total <= 105.0, (
+            f"Attribution sum {total:.1f}% outside [95%, 105%]"
+        )
+
+    def test_high_age_increases_risk(self):
+        from analytics.services.prediction import predict_kidney_survival
+        young = predict_kidney_survival(
+            patient_data={"age": 30, "sex": "F"},
+            disease="IgA nephropathy",
+        )
+        old = predict_kidney_survival(
+            patient_data={"age": 80, "sex": "M"},
+            disease="IgA nephropathy",
+        )
+        yp = young["survival_probs"]["5_year"]
+        op = old["survival_probs"]["5_year"]
+        assert op < yp, (
+            f"80yo 5y survival ({op:.2f}) should be < 30yo ({yp:.2f})"
+        )
+
+    def test_extreme_egfr_impact(self):
+        from analytics.services.prediction import predict_kidney_survival
+        low_egfr = predict_kidney_survival(
+            patient_data={"age": 50, "sex": "M", "baseline_egfr": 15},
+            disease="IgA nephropathy",
+        )
+        high_egfr = predict_kidney_survival(
+            patient_data={"age": 50, "sex": "M", "baseline_egfr": 90},
+            disease="IgA nephropathy",
+        )
+        assert low_egfr["kdigo_category"] in ("high", "very_high")
+        assert high_egfr["kdigo_category"] in ("low", "moderate")
+
 class PredictSurvivalEndpointTests(TestCase):
     """Test the predict-survival endpoint (view-level)."""
 
     def setUp(self):
+        from django.core.management import call_command
+        call_command("seed_labs", verbosity=0)
         self.p = Patient.objects.create(
             patient_id="PRED-1", name="Prediction P", sex="M",
             dob=dt.date(1970, 1, 1), enrollment_date=dt.date(2024, 1, 1),
