@@ -1399,3 +1399,337 @@ class TestAudit:
             "recommendations": [{"message": "test", "type": "investigation", "detail": "d"}],
         }
         audit_clinical_reasoning(patient, profile, care_data)
+
+
+# ============================================================================
+# Disease-Specific Care Gaps (care_pathway.py)
+# ============================================================================
+
+class TestDiseaseSpecificCareGaps:
+    """Tests for _check_disease_specific_gaps and related helpers."""
+
+    def test_iga_gaps(self):
+        from clinical_reasoning.services.care_pathway import (
+            _check_disease_specific_gaps, _match_disease_key,
+        )
+        gaps = _check_disease_specific_gaps(MagicMock(), {}, "iga")
+        assert len(gaps) >= 2
+        fields = [g["field"] for g in gaps]
+        assert "tonsillectomy" in fields
+        assert "hematuria_monitoring" in fields
+        assert all(g["disease"] == "iga" for g in gaps)
+
+    def test_membranous_gaps(self):
+        from clinical_reasoning.services.care_pathway import _check_disease_specific_gaps
+        gaps = _check_disease_specific_gaps(MagicMock(), {}, "membranous")
+        assert len(gaps) >= 2
+        fields = [g["field"] for g in gaps]
+        assert "pla2r_monitoring" in fields
+        assert "thromboembolism_screening" in fields
+
+    def test_lupus_gaps(self):
+        from clinical_reasoning.services.care_pathway import _check_disease_specific_gaps
+        gaps = _check_disease_specific_gaps(MagicMock(), {}, "lupus")
+        assert len(gaps) >= 2
+        fields = [g["field"] for g in gaps]
+        assert "complement_monitoring" in fields
+        assert "extra_renal_lupus" in fields
+
+    def test_anca_gaps(self):
+        from clinical_reasoning.services.care_pathway import _check_disease_specific_gaps
+        gaps = _check_disease_specific_gaps(MagicMock(), {}, "anca")
+        assert len(gaps) >= 2
+        fields = [g["field"] for g in gaps]
+        assert "anca_titers" in fields
+        assert "ent_involvement" in fields
+
+    def test_diabetic_nephropathy_gaps(self):
+        from clinical_reasoning.services.care_pathway import _check_disease_specific_gaps
+        gaps = _check_disease_specific_gaps(MagicMock(), {}, "diabetic_nephropathy")
+        assert len(gaps) >= 2
+        fields = [g["field"] for g in gaps]
+        assert "glycemic_control" in fields
+        assert "foot_exam" in fields
+
+    def test_fsgs_gaps(self):
+        from clinical_reasoning.services.care_pathway import _check_disease_specific_gaps
+        gaps = _check_disease_specific_gaps(MagicMock(), {}, "fsgs")
+        assert len(gaps) >= 2
+        fields = [g["field"] for g in gaps]
+        assert "genetic_testing" in fields
+        assert "nephrotic_complications" in fields
+
+    def test_mcd_gaps(self):
+        from clinical_reasoning.services.care_pathway import _check_disease_specific_gaps
+        gaps = _check_disease_specific_gaps(MagicMock(), {}, "mcd")
+        assert len(gaps) >= 2
+        fields = [g["field"] for g in gaps]
+        assert "steroid_taper" in fields
+        assert "relapse_monitoring" in fields
+
+    def test_c3_glomerulopathy_gaps(self):
+        from clinical_reasoning.services.care_pathway import _check_disease_specific_gaps
+        gaps = _check_disease_specific_gaps(MagicMock(), {}, "c3_glomerulopathy")
+        assert len(gaps) >= 2
+        fields = [g["field"] for g in gaps]
+        assert "complement_levels" in fields
+        assert "lipodystrophy_screening" in fields
+
+    def test_unknown_disease_returns_empty(self):
+        from clinical_reasoning.services.care_pathway import _check_disease_specific_gaps
+        gaps = _check_disease_specific_gaps(MagicMock(), {}, "unknown")
+        assert gaps == []
+
+    def test_empty_disease_returns_empty(self):
+        from clinical_reasoning.services.care_pathway import _check_disease_specific_gaps
+        gaps = _check_disease_specific_gaps(MagicMock(), {}, "")
+        assert gaps == []
+
+    def test_wired_into_detect_care_gaps(self):
+        from clinical_reasoning.services.care_pathway import detect_care_gaps
+        gaps = detect_care_gaps(MagicMock(primary_diagnosis="iga"), {"disease_phase": "active"})
+        fields = [g["field"] for g in gaps]
+        # Should include disease-specific gap
+        assert "tonsillectomy" in fields or "hematuria_monitoring" in fields
+
+    def test_match_disease_key_iga(self):
+        from clinical_reasoning.services.care_pathway import _match_disease_key
+        assert _match_disease_key("iga nephropathy") == "iga"
+        assert _match_disease_key("igan") == "iga"
+        assert _match_disease_key("berger disease") == "iga"
+
+    def test_match_disease_key_membranous(self):
+        from clinical_reasoning.services.care_pathway import _match_disease_key
+        assert _match_disease_key("membranous nephropathy") == "membranous"
+        assert _match_disease_key("mn") == "membranous"
+
+    def test_match_disease_key_lupus(self):
+        from clinical_reasoning.services.care_pathway import _match_disease_key
+        assert _match_disease_key("lupus nephritis") == "lupus"
+        assert _match_disease_key("sle") == "lupus"
+        assert _match_disease_key("ln") == "lupus"
+
+    def test_match_disease_key_anca(self):
+        from clinical_reasoning.services.care_pathway import _match_disease_key
+        assert _match_disease_key("anca vasculitis") == "anca"
+        assert _match_disease_key("gpa") == "anca"
+
+    def test_match_disease_key_diabetic(self):
+        from clinical_reasoning.services.care_pathway import _match_disease_key
+        assert _match_disease_key("diabetic nephropathy") == "diabetic_nephropathy"
+        assert _match_disease_key("dn") == "diabetic_nephropathy"
+
+    def test_match_disease_key_fsgs(self):
+        from clinical_reasoning.services.care_pathway import _match_disease_key
+        assert _match_disease_key("fsgs") == "fsgs"
+        assert _match_disease_key("focal segmental glomerulosclerosis") == "fsgs"
+
+    def test_match_disease_key_mcd(self):
+        from clinical_reasoning.services.care_pathway import _match_disease_key
+        assert _match_disease_key("mcd") == "mcd"
+        assert _match_disease_key("minimal change disease") == "mcd"
+
+    def test_match_disease_key_c3(self):
+        from clinical_reasoning.services.care_pathway import _match_disease_key
+        assert _match_disease_key("c3 glomerulopathy") == "c3_glomerulopathy"
+        assert _match_disease_key("c3g") == "c3_glomerulopathy"
+        assert _match_disease_key("dense deposit disease") == "c3_glomerulopathy"
+
+    def test_match_disease_key_unknown(self):
+        from clinical_reasoning.services.care_pathway import _match_disease_key
+        assert _match_disease_key("completely unknown disease") is None
+
+
+# ============================================================================
+# Disease-Specific Pathway Stages (care_pathway_engine.py)
+# ============================================================================
+
+class TestPathwayStages:
+    """Tests for PATHWAY_STAGES, get_pathway_stages, and determine_current_stage with disease_id."""
+
+    def test_iga_has_stages(self):
+        from clinical_reasoning.services.care_pathway_engine import PATHWAY_STAGES
+        assert "iga" in PATHWAY_STAGES
+        stages = PATHWAY_STAGES["iga"]
+        assert len(stages) >= 4  # At least 4 stages
+        stage_names = [s.name for s in stages]
+        for expected in ("diagnosis", "induction", "maintenance", "relapse", "ckd_progression", "esrd"):
+            assert expected in stage_names
+
+    def test_membranous_has_stages(self):
+        from clinical_reasoning.services.care_pathway_engine import PATHWAY_STAGES
+        assert "membranous" in PATHWAY_STAGES
+        assert len(PATHWAY_STAGES["membranous"]) >= 4
+
+    def test_lupus_has_stages(self):
+        from clinical_reasoning.services.care_pathway_engine import PATHWAY_STAGES
+        assert "lupus" in PATHWAY_STAGES
+        assert len(PATHWAY_STAGES["lupus"]) >= 4
+
+    def test_anca_has_stages(self):
+        from clinical_reasoning.services.care_pathway_engine import PATHWAY_STAGES
+        assert "anca" in PATHWAY_STAGES
+        assert len(PATHWAY_STAGES["anca"]) >= 4
+
+    def test_diabetic_nephropathy_has_stages(self):
+        from clinical_reasoning.services.care_pathway_engine import PATHWAY_STAGES
+        assert "diabetic_nephropathy" in PATHWAY_STAGES
+        assert len(PATHWAY_STAGES["diabetic_nephropathy"]) >= 4
+
+    def test_get_pathway_stages_iga(self):
+        from clinical_reasoning.services.care_pathway_engine import get_pathway_stages
+        stages = get_pathway_stages("iga")
+        assert len(stages) >= 4
+        assert stages[0]["name"] == "diagnosis"
+
+    def test_get_pathway_stages_unknown_falls_back(self):
+        from clinical_reasoning.services.care_pathway_engine import get_pathway_stages
+        stages = get_pathway_stages("unknown_disease")
+        assert len(stages) > 0  # Falls back to generic stages
+
+    def test_determine_stage_with_disease_id_iga(self, patient):
+        from clinical_reasoning.services.care_pathway_engine import determine_current_stage
+        # With disease_id, active phase maps to disease-specific "induction"
+        stage = determine_current_stage(patient, {"disease_phase": "active"}, disease_id="iga")
+        assert stage == "induction"
+
+    def test_determine_stage_with_disease_id_remission(self, patient):
+        from clinical_reasoning.services.care_pathway_engine import determine_current_stage
+        stage = determine_current_stage(patient, {"disease_phase": "remission"}, disease_id="iga")
+        assert stage == "maintenance"
+
+    def test_determine_stage_with_disease_id_relapse(self, patient):
+        from clinical_reasoning.services.care_pathway_engine import determine_current_stage
+        stage = determine_current_stage(patient, {"disease_phase": "relapse"}, disease_id="membranous")
+        assert stage == "relapse"
+
+    def test_determine_stage_with_disease_id_unknown(self, patient):
+        from clinical_reasoning.services.care_pathway_engine import determine_current_stage
+        # Unknown disease_id with unknown phase -> falls to "assessment"
+        stage = determine_current_stage(patient, {}, disease_id="unknown")
+        assert stage == "assessment"
+
+    def test_determine_stage_without_disease_id_backward_compat(self, patient):
+        from clinical_reasoning.services.care_pathway_engine import determine_current_stage
+        # Without disease_id, backward compat
+        stage = determine_current_stage(patient, {"disease_phase": "active"})
+        assert stage == "active_disease"
+
+    def test_disease_specific_stage_map_known(self):
+        from clinical_reasoning.services.care_pathway_engine import _disease_specific_stage_map
+        mapping = _disease_specific_stage_map("iga", {})
+        assert mapping is not None
+        assert mapping["active"] == "induction"
+        assert mapping["remission"] == "maintenance"
+
+    def test_disease_specific_stage_map_unknown(self):
+        from clinical_reasoning.services.care_pathway_engine import _disease_specific_stage_map
+        mapping = _disease_specific_stage_map("nonexistent", {})
+        assert mapping is None
+
+    def test_pathway_stage_to_dict(self):
+        from clinical_reasoning.services.care_pathway_engine import PATHWAY_STAGES
+        stage = PATHWAY_STAGES["iga"][0]
+        d = stage.to_dict()
+        assert d["name"] == "diagnosis"
+        assert "required_actions" in d
+        assert "next_stages" in d
+
+
+# ============================================================================
+# Enhanced Explainability (explainability.py)
+# ============================================================================
+
+class TestEnhancedExplainability:
+    """Tests for enhanced guideline support and rejected alternatives."""
+
+    def test_guideline_support_includes_year(self):
+        from clinical_reasoning.services.explainability import _extract_guideline_support
+        diff = [{"disease_name": "IgA", "source": "KDIGO",
+                 "guideline_year": 2021, "guideline_chapter": "GN 4.1.5",
+                 "evidence_grade": "1B"}]
+        result = _extract_guideline_support(diff)
+        assert len(result) == 1
+        assert result[0]["year"] == 2021
+        assert result[0]["evidence_grade"] == "1B"
+        assert "KDIGO" in result[0]["reference"]
+        assert "2021" in result[0]["reference"]
+        assert "GN 4.1.5" in result[0]["reference"]
+        assert "(1B)" in result[0]["reference"]
+
+    def test_guideline_support_no_year(self):
+        from clinical_reasoning.services.explainability import _extract_guideline_support
+        diff = [{"disease_name": "IgA", "source": "KDIGO",
+                 "evidence_grade": "1A"}]
+        result = _extract_guideline_support(diff)
+        assert len(result) >= 1
+        assert result[0]["year"] == ""
+        assert "KDIGO" in result[0]["reference"]
+        assert "(1A)" in result[0]["reference"]
+
+    def test_guideline_support_dedup_by_year_chapter(self):
+        from clinical_reasoning.services.explainability import _extract_guideline_support
+        diff = [
+            {"source": "KDIGO", "guideline_year": 2021, "guideline_chapter": "GN 4.1", "evidence_grade": "1B"},
+            {"source": "KDIGO", "guideline_year": 2021, "guideline_chapter": "GN 4.1", "evidence_grade": "1B"},
+            {"source": "KDIGO", "guideline_year": 2024, "guideline_chapter": "GN 5.2", "evidence_grade": "2C"},
+        ]
+        result = _extract_guideline_support(diff)
+        # First two are same source/year/chapter -> dedup to 1
+        # Third is different year/chapter -> separate entry
+        assert len(result) >= 2
+
+    def test_rejected_alternatives_with_exclusion_reasons(self):
+        from clinical_reasoning.services.explainability import _explain_rejected_alternatives
+        top = {"score": 15, "disease_name": "IgA", "evidence_grade": "1B",
+               "matched_rules_count": 5}
+        alts = [{
+            "score": 5, "disease_name": "MN",
+            "matched_rules": [{"condition": "x", "weight": 1}],
+            "matched_rules_count": 1,
+            "missing_rules": [{"condition": "y", "weight": 2}, {"condition": "z", "weight": 3}],
+            "evidence_grade": "2C",
+            "conflicting_findings": [],
+        }]
+        r = _explain_rejected_alternatives(alts, top)
+        assert len(r) >= 1
+        assert r[0]["confidence"] == "low"
+        assert len(r[0]["exclusion_reasons"]) >= 1
+        # Should mention missing criteria and fewer matched
+        all_reasons = " ".join(r[0]["exclusion_reasons"]).lower()
+        assert "missing" in all_reasons or "fewer" in all_reasons or "weaker" in all_reasons
+
+    def test_rejected_alternatives_conflicting(self):
+        from clinical_reasoning.services.explainability import _explain_rejected_alternatives
+        top = {"score": 15, "disease_name": "IgA", "evidence_grade": "1B",
+               "matched_rules_count": 5}
+        alts = [{
+            "score": 10, "disease_name": "Lupus",
+            "matched_rules": [{"condition": "x", "weight": 1}],
+            "matched_rules_count": 3,
+            "missing_rules": [],
+            "evidence_grade": "1B",
+            "conflicting_findings": ["No anti-dsDNA", "Normal complements"],
+        }]
+        r = _explain_rejected_alternatives(alts, top)
+        assert len(r) >= 1
+        assert r[0]["confidence"] == "moderate"  # score diff 5
+        # Should mention conflicting findings
+        reasons = " ".join(r[0]["exclusion_reasons"]).lower()
+        assert "conflicting" in reasons
+
+    def test_rejected_alternatives_borderline(self):
+        from clinical_reasoning.services.explainability import _explain_rejected_alternatives
+        top = {"score": 10, "disease_name": "IgA", "evidence_grade": "1B",
+               "matched_rules_count": 3}
+        alts = [{
+            "score": 9, "disease_name": "MN",
+            "matched_rules": [{"condition": "x", "weight": 1}],
+            "matched_rules_count": 2,
+            "missing_rules": [],
+            "evidence_grade": "1B",
+            "conflicting_findings": [],
+        }]
+        r = _explain_rejected_alternatives(alts, top)
+        assert len(r) >= 1
+        assert r[0]["confidence"] == "borderline"

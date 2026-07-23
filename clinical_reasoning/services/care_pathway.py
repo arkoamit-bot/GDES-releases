@@ -26,6 +26,10 @@ def detect_care_gaps(patient, features: dict) -> list[dict]:
     # Treatment-related gaps
     gaps.extend(_check_treatment_gaps(patient, features))
 
+    # Disease-specific gaps
+    primary_disease = (getattr(patient, "primary_diagnosis", "") or "").lower()
+    gaps.extend(_check_disease_specific_gaps(patient, features, primary_disease))
+
     return gaps
 
 
@@ -192,3 +196,185 @@ def compute_monitoring_schedule(features: dict) -> dict:
         schedule["next_visit"] = "1_month"
 
     return schedule
+
+
+# ============================================================================
+# Disease-Specific Care Gaps
+# ============================================================================
+
+DISEASE_SPECIFIC_GAPS: dict[str, list[dict]] = {
+    "iga": [
+        {
+            "field": "tonsillectomy",
+            "importance": "medium",
+            "category": "treatment",
+            "message": "Consider tonsillectomy if recurrent tonsillitis triggers hematuria flares",
+            "recommendation": "Refer for ENT evaluation for tonsillectomy if recurrent tonsillitis",
+        },
+        {
+            "field": "hematuria_monitoring",
+            "importance": "medium",
+            "category": "monitoring",
+            "message": "Screen for hematuria flares — microscopic hematuria is a hallmark of IgA activity",
+            "recommendation": "Include urinalysis with microscopy at each visit",
+        },
+    ],
+    "membranous": [
+        {
+            "field": "pla2r_monitoring",
+            "importance": "high",
+            "category": "monitoring",
+            "message": "Monitor PLA2R antibody titers every 3 months to assess disease activity and treatment response",
+            "recommendation": "Order serum anti-PLA2R antibodies every 3 months",
+        },
+        {
+            "field": "thromboembolism_screening",
+            "importance": "high",
+            "category": "monitoring",
+            "message": "Screen for thromboembolism — membranous nephropathy carries high thrombotic risk",
+            "recommendation": "Assess for DVT/PE symptoms and consider prophylactic anticoagulation if albumin <2.5 g/dL",
+        },
+    ],
+    "lupus": [
+        {
+            "field": "complement_monitoring",
+            "importance": "high",
+            "category": "monitoring",
+            "message": "Monitor complement C3/C4 levels — low complements indicate active lupus nephritis",
+            "recommendation": "Order C3, C4 with each disease activity assessment",
+        },
+        {
+            "field": "extra_renal_lupus",
+            "importance": "medium",
+            "category": "monitoring",
+            "message": "Screen for extra-renal lupus activity (skin, joints, serositis, CNS)",
+            "recommendation": "Perform comprehensive SLE activity assessment (e.g. SLEDAI)",
+        },
+    ],
+    "anca": [
+        {
+            "field": "anca_titers",
+            "importance": "high",
+            "category": "monitoring",
+            "message": "Monitor ANCA titers — rising titers may predict relapse",
+            "recommendation": "Order ANCA serology (MPO/PR3) every 1-3 months",
+        },
+        {
+            "field": "ent_involvement",
+            "importance": "medium",
+            "category": "monitoring",
+            "message": "Check for ENT involvement — common in granulomatosis with polyangiitis",
+            "recommendation": "Refer for ENT evaluation if sinonasal symptoms present",
+        },
+    ],
+    "diabetic_nephropathy": [
+        {
+            "field": "glycemic_control",
+            "importance": "high",
+            "category": "treatment",
+            "message": "Optimize glycemic control (HbA1c target <7% or individualized)",
+            "recommendation": "Review HbA1c, adjust hypoglycemic agents, consider SGLT2i/GLP-1 RA",
+        },
+        {
+            "field": "foot_exam",
+            "importance": "medium",
+            "category": "preventive",
+            "message": "Annual foot exam recommended for diabetic nephropathy patients",
+            "recommendation": "Schedule annual comprehensive foot examination",
+        },
+    ],
+    "fsgs": [
+        {
+            "field": "genetic_testing",
+            "importance": "medium",
+            "category": "investigation",
+            "message": "Assess for genetic causes if family history of FSGS or steroid resistance",
+            "recommendation": "Consider genetic testing (e.g. podocyte-related genes)",
+        },
+        {
+            "field": "nephrotic_complications",
+            "importance": "high",
+            "category": "monitoring",
+            "message": "Monitor for nephrotic syndrome complications (thrombosis, infection, AKI)",
+            "recommendation": "Monitor albumin, cholesterol, screen for thrombosis, vaccinate",
+        },
+    ],
+    "mcd": [
+        {
+            "field": "steroid_taper",
+            "importance": "high",
+            "category": "treatment",
+            "message": "Taper steroids slowly over 4-6 months to reduce relapse risk",
+            "recommendation": "Develop gradual steroid taper schedule",
+        },
+        {
+            "field": "relapse_monitoring",
+            "importance": "medium",
+            "category": "monitoring",
+            "message": "Monitor for relapse — MCD has high relapse rate (40-60%)",
+            "recommendation": "Urinalysis and proteinuria monitoring every 1-2 months",
+        },
+    ],
+    "c3_glomerulopathy": [
+        {
+            "field": "complement_levels",
+            "importance": "high",
+            "category": "monitoring",
+            "message": "Monitor complement levels (C3, C4, CH50) to assess disease activity",
+            "recommendation": "Order complement panel at each assessment",
+        },
+        {
+            "field": "lipodystrophy_screening",
+            "importance": "medium",
+            "category": "monitoring",
+            "message": "Screen for acquired partial lipodystrophy — associated with C3 glomerulopathy",
+            "recommendation": "Clinical examination for fat loss distribution",
+        },
+    ],
+}
+
+# Map diagnosis substrings to disease keys
+DISEASE_KEYWORDS: dict[str, list[str]] = {
+    "iga": ["iga", "igan", "berger"],
+    "membranous": ["membranous", "mn", "mgn"],
+    "lupus": ["lupus", "sle", "ln"],
+    "anca": ["anca", "vasculitis", "gpa", "mpa", "egpa"],
+    "diabetic_nephropathy": ["diabetic", "dn", "dkn"],
+    "fsgs": ["fsgs", "focal segmental"],
+    "mcd": ["mcd", "minimal change", "lipoid nephrosis"],
+    "c3_glomerulopathy": ["c3", "c3g", "dense deposit", "ddg", "membranoproliferative", "mpgn"],
+}
+
+
+def _check_disease_specific_gaps(patient, features: dict, primary_disease: str) -> list[dict]:
+    """Check for disease-specific care gaps based on the patient's primary diagnosis.
+
+    Covers at least 8 diseases: IgA, Membranous, Lupus, ANCA, Diabetic Nephropathy,
+    FSGS, MCD, C3 Glomerulopathy.
+    """
+    gaps = []
+
+    if not primary_disease:
+        return gaps
+
+    # Determine which disease key matches
+    disease_key = _match_disease_key(primary_disease)
+    if not disease_key:
+        return gaps
+
+    specific_gaps = DISEASE_SPECIFIC_GAPS.get(disease_key, [])
+    for gap_def in specific_gaps:
+        gap = dict(gap_def)  # copy
+        gap["disease"] = disease_key
+        gaps.append(gap)
+
+    return gaps
+
+
+def _match_disease_key(primary_disease: str) -> str | None:
+    """Match a primary_disease string (lowercase) to a disease key."""
+    for key, keywords in DISEASE_KEYWORDS.items():
+        for kw in keywords:
+            if kw in primary_disease:
+                return key
+    return None

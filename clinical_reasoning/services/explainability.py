@@ -131,20 +131,40 @@ def _extract_matched_rules(differential: list) -> list[dict]:
 
 
 def _extract_guideline_support(differential: list) -> list[dict]:
-    """Extract guideline references from the differential."""
+    """Extract guideline references from the differential.
+
+    Includes guideline year and evidence grade (e.g. "KDIGO 2021 GN 4.1.5 (1B)").
+    """
     guidelines = []
     seen = set()
     for d in differential:
         source = d.get("source", "")
         chapter = d.get("guideline_chapter", "")
-        if source and source not in seen:
-            seen.add(source)
+        grade = d.get("evidence_grade", "NG")
+        year = d.get("guideline_year", d.get("year", ""))
+        paragraph = d.get("guideline_paragraph", "")
+
+        # Build reference string like "KDIGO 2021 GN 4.1.5 (1B)"
+        ref_parts = [source]
+        if year:
+            ref_parts.append(str(year))
+        if chapter:
+            ref_parts.append(chapter)
+        reference = " ".join(ref_parts)
+        if grade and grade != "NG":
+            reference += f" ({grade})"
+
+        dedup_key = (source, str(year), chapter)
+        if dedup_key not in seen:
+            seen.add(dedup_key)
             guidelines.append({
                 "guideline": source,
+                "year": year,
                 "chapter": chapter or "",
-                "paragraph": d.get("guideline_paragraph", ""),
+                "paragraph": paragraph,
                 "quote": d.get("guideline_quote", ""),
-                "evidence_grade": d.get("evidence_grade", "NG"),
+                "evidence_grade": grade,
+                "reference": reference,
                 "evidence_url": d.get("evidence_url", ""),
             })
     return guidelines
@@ -193,26 +213,60 @@ def _compute_confidence(differential: list) -> dict:
 
 
 def _explain_rejected_alternatives(alternatives: list, top: dict | None) -> list[dict]:
-    """Explain why alternative diagnoses were ranked lower."""
+    """Explain why alternative diagnoses were ranked lower.
+
+    Includes specific reasons: missing criteria, conflicting findings,
+    lower guideline support, and score-based differentiation.
+    """
     if not top:
         return []
     explanations = []
-    for alt in alternatives[:3]:
+    for alt in alternatives[:5]:
         score_diff = top["score"] - alt["score"]
         missing = alt.get("missing_rules", []) or []
         matched = alt.get("matched_rules", []) or []
+
         if score_diff > 5:
             reason = "Significantly lower score — substantially less evidence"
+            confidence = "low"
         elif score_diff > 2:
             reason = "Moderately lower score — fewer matching criteria"
+            confidence = "moderate"
         else:
             reason = "Marginally lower score — consider in differential"
+            confidence = "borderline"
+
+        # Build specific exclusion reasons
+        exclusion_reasons = []
+        if missing:
+            missing_names = [m.get("condition", m.get("rule_text", "")) for m in missing[:3]]
+            exclusion_reasons.append(f"Missing key criteria: {', '.join(missing_names)}")
+        alt_grade = alt.get("evidence_grade", "NG")
+        top_grade = top.get("evidence_grade", "NG")
+        if alt_grade and top_grade and alt_grade != top_grade:
+            exclusion_reasons.append(f"Weaker evidence grade ({alt_grade} vs {top_grade})")
+
+        # Check for conflicting features
+        alt_conflicting = alt.get("conflicting_findings", []) or []
+        if alt_conflicting:
+            exclusion_reasons.append(f"Conflicting findings: {', '.join(alt_conflicting[:2])}")
+
+        alt_matched_count = alt.get("matched_rules_count", len(matched))
+        top_matched_count = top.get("matched_rules_count", 0)
+        if alt_matched_count < top_matched_count:
+            exclusion_reasons.append(
+                f"Fewer total criteria matched ({alt_matched_count} vs {top_matched_count})"
+            )
+
         entry = {
             "disease": alt.get("disease_name"),
             "score": alt.get("score"),
             "score_difference": score_diff,
             "reason": reason,
+            "confidence": confidence,
             "matched_rule_count": len(matched),
+            "top_matched_rule_count": top_matched_count,
+            "exclusion_reasons": exclusion_reasons,
             "missing_rules": [
                 {"condition": m.get("condition", ""), "weight": m.get("weight", 0)}
                 for m in missing[:5]
