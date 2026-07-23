@@ -19,6 +19,7 @@ from .services import survival as S
 from .services import cox as C
 from .services.cohort import cohort_survival, cox_regression, split_patients
 from .services.outcomes import compute_patient_outcome
+from .services.prediction import predict_kidney_survival
 
 # Freireich 6-MP group (weeks); censored marked with event=False.
 SIXMP = [
@@ -345,3 +346,225 @@ class CohortTests(TestCase):
         with self.assertRaises(ValueError):
             cox_regression(Patient.objects.all(), ["baseline_egfr"],
                            "composite_kidney_event")
+
+
+# ---------------------------------------------------------------------------
+# Sprint 3 — Prediction, Dashboard & Trajectory tests
+# ---------------------------------------------------------------------------
+
+
+class PredictionTests(TestCase):
+    """Test the kidney survival prediction service."""
+
+    def test_predict_returns_expected_keys(self):
+        result = predict_kidney_survival(
+            patient_data={"age": 45, "sex": "M", "baseline_egfr": 55},
+            disease="IgA nephropathy",
+            risk_factors={"hypertension": True},
+        )
+        self.assertIn("survival_probs", result)
+        self.assertIn("risk_factor_attribution", result)
+        self.assertIn("kdigo_category", result)
+        self.assertIn("raw_risk_score", result)
+
+    def test_survival_probabilities_in_range(self):
+        result = predict_kidney_survival(
+            patient_data={"age": 60, "sex": "M", "baseline_egfr": 25,
+                          "proteinuria": 4.0, "hypertension": True,
+                          "diabetes": True},
+            disease="Diabetic kidney disease",
+        )
+        probs = result["survival_probs"]
+        for key in ("1_year", "3_year", "5_year"):
+            self.assertIn(key, probs)
+            self.assertGreaterEqual(probs[key], 0.0)
+            self.assertLessEqual(probs[key], 1.0)
+        # 5-year should be <= 1-year
+        self.assertLessEqual(probs["5_year"], probs["1_year"])
+
+    def test_kdigo_category_low_for_low_risk(self):
+        result = predict_kidney_survival(
+            patient_data={"age": 30, "sex": "F", "baseline_egfr": 95},
+            disease="Minimal change disease",
+        )
+        self.assertEqual(result["kdigo_category"], "low")
+
+    def test_kdigo_category_very_high_for_high_risk(self):
+        result = predict_kidney_survival(
+            patient_data={"age": 70},
+            risk_factors={
+                "baseline_egfr_low": True,
+                "proteinuria_nephrotic": True,
+                "diabetes": True,
+                "hypertension": True,
+                "smoking": True,
+                "biopsy_chronicity_high": True,
+            },
+            disease="ANCA vasculitis",
+        )
+        self.assertIn(result["kdigo_category"], ("high", "very_high"))
+
+    def test_risk_factor_attribution_orders_by_impact(self):
+        result = predict_kidney_survival(
+            patient_data={"age": 55, "sex": "M"},
+            risk_factors={
+                "baseline_egfr_low": True,
+                "proteinuria_nephrotic": True,
+                "diabetes": True,
+            },
+            disease="IgA nephropathy",
+        )
+        attr = result["risk_factor_attribution"]
+        self.assertGreater(len(attr), 0)
+        # Ordered descending by impact_pct
+        for i in range(len(attr) - 1):
+            self.assertGreaterEqual(attr[i]["impact_pct"], attr[i + 1]["impact_pct"])
+
+    def test_auto_derive_from_patient_data(self):
+        """Auto-derivation should pick up age, sex, egfr, proteinuria etc."""
+        result = predict_kidney_survival(
+            patient_data={
+                "age": 50,
+                "sex": "M",
+                "baseline_egfr": 25,  # <30 -> baseline_egfr_low
+                "proteinuria": 4.5,   # >=3.5 -> nephrotic
+                "hypertension": True,
+                "diabetes": "t2",
+            },
+            disease="Membranous nephropathy",
+        )
+        self.assertGreater(result["n_factors"], 2)
+        self.assertIn(result["kdigo_category"], ("high", "very_high"))
+
+    def test_predict_no_risk_factors_returns_baseline(self):
+        """With zero risk factors, survival should match disease baseline."""
+        result = predict_kidney_survival(
+            disease="IgA nephropathy",
+        )
+        probs = result["survival_probs"]
+        # Reference: IgA baseline S(1y)=0.97, S(3y)=0.88, S(5y)=0.78
+        self.assertAlmostEqual(probs["1_year"], 0.97, delta=0.01)
+        self.assertAlmostEqual(probs["3_year"], 0.88, delta=0.01)
+        self.assertAlmostEqual(probs["5_year"], 0.78, delta=0.01)
+        self.assertEqual(result["kdigo_category"], "low")
+
+
+class DashboardEndpointTests(TestCase):
+    """Test the consolidated dashboard endpoint."""
+
+    def setUp(self):
+        from django.core.management import call_command
+        call_command("seed_labs", verbosity=0)
+        self.p = Patient.objects.create(
+            patient_id="DB-1", name="Dashboard P", sex="M",
+            dob=dt.date(1970, 1, 1), enrollment_date=dt.date(2024, 1, 1),
+            primary_diagnosis="IgA nephropathy",
+        )
+
+    def _login(self):
+        from django.contrib.auth.models import User
+        u, _ = User.objects.get_or_create(username="testuser")
+        self.client.force_login(u)
+
+    def test_dashboard_endpoint(self):
+        self._login()
+        resp = self.client.get("/analytics/dashboard/")
+        self.assertEqual(resp.status_code, 200)
+        data = resp.json()
+        self.assertIn("overview", data)
+        self.assertIn("disease_distribution", data)
+        self.assertIn("outcomes", data)
+        self.assertIn("quality_metrics", data)
+        self.assertIn("compliance", data)
+        self.assertEqual(data["disease_distribution"][0]["diagnosis"],
+                         "IgA nephropathy")
+
+    def test_disease_distribution(self):
+        self._login()
+        Patient.objects.create(
+            patient_id="DB-2", name="P2", sex="F",
+            dob=dt.date(1980, 1, 1), enrollment_date=dt.date(2024, 2, 1),
+            primary_diagnosis="Lupus nephritis",
+        )
+        Patient.objects.create(
+            patient_id="DB-3", name="P3", sex="M",
+            dob=dt.date(1975, 1, 1), enrollment_date=dt.date(2024, 3, 1),
+            primary_diagnosis="IgA nephropathy",
+        )
+        resp = self.client.get("/analytics/dashboard/")
+        dist = resp.json()["disease_distribution"]
+        dx_counts = {r["diagnosis"]: r["count"] for r in dist}
+        self.assertEqual(dx_counts["IgA nephropathy"], 2)
+        self.assertEqual(dx_counts["Lupus nephritis"], 1)
+
+
+class PatientTrajectoryTests(TestCase):
+    """Test the patient trajectory endpoint."""
+
+    def setUp(self):
+        from django.core.management import call_command
+        call_command("seed_labs", verbosity=0)
+        self.p = Patient.objects.create(
+            patient_id="TRAJ-1", name="Trajectory P", sex="M",
+            dob=dt.date(1975, 1, 1), enrollment_date=dt.date(2023, 1, 1),
+        )
+
+    def _login(self):
+        from django.contrib.auth.models import User
+        u, _ = User.objects.get_or_create(username="testuser")
+        self.client.force_login(u)
+
+    def _add_lab(self, code, date, val):
+        from labs.services.results import record_result
+        record_result(self.p, code, result_date=date, value_numeric=val)
+
+    def test_patient_trajectory_basic_structure(self):
+        self._login()
+        self._add_lab("egfr", dt.date(2024, 1, 1), 75.0)
+        self._add_lab("egfr", dt.date(2024, 6, 1), 68.0)
+        from analytics.services.outcomes import compute_patient_outcome
+        compute_patient_outcome(self.p)
+        resp = self.client.get(
+            f"/analytics/patient/{self.p.patient_id}/trajectory/")
+        self.assertEqual(resp.status_code, 200)
+        data = resp.json()
+        self.assertEqual(data["patient_id"], "TRAJ-1")
+        self.assertIn("egfr", data)
+        self.assertIn("proteinuria", data)
+        self.assertIn("treatment_timeline", data)
+        self.assertIn("care_gaps", data)
+        self.assertIn("pathway_stage", data)
+        self.assertGreater(len(data["egfr"]), 0)
+
+    def test_patient_trajectory_nonexistent_returns_404(self):
+        self._login()
+        resp = self.client.get("/analytics/patient/NO-SUCH/trajectory/")
+        self.assertEqual(resp.status_code, 404)
+
+
+class PredictSurvivalEndpointTests(TestCase):
+    """Test the predict-survival endpoint (view-level)."""
+
+    def setUp(self):
+        self.p = Patient.objects.create(
+            patient_id="PRED-1", name="Prediction P", sex="M",
+            dob=dt.date(1970, 1, 1), enrollment_date=dt.date(2024, 1, 1),
+            primary_diagnosis="IgA nephropathy",
+        )
+
+    def _login(self):
+        from django.contrib.auth.models import User
+        u, _ = User.objects.get_or_create(username="testuser")
+        self.client.force_login(u)
+
+    def test_predict_survival_endpoint(self):
+        self._login()
+        resp = self.client.get(
+            f"/analytics/predict/{self.p.patient_id}/survival/")
+        self.assertEqual(resp.status_code, 200)
+        data = resp.json()
+        self.assertIn("survival_probs", data)
+        self.assertIn("kdigo_category", data)
+        self.assertIn("risk_factor_attribution", data)
+        for key in ("1_year", "3_year", "5_year"):
+            self.assertIn(key, data["survival_probs"])
