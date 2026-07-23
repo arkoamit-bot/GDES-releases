@@ -233,9 +233,12 @@ else:
             # strategy protects against). Django 5.1+ runs OPTIONS["init_command"]
             # on each new connection; the PRAGMA is persistent and idempotent.
             "OPTIONS": {
-                "timeout": 30,
-                "init_command": "PRAGMA journal_mode=WAL;",
-            },
+                    "timeout": 30,
+                    # NOTE: init_command PRAGMA journal_mode=WAL; was removed
+                    # because Django 5.0's SQLite backend does not support it
+                    # (added in Django 5.1). WAL mode is still active if the
+                    # db was created with it, but is not enforced per-connection.
+                },
         }
     }
 
