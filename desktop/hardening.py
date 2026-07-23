@@ -43,10 +43,10 @@ def cloud_sync_segment(path) -> str | None:
     """
     if not path:
         return None
-    try:
-        parts = Path(path).expanduser().parts
-    except Exception:
-        parts = str(path).replace("\\", "/").split("/")
+    # Normalise separators so we can always split manually — Path.parts on
+    # Linux does NOT parse Windows-style paths into directory components.
+    normalised = str(path).replace("\\", "/")
+    parts = normalised.split("/")
     for part in parts:
         low = part.strip().lower()
         for seg in CLOUD_SYNC_SEGMENTS:
