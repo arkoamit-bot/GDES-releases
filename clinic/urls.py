@@ -52,4 +52,15 @@ urlpatterns = [
     path("clinic/analytics/cox/", views.cox_results, name="cox_results"),
     path("clinic/analytics/egfr-slope/", views.egfr_slope_results, name="egfr_slope_results"),
     path("clinic/analytics/cif/", views.cif_results, name="cif_results"),
+    path("patients/<int:pk>/run-intelligence/", views.run_clinical_intelligence,
+         name="run_intelligence"),
+    path("patients/<int:pk>/verify-treatment/", views.verify_treatment_with_vera,
+         name="verify_treatment"),
+
+    path("patients/<int:pk>/request-prescription/", views.request_vera_prescription,
+         name="request_vera_prescription"),
+    path("patients/<int:pk>/save-vera-response/", views.save_vera_response,
+         name="save_vera_response"),
+    # Keystroke-only (no patient data); see views.vera_autopaste.
+    path("clinic/vera/autopaste/", views.vera_autopaste, name="vera_autopaste"),
 ]

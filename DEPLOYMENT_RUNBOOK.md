@@ -272,6 +272,23 @@ equivalent: `tests/test_desktop_hardening.py::test_safe_migrate_rolls_back_on_fa
 | Blank browser page | Check `startup.log`; ensure Waitress bound `127.0.0.1:8000`. |
 | "Startup blocked — critical KB problem" | No active rules / DB unreadable — restore a recent backup. |
 | SmartScreen warning | Sign the binaries (§3) or More info → Run anyway. |
+| "Request Prescription from Vera" doesn't auto-paste | By design when the guard can't confirm the window (see below) — press Ctrl+V in Vera. |
+
+### Vera auto-paste (Windows only)
+
+"Request Prescription from Vera" copies the case note, opens Vera, and then
+sends **one Ctrl+V** from the desktop service — because the browser's
+same-origin policy makes it impossible for GDES to type into verahealth.ai.
+
+The keystroke fires **only** when the foreground window is verifiably a browser
+whose title mentions Vera, re-checked immediately before sending. If the
+clinician alt-tabs while the page loads, nothing is sent — this is what stops a
+full case note being pasted into an email or another patient's record. It never
+presses Enter; the clinician reviews the prompt and submits.
+
+Any failure is harmless: the clipboard still holds the prompt and the UI says
+to press Ctrl+V. Disable entirely with `GDES_VERA_AUTOPASTE=0`. Keystroke
+automation can be flagged by aggressive EDR — same allowlist as §7 applies.
 
 ---
 

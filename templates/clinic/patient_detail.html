@@ -263,19 +263,101 @@
     </div>
   </div>
 
-  <!-- Clinical Reasoning summary card (full detail in dedicated tab) -->
-  <div style="display:flex;gap:12px;flex-wrap:wrap;margin-bottom:16px">
-    <div style="flex:1;min-width:200px;background:#fff;border:1px solid var(--line);border-radius:12px;padding:14px 16px;display:flex;align-items:center;gap:12px">
-      <span style="display:flex;align-items:center;justify-content:center;width:40px;height:40px;border-radius:10px;background:#eef2ff;color:#4f46e5;font-size:18px"><i class="fas fa-brain"></i></span>
-      <div>
-        <div style="font-size:11px;font-weight:600;color:#64748b;text-transform:uppercase">Clinical Reasoning</div>
-        <div style="font-size:14px;font-weight:600;color:var(--ink)">
-          {% if profile %}{{ profile.differential|length }} differentials
-          {% if profile.risk_assessment %} · Risk profiled{% endif %}
-          {% else %}Not computed{% endif %}
+  <!-- Clinical Intelligence summary (full detail in Clinical Reasoning tab) -->
+  <div class="card" style="margin-bottom:16px;border-left:4px solid #4f46e5">
+    <div class="card-header" style="color:#4f46e5"><i class="fas fa-brain"></i> Clinical Intelligence
+      <span style="margin-left:auto;display:flex;gap:6px;align-items:center">
+        {% if profile and profile.evidence_summary.confidence %}
+          {% with conf=profile.evidence_summary.confidence %}
+          <span class="badge {% if conf.level == 'high' %}ok{% elif conf.level == 'moderate' %}info{% elif conf.level == 'low' %}warn{% else %}neutral{% endif %}" style="font-size:11px">
+            {{ conf.level|title }} confidence
+          </span>
+          {% endwith %}
+        {% endif %}
+        {% if profile and profile.evidence_summary.last_evidence_check %}
+        <span style="font-size:10px;color:#94a3b8">Evidence checked {{ profile.evidence_summary.last_evidence_check|truncatechars:10 }}</span>
+        {% endif %}
+      </span>
+    </div>
+    <div class="card-body">
+      {% if profile and profile.differential %}
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px">
+        <!-- Left: Top differentials + complexity -->
+        <div>
+          <div style="font-size:11px;font-weight:700;color:#64748b;text-transform:uppercase;margin-bottom:8px">Top Diagnoses</div>
+          {% for dx in profile.differential|slice:":3" %}
+          <div style="display:flex;align-items:center;gap:10px;margin-bottom:8px">
+            <div style="flex:1;min-width:0">
+              <div style="font-size:13px;font-weight:600;color:var(--ink);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{{ dx.disease_name|default:dx.disease_id }}</div>
+              <div style="display:flex;align-items:center;gap:6px;margin-top:3px">
+                <div style="flex:1;height:6px;background:#e2e8f0;border-radius:3px;overflow:hidden">
+                  <div style="height:100%;width:{{ dx.confidence|default:0 }}%;background:{% if dx.confidence > 70 %}#15803d{% elif dx.confidence > 40 %}#b45309{% else %}#dc2626{% endif %};border-radius:3px"></div>
+                </div>
+                <span style="font-size:11px;font-weight:600;color:{% if dx.confidence > 70 %}#15803d{% elif dx.confidence > 40 %}#b45309{% else %}#dc2626{% endif %};min-width:32px;text-align:right">{{ dx.confidence }}%</span>
+              </div>
+            </div>
+            {% if dx.evidence_grade %}<span class="badge {% if dx.evidence_grade == '1' %}ok{% elif dx.evidence_grade == '2' %}info{% else %}neutral{% endif %}" style="font-size:10px;padding:2px 6px">Grade {{ dx.evidence_grade }}</span>{% endif %}
+          </div>
+          {% endfor %}
+          {% if profile.evidence_summary.complexity %}
+          <div style="margin-top:10px;display:flex;gap:6px;align-items:center">
+            <span style="font-size:11px;color:#64748b">Complexity:</span>
+            <span class="badge {% if profile.evidence_summary.complexity.level == 'simple' %}ok{% elif profile.evidence_summary.complexity.level == 'moderate' %}info{% elif profile.evidence_summary.complexity.level == 'complex' %}warn{% else %}danger{% endif %}" style="font-size:11px;padding:2px 8px">{{ profile.evidence_summary.complexity.level|title }}</span>
+            {% if profile.evidence_summary.complexity.score is not None %}
+            <span style="font-size:10px;color:#94a3b8">({{ profile.evidence_summary.complexity.score }})</span>
+            {% endif %}
+          </div>
+          {% endif %}
+        </div>
+        <!-- Right: Confidence breakdown + evidence status -->
+        <div>
+          {% if profile.evidence_summary.confidence %}
+          {% with conf=profile.evidence_summary.confidence %}
+          <div style="font-size:11px;font-weight:700;color:#64748b;text-transform:uppercase;margin-bottom:8px">Confidence Score</div>
+          <div style="display:flex;align-items:center;gap:10px;margin-bottom:10px">
+            <div style="flex:1;height:10px;background:#e2e8f0;border-radius:5px;overflow:hidden">
+              <div style="height:100%;width:{{ conf.overall|floatformat:0 }}%;background:{% if conf.overall >= 0.8 %}#15803d{% elif conf.overall >= 0.5 %}#2563eb{% elif conf.overall >= 0.2 %}#b45309{% else %}#dc2626{% endif %};border-radius:5px"></div>
+            </div>
+            <span style="font-size:16px;font-weight:700;color:{% if conf.overall >= 0.8 %}#15803d{% elif conf.overall >= 0.5 %}#2563eb{% elif conf.overall >= 0.2 %}#b45309{% else %}#dc2626{% endif %}">{{ conf.overall|floatformat:0 }}%</span>
+          </div>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:4px;font-size:11px">
+            {% if conf.components.guideline_match %}<div style="color:#64748b">Guideline</div><div style="text-align:right;font-weight:500">{{ conf.components.guideline_match|floatformat:0 }}%</div>{% endif %}
+            {% if conf.components.evidence_strength %}<div style="color:#64748b">Evidence</div><div style="text-align:right;font-weight:500">{{ conf.components.evidence_strength|floatformat:0 }}%</div>{% endif %}
+            {% if conf.components.ai_agreement %}<div style="color:#64748b">AI Review</div><div style="text-align:right;font-weight:500">{{ conf.components.ai_agreement|floatformat:0 }}%</div>{% endif %}
+            {% if conf.components.rule_confidence %}<div style="color:#64748b">Rules</div><div style="text-align:right;font-weight:500">{{ conf.components.rule_confidence|floatformat:0 }}%</div>{% endif %}
+          </div>
+          {% endwith %}
+          {% else %}
+          <div style="font-size:11px;font-weight:700;color:#64748b;text-transform:uppercase;margin-bottom:8px">Confidence Score</div>
+          <div style="font-size:13px;color:#94a3b8;padding:8px 0">No confidence data available</div>
+          {% endif %}
+          <!-- Evidence & AI review status -->
+          <div style="margin-top:12px;display:flex;flex-wrap:wrap;gap:6px">
+            {% with pub_count=profile.evidence_summary.retrieved_publications|length %}
+            {% if pub_count %}
+            <span class="badge info" style="font-size:11px;padding:3px 8px"><i class="fas fa-book-medical"></i> {{ pub_count }} publication{{ pub_count|pluralize }}</span>
+            {% endif %}
+            {% endwith %}
+            {% if profile.evidence_summary.ai_review %}
+            <span class="badge ok" style="font-size:11px;padding:3px 8px"><i class="fas fa-robot"></i> AI reviewed</span>
+            {% endif %}
+          </div>
         </div>
       </div>
+      {% else %}
+      <div style="display:flex;align-items:center;gap:12px;padding:8px 0">
+        <span style="font-size:20px;color:#94a3b8"><i class="fas fa-brain"></i></span>
+        <div>
+          <div style="font-size:13px;color:#64748b">Clinical intelligence not yet computed.</div>
+          <div style="font-size:12px;color:#94a3b8;margin-top:2px">Profile will be generated automatically on data entry.</div>
+        </div>
+      </div>
+      {% endif %}
     </div>
+  </div>
+
+  <!-- Quick stats row -->
+  <div style="display:flex;gap:12px;flex-wrap:wrap;margin-bottom:16px">
     <div style="flex:1;min-width:200px;background:#fff;border:1px solid var(--line);border-radius:12px;padding:14px 16px;display:flex;align-items:center;gap:12px">
       <span style="display:flex;align-items:center;justify-content:center;width:40px;height:40px;border-radius:10px;background:#ecfeff;color:#0891b2;font-size:18px"><i class="fas fa-calendar-check"></i></span>
       <div>
@@ -412,7 +494,15 @@
 
 <!-- ===== TAB: Clinical Reasoning ===== -->
 <div id="tab-reasoning" class="tab-content">
-  <div style="display:flex;justify-content:flex-end;margin-bottom:12px">
+  <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
+    <div style="display:flex;gap:6px">
+      <form method="post" action="{% url 'clinic:run_intelligence' patient.pk %}" style="margin:0">
+        {% csrf_token %}
+        <button type="submit" class="btn sm" style="background:#4f46e5;color:#fff" title="Run the full clinical intelligence pipeline (Knowledge Engine + Evidence + AI Review)">
+          <i class="fas fa-brain"></i> Run Analysis
+        </button>
+      </form>
+    </div>
     <a href="https://www.verahealth.ai/" target="_blank" rel="noopener noreferrer" class="btn ghost sm"
        title="Open Vera Health evidence search in a new tab (external site — no patient data is sent)">
       <i class="fas fa-magnifying-glass-chart"></i> Search evidence (Vera Health)
@@ -439,6 +529,20 @@
       <div style="font-size:10px;color:#94a3b8;margin-top:4px">Feedback is stored as learning data and reviewed by an expert before any knowledge change — it never auto-updates the guidelines.</div>
     </div>
   </div>
+
+  <!-- Sprint 6: Patient-level override context -->
+  {% if patient_override_context and patient_override_context.local_total > 0 %}
+  <div style="display:flex;align-items:center;gap:12px;margin-bottom:14px;padding:10px 14px;background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;font-size:12px">
+    <i class="fas fa-chart-line" style="color:#6366f1"></i>
+    <span style="font-weight:600;color:#475569">Feedback on this patient:</span>
+    <span style="color:#64748b">{{ patient_override_context.local_total }} total</span>
+    {% if patient_override_context.local_override_rate is not None %}
+    <span style="color:{% if patient_override_context.local_override_rate > 15 %}#dc2626{% elif patient_override_context.local_override_rate > 10 %}#d97706{% else %}#16a34a{% endif %};font-weight:600">
+      {{ patient_override_context.local_override_rate }}% override rate
+    </span>
+    {% endif %}
+  </div>
+  {% endif %}
   {% endif %}
   {% if profile and profile.differential %}
   <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:16px">
@@ -447,19 +551,24 @@
       <div class="card-body" style="padding:0">
         {% for dx in profile.differential %}
         <div style="display:flex;align-items:center;gap:8px;padding:10px 14px;{% if not forloop.last %}border-bottom:1px solid var(--line){% endif %}">
-          <div style="flex:1"><span style="font-weight:600;font-size:13px">{{ dx.disease_name|default:dx.disease_id }}</span>
-            {% if dx.source %}<span class="badge neutral" style="font-size:10px">{{ dx.source }}</span>{% endif %}
+          <div style="flex:1;min-width:0">
+            <div style="display:flex;align-items:center;gap:6px">
+              <span style="font-weight:600;font-size:13px">{{ dx.disease_name|default:dx.disease_id }}</span>
+              {% if dx.source %}<span class="badge neutral" style="font-size:10px">{{ dx.source }}</span>{% endif %}
+            </div>
+            {% if dx.confidence %}
+            <div style="display:flex;align-items:center;gap:6px;margin-top:4px">
+              <div style="flex:1;height:5px;background:#e2e8f0;border-radius:3px;overflow:hidden">
+                <div style="height:100%;width:{{ dx.confidence }}%;background:{% if dx.confidence > 70 %}#15803d{% elif dx.confidence > 40 %}#b45309{% else %}#dc2626{% endif %};border-radius:3px"></div>
+              </div>
+              <span style="font-size:11px;font-weight:600;color:{% if dx.confidence > 70 %}#15803d{% elif dx.confidence > 40 %}#b45309{% else %}#dc2626{% endif %};min-width:32px;text-align:right">{{ dx.confidence }}%</span>
+            </div>
+            {% endif %}
           </div>
-          <div style="text-align:right">
+          <div style="text-align:right;min-width:48px">
             <span style="font-weight:700;font-size:15px">{{ dx.score|floatformat:1 }}</span>
             <span style="display:block;font-size:10px;color:#94a3b8">score</span>
           </div>
-          {% if dx.confidence %}
-          <div style="text-align:right;min-width:40px">
-            <span style="font-weight:600;font-size:13px;{% if dx.confidence > 70 %}color:#15803d{% elif dx.confidence > 40 %}color:#b45309{% else %}color:#dc2626{% endif %}">{{ dx.confidence }}%</span>
-            <span style="display:block;font-size:10px;color:#94a3b8">conf</span>
-          </div>
-          {% endif %}
         </div>
         {% empty %}
         <div class="empty-state" style="padding:24px">
@@ -499,6 +608,115 @@
         </div>
       </div>
       {% endif %}
+
+      <!-- V10 Sprint 11: Predictive Intelligence -->
+      {% if profile.risk_assessment.egfr_trajectory or profile.risk_assessment.relapse_forecast or profile.risk_assessment.treatment_response %}
+      <div class="card" style="margin-bottom:16px;border-left:3px solid #6366f1">
+        <div class="card-header" style="color:#6366f1"><i class="fas fa-crystal-ball"></i> Predictive Intelligence</div>
+        <div class="card-body">
+          <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:14px">
+
+            <!-- eGFR Forecast -->
+            {% if profile.risk_assessment.egfr_trajectory %}
+            <div style="background:#f0f4ff;border:1px solid #c7d2fe;border-radius:10px;padding:14px">
+              <div style="font-size:11px;font-weight:700;color:#4338ca;text-transform:uppercase;margin-bottom:8px"><i class="fas fa-chart-line"></i> eGFR Trajectory</div>
+              <div style="font-size:11px;color:#64748b;margin-bottom:6px">{{ profile.risk_assessment.egfr_trajectory.method }}</div>
+              {% for p in profile.risk_assessment.egfr_trajectory.predictions %}
+              <div style="display:flex;justify-content:space-between;align-items:center;padding:5px 0;{% if not forloop.last %}border-bottom:1px solid #e0e7ff{% endif %}">
+                <span style="font-size:12px;color:#475569">{{ p.horizon_months }}mo</span>
+                <span style="font-size:15px;font-weight:700;color:{% if p.predicted_egfr < 30 %}#dc2626{% elif p.predicted_egfr < 60 %}#d97706{% else %}#15803d{% endif %}">{{ p.predicted_egfr|floatformat:0 }}</span>
+                <span style="font-size:10px;color:#94a3b8">{{ p.lower_ci|floatformat:0 }}–{{ p.upper_ci|floatformat:0 }}</span>
+              </div>
+              {% endfor %}
+              <div style="font-size:10px;color:#94a3b8;margin-top:6px">Slope: {{ profile.risk_assessment.egfr_trajectory.slope_per_year|floatformat:1 }} ml/min/yr</div>
+            </div>
+            {% endif %}
+
+            <!-- Relapse Forecast -->
+            {% if profile.risk_assessment.relapse_forecast %}
+            <div style="background:#fffbeb;border:1px solid #fde68a;border-radius:10px;padding:14px">
+              <div style="font-size:11px;font-weight:700;color:#92400e;text-transform:uppercase;margin-bottom:8px"><i class="fas fa-triangle-exclamation"></i> Relapse Risk</div>
+              <div style="font-size:11px;color:#64748b;margin-bottom:6px">{{ profile.risk_assessment.relapse_forecast.model_used|default:"General CKD" }} · {{ profile.risk_assessment.relapse_forecast.disease }}</div>
+              {% for p in profile.risk_assessment.relapse_forecast.predictions %}
+              <div style="display:flex;justify-content:space-between;align-items:center;padding:5px 0;{% if not forloop.last %}border-bottom:1px solid #fef3c7{% endif %}">
+                <span style="font-size:12px;color:#475569">{{ p.horizon_months }}mo</span>
+                <span style="font-size:15px;font-weight:700;color:{% if p.probability > 0.5 %}#dc2626{% elif p.probability > 0.3 %}#d97706{% else %}#15803d{% endif %}">{% widthratio p.probability 1 100 %}%</span>
+                <span style="font-size:10px;color:#94a3b8">{% widthratio p.lower_ci 1 100 %}–{% widthratio p.upper_ci 1 100 %}%</span>
+              </div>
+              {% endfor %}
+              {% if profile.risk_assessment.relapse_forecast.predictions.0.risk_factors %}
+              <div style="margin-top:6px;font-size:10px;color:#92400e">
+                {% for rf in profile.risk_assessment.relapse_forecast.predictions.0.risk_factors %}<span class="badge warn" style="font-size:9px;padding:1px 5px;margin:1px">{{ rf }}</span>{% endfor %}
+              </div>
+              {% endif %}
+            </div>
+            {% endif %}
+
+            <!-- Treatment Response -->
+            {% if profile.risk_assessment.treatment_response %}
+            <div style="background:#f0fdf4;border:1px solid #bbf7d0;border-radius:10px;padding:14px">
+              <div style="font-size:11px;font-weight:700;color:#166534;text-transform:uppercase;margin-bottom:8px"><i class="fas fa-pills"></i> Treatment Response</div>
+              <div style="font-size:11px;color:#64748b;margin-bottom:6px">{{ profile.risk_assessment.treatment_response.treatment|title }}</div>
+              {% for p in profile.risk_assessment.treatment_response.predictions %}
+              <div style="display:flex;justify-content:space-between;align-items:center;padding:5px 0;{% if not forloop.last %}border-bottom:1px solid #d1fae5{% endif %}">
+                <span style="font-size:12px;color:#475569">{{ p.time_to_response_months }}mo</span>
+                <span style="font-size:15px;font-weight:700;color:{% if p.probability < 0.3 %}#dc2626{% elif p.probability < 0.5 %}#d97706{% else %}#15803d{% endif %}">{% widthratio p.probability 1 100 %}%</span>
+                {% if p.stopping_criteria_met %}<span class="badge danger" style="font-size:9px;padding:1px 5px">Stop?</span>{% endif %}
+              </div>
+              {% endfor %}
+              <div style="font-size:10px;color:#166534;margin-top:6px">Cadence: {{ profile.risk_assessment.treatment_response.monitoring_cadence }}</div>
+            </div>
+            {% endif %}
+
+          </div>
+        </div>
+      </div>
+      {% endif %}
+
+      <!-- V10 Sprint 11: Prediction Audit Trail -->
+      {% if prediction_history %}
+      <div class="card" style="margin-bottom:16px;border-left:3px solid #94a3b8">
+        <div class="card-header"><i class="fas fa-clock-rotate-left text-slate-500"></i> Prediction History <span class="badge neutral" style="margin-left:auto">{{ prediction_history|length }} entries</span></div>
+        <div class="card-body" style="padding:0">
+          <div class="overflow-x-auto">
+            <table class="grid" style="font-size:12px">
+              <thead><tr><th>Date</th><th>Type</th><th>Key Value</th><th>Confidence</th></tr></thead>
+              <tbody>
+                {% for entry in prediction_history|slice:":10" %}
+                <tr>
+                  <td style="white-space:nowrap">{{ entry.timestamp|truncatechars:10 }}</td>
+                  <td><span class="badge {% if entry.type == 'egfr_forecast' %}info{% elif entry.type == 'relapse_forecast' %}warn{% else %}ok{% endif %}" style="font-size:10px">{{ entry.type }}</span></td>
+                  <td>
+                    {% if entry.type == 'egfr_forecast' and entry.data.predictions %}
+                      eGFR {{ entry.data.predictions.0.predicted_egfr|floatformat:0 }} at {{ entry.data.predictions.0.horizon_months }}mo
+                    {% elif entry.type == 'relapse_forecast' and entry.data.predictions %}
+                      {% widthratio entry.data.predictions.0.probability 1 100 %}% at {{ entry.data.predictions.0.horizon_months }}mo
+                    {% elif entry.type == 'treatment_response' and entry.data.predictions %}
+                      {% widthratio entry.data.predictions.0.probability 1 100 %}% response
+                    {% else %}
+                      —
+                    {% endif %}
+                  </td>
+                  <td>
+                    {% if entry.type == 'egfr_forecast' and entry.data.predictions %}
+                      {{ entry.data.predictions.0.confidence|default:"—" }}
+                    {% elif entry.type == 'relapse_forecast' and entry.data.predictions %}
+                      {% widthratio entry.data.predictions.0.lower_ci 1 100 %}–{% widthratio entry.data.predictions.0.upper_ci 1 100 %}%
+                    {% elif entry.type == 'treatment_response' and entry.data.predictions %}
+                      {% widthratio entry.data.predictions.0.lower_ci 1 100 %}–{% widthratio entry.data.predictions.0.upper_ci 1 100 %}%
+                    {% else %}
+                      —
+                    {% endif %}
+                  </td>
+                </tr>
+                {% endfor %}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+      {% endif %}
+
       {% if profile.information_gaps %}
       <div class="card" style="margin-bottom:16px;border-left:4px solid #b45309">
         <div class="card-header"><i class="fas fa-circle-exclamation warn-600"></i> Information Gaps</div>
@@ -607,7 +825,30 @@
     <div class="card" style="grid-column:span 2">
       <div class="card-header" style="color:#4f46e5"><i class="fas fa-clipboard-list"></i> Personalized Management Plan
         <span class="badge info" style="margin-left:auto">Auto-generated</span>
+        <button onclick="requestVeraPrescription({{ patient.pk }})"
+                style="margin-left:12px;padding:6px 12px;background:#7c3aed;color:white;border:none;border-radius:6px;font-size:12px;cursor:pointer;display:inline-flex;align-items:center;gap:4px;"
+                title="Copy a full structured prescription prompt (demographics, labs, CKD stage, meds, biopsy, comorbidities and the management plan) to the clipboard and open Vera Health">
+          <i class="fas fa-file-medical"></i> Request Prescription from Vera
+        </button>
       </div>
+      <div id="vera-loading" style="display:none;padding:20px 16px;background:#f5f3ff;border:1px solid #ddd6fe;border-radius:8px;margin:0 16px 16px 16px;text-align:center;">
+        <div style="margin-bottom:8px;">
+          <i class="fas fa-robot" style="font-size:24px;color:#7c3aed;"></i>
+        </div>
+        <div style="font-size:14px;font-weight:600;color:#7c3aed;margin-bottom:4px;">Verifying with Vera Health...</div>
+        <div style="font-size:12px;color:#6b7280;">Please wait while we compare against current guidelines</div>
+        <div style="margin-top:12px;height:3px;background:#e5e7eb;border-radius:2px;overflow:hidden;max-width:200px;margin-left:auto;margin-right:auto;">
+          <div style="height:100%;background:#7c3aed;width:30%;border-radius:2px;animation:vera-progress 1.5s ease-in-out infinite;"></div>
+        </div>
+      </div>
+      <style>
+        @keyframes vera-progress {
+          0% { width: 10%; margin-left: 0; }
+          50% { width: 40%; margin-left: 30%; }
+          100% { width: 10%; margin-left: 90%; }
+        }
+      </style>
+      <div id="vera-verification-results" style="margin:0 16px 16px 16px;"></div>
       <div class="card-body">
         {% if management_plan %}
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px">
@@ -668,6 +909,32 @@
           <div class="desc">Management plan not yet generated. Will be computed automatically based on disease profile and clinical reasoning.</div>
         </div>
         {% endif %}
+      </div>
+    </div>
+
+    <!-- Vera Response → Knowledge Base -->
+    <div class="card" style="grid-column:span 2;border-left:3px solid #059669">
+      <div class="card-header" style="color:#059669"><i class="fas fa-paste"></i> Vera Health Response → Knowledge Base
+        <span class="badge ok" style="margin-left:auto;font-size:10px">AI-assisted</span>
+      </div>
+      <div class="card-body">
+        <div style="font-size:12px;color:#64748b;margin-bottom:10px;line-height:1.5">
+          <i class="fas fa-info-circle" style="color:#059669"></i>
+          Paste the response from Vera Health below. The system will parse medication recommendations and save them as draft entries in the Knowledge Base for clinician review.
+        </div>
+        <textarea id="vera-response-text"
+                  rows="12"
+                  placeholder="Paste Vera Health's prescription recommendation here...&#10;&#10;Expected format:&#10;Drug: mycophenolate mofetil&#10;Dose: 1000 mg&#10;Frequency: twice daily&#10;Route: PO&#10;Duration: 6 months&#10;Renal adjustment: Reduce to 500 mg if eGFR &lt;30&#10;Monitoring: CBC every 2 weeks for first 3 months&#10;Evidence: KDIGO 2021 IgAN Chapter 4&#10;Rationale: First-line immunosuppression for IgAN with persistent proteinuria"
+                  style="width:100%;padding:10px 12px;border:1px solid #d1d5db;border-radius:8px;font-size:13px;font-family:monospace;resize:vertical;min-height:120px;box-sizing:border-box"></textarea>
+        <div style="display:flex;align-items:center;gap:8px;margin-top:10px">
+          <button onclick="saveVeraResponse({{ patient.pk }})"
+                  id="save-vera-btn"
+                  style="padding:8px 16px;background:#059669;color:white;border:none;border-radius:6px;font-size:13px;font-weight:600;cursor:pointer;display:inline-flex;align-items:center;gap:6px">
+            <i class="fas fa-save"></i> Save to Knowledge Base
+          </button>
+          <span id="vera-save-status" style="font-size:12px;color:#64748b"></span>
+        </div>
+        <div id="vera-save-result" style="display:none;margin-top:10px;padding:10px 14px;border-radius:8px;font-size:13px"></div>
       </div>
     </div>
 
@@ -1314,6 +1581,161 @@
     </div>
   </div>
 </div>
+
+{% include "auth/vera_auth_modal.html" %}
+
+<script>
+// --- Request Prescription from Vera ---
+// Fetches a structured prescription prompt, copies to clipboard, opens Vera Health
+function requestVeraPrescription(patientPk) {
+  var status = document.getElementById('vera-save-status');
+  if (status) status.textContent = 'Building prescription prompt...';
+
+  fetch('/patients/' + patientPk + '/request-prescription/', {
+    method: 'POST',
+    headers: { 'X-CSRFToken': document.querySelector('meta[name="csrf-token"]').content }
+  })
+  .then(function(r) { return r.json(); })
+  .then(function(data) {
+    if (data.error) {
+      if (status) status.textContent = data.error;
+      return;
+    }
+    // Copy prompt to clipboard
+    var text = data.prompt || '';
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(text).then(function() {
+        if (status) status.textContent = '✓ Prompt copied to clipboard — opening Vera Health...';
+        // Open Vera Health in new tab
+        window.open('https://verahealth.ai', '_blank');
+        _veraAutoPaste(status);
+      }).catch(function() {
+        _fallbackCopy(text, status);
+        window.open('https://verahealth.ai', '_blank');
+        _veraAutoPaste(status);
+      });
+    } else {
+      _fallbackCopy(text, status);
+      window.open('https://verahealth.ai', '_blank');
+      _veraAutoPaste(status);
+    }
+  })
+  .catch(function(err) {
+    if (status) status.textContent = 'Failed to build prompt: ' + err;
+  });
+}
+
+// --- Guarded auto-paste into Vera (desktop app, Windows only) ---
+// The browser cannot type into verahealth.ai (cross-origin), so the GDES
+// desktop service sends a single Ctrl+V — but only once it confirms the
+// foreground window is a browser showing Vera. If it can't confirm that, it
+// sends nothing and the clinician pastes manually. The clipboard is untouched
+// either way, so every outcome is safe.
+function _veraAutoPaste(statusEl) {
+  fetch('/clinic/vera/autopaste/', {
+    method: 'POST',
+    headers: { 'X-CSRFToken': document.querySelector('meta[name="csrf-token"]').content }
+  })
+  .then(function(r) { return r.json(); })
+  .then(function(d) {
+    if (!statusEl) return;
+    statusEl.textContent = (d.status === 'pasted' ? '✓ ' : '✓ Prompt copied — ')
+      + (d.message || 'Switch to Vera and press Ctrl+V.');
+  })
+  .catch(function() {
+    if (statusEl) statusEl.textContent =
+      '✓ Prompt copied — switch to Vera and press Ctrl+V.';
+  });
+}
+
+// --- Save Vera Response to Knowledge Base ---
+function saveVeraResponse(patientPk) {
+  var textarea = document.getElementById('vera-response-text');
+  var btn = document.getElementById('save-vera-btn');
+  var status = document.getElementById('vera-save-status');
+  var result = document.getElementById('vera-save-result');
+  var text = (textarea.value || '').trim();
+
+  if (!text) {
+    if (status) { status.textContent = ''; }
+    if (result) {
+      result.style.display = 'block';
+      result.style.background = '#fef2f2';
+      result.style.border = '1px solid #fecaca';
+      result.style.color = '#dc2626';
+      result.innerHTML = '<i class="fas fa-exclamation-circle"></i> Please paste Vera\'s response first.';
+    }
+    return;
+  }
+
+  btn.disabled = true;
+  btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Saving...';
+  if (status) status.textContent = '';
+
+  var formData = new FormData();
+  formData.append('vera_response', text);
+
+  fetch('/patients/' + patientPk + '/save-vera-response/', {
+    method: 'POST',
+    headers: { 'X-CSRFToken': document.querySelector('meta[name="csrf-token"]').content },
+    body: formData
+  })
+  .then(function(r) { return r.json(); })
+  .then(function(data) {
+    btn.disabled = false;
+    btn.innerHTML = '<i class="fas fa-save"></i> Save to Knowledge Base';
+    if (result) {
+      result.style.display = 'block';
+      if (data.ok) {
+        result.style.background = '#f0fdf4';
+        result.style.border = '1px solid #bbf7d0';
+        result.style.color = '#15803d';
+        result.innerHTML = '<i class="fas fa-check-circle"></i> ' + data.message +
+          ' <a href="/admin/knowledge/knowledgebaseentry/?status__exact=draft" style="color:#15803d;text-decoration:underline">View draft entries →</a>';
+        textarea.value = '';
+      } else {
+        result.style.background = '#fef2f2';
+        result.style.border = '1px solid #fecaca';
+        result.style.color = '#dc2626';
+        result.innerHTML = '<i class="fas fa-exclamation-circle"></i> ' + (data.error || 'Unknown error');
+      }
+    }
+  })
+  .catch(function(err) {
+    btn.disabled = false;
+    btn.innerHTML = '<i class="fas fa-save"></i> Save to Knowledge Base';
+    if (result) {
+      result.style.display = 'block';
+      result.style.background = '#fef2f2';
+      result.style.border = '1px solid #fecaca';
+      result.style.color = '#dc2626';
+      result.innerHTML = '<i class="fas fa-exclamation-circle"></i> Network error: ' + err;
+    }
+  });
+}
+
+// --- Utility: fallback copy for older browsers ---
+function _fallbackCopy(text, statusEl) {
+  var ta = document.createElement('textarea');
+  ta.value = text;
+  ta.style.position = 'fixed';
+  ta.style.left = '0';
+  ta.style.top = '0';
+  ta.style.width = '1px';
+  ta.style.height = '1px';
+  ta.style.opacity = '0.01';
+  document.body.appendChild(ta);
+  ta.focus();
+  ta.select();
+  try {
+    document.execCommand('copy');
+    if (statusEl) statusEl.textContent = '✓ Copied to clipboard — opening Vera Health...';
+  } catch(e) {
+    if (statusEl) statusEl.textContent = '⚠ Copy failed — please copy manually from browser console';
+  }
+  document.body.removeChild(ta);
+}
+</script>
 
 {% endwith %}
 {% endblock %}
