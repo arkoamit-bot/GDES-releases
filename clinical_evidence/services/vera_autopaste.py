@@ -18,6 +18,15 @@ window is verifiably *a browser showing Vera*, re-checks immediately before
 sending, and otherwise gives up silently.  Worst case: nothing happens and the
 clinician presses Ctrl+V themselves (the clipboard copy is untouched).
 
+Focusing the composer
+---------------------
+Making Vera's *window* foreground is not sufficient: Ctrl+V goes to whatever
+element holds the caret.  Right after window.open that is often the address bar
+(the case note would land in the omnibox) or nothing at all (the keystroke is
+silently swallowed -- "delivered" but nothing appears).  So, after the guard
+passes, a single click is placed in the composer strip at the bottom-centre of
+the *already-verified* Vera window before pasting.
+
 Deliberate non-goals
 --------------------
 - Never presses Enter -- the clinician must see the prompt before submitting.
@@ -46,13 +55,43 @@ TITLE_HINTS = ("vera",)
 # Poll for the Vera window for this long before giving up.
 DEFAULT_TIMEOUT = 15.0
 POLL_INTERVAL = 0.4
-# Let the page finish loading and focus its input after the window appears.
-SETTLE_SECONDS = 1.5
+# Let the page finish loading and render its input after the window appears.
+# Ctrl+V is a no-op until an editable element holds the caret, so this is
+# deliberately generous; tune with GDES_VERA_AUTOPASTE_SETTLE.
+SETTLE_SECONDS = 3.5
+# Where the chat input sits, as a fraction of window height above the bottom.
+CLICK_BOTTOM_FRACTION = 0.11
+CLICK_MIN_ABOVE_BOTTOM = 70
+CLICK_MAX_ABOVE_BOTTOM = 170
+
+
+def _env_float(name: str, default: float) -> float:
+    try:
+        return float(os.environ.get(name, "").strip())
+    except (TypeError, ValueError):
+        return default
+
+
+def settle_seconds() -> float:
+    return max(0.0, _env_float("GDES_VERA_AUTOPASTE_SETTLE", SETTLE_SECONDS))
 
 
 def is_enabled() -> bool:
     """Auto-paste is on by default on Windows; GDES_VERA_AUTOPASTE=0 disables."""
     return (os.environ.get("GDES_VERA_AUTOPASTE", "1").strip().lower()
+            not in ("0", "false", "no", "off"))
+
+
+def click_focus_enabled() -> bool:
+    """Click the page's input area before pasting.
+
+    Focusing the window is not enough: if the caret is still in the address bar
+    (common right after window.open) Ctrl+V would paste the case note into the
+    omnibox, and if no element is focused it does nothing at all.  A click in
+    the chat-input strip puts the caret where it belongs.  Disable with
+    GDES_VERA_AUTOPASTE_CLICK=0.
+    """
+    return (os.environ.get("GDES_VERA_AUTOPASTE_CLICK", "1").strip().lower()
             not in ("0", "false", "no", "off"))
 
 
@@ -116,6 +155,52 @@ def _foreground_info() -> tuple[str, str]:
     except Exception as exc:  # pragma: no cover - defensive
         logger.debug("foreground window lookup failed: %s", exc)
         return ("", "")
+
+
+def _click_input_area() -> bool:
+    """Left-click the chat-input strip of the foreground window.
+
+    Puts the caret in Vera's input before pasting.  The click lands near the
+    bottom-centre of the window -- where chat UIs put their composer -- not on
+    an arbitrary point, and the cursor is put back where the clinician left it.
+
+    Only ever called after the Vera guard has passed, so the click cannot land
+    in another application.
+    """
+    ctypes, wintypes = _win32()
+    user32 = ctypes.WinDLL("user32", use_last_error=True)
+
+    hwnd = user32.GetForegroundWindow()
+    if not hwnd:
+        return False
+
+    rect = wintypes.RECT()
+    if not user32.GetWindowRect(hwnd, ctypes.byref(rect)):
+        return False
+
+    width = rect.right - rect.left
+    height = rect.bottom - rect.top
+    if width < 200 or height < 200:
+        return False
+
+    above = min(CLICK_MAX_ABOVE_BOTTOM,
+                max(CLICK_MIN_ABOVE_BOTTOM, int(height * CLICK_BOTTOM_FRACTION)))
+    x = rect.left + width // 2
+    y = rect.bottom - above
+
+    prev = wintypes.POINT()
+    have_prev = bool(user32.GetCursorPos(ctypes.byref(prev)))
+
+    MOUSEEVENTF_LEFTDOWN, MOUSEEVENTF_LEFTUP = 0x0002, 0x0004
+    user32.SetCursorPos(int(x), int(y))
+    time.sleep(0.05)
+    user32.mouse_event(MOUSEEVENTF_LEFTDOWN, 0, 0, 0, 0)
+    user32.mouse_event(MOUSEEVENTF_LEFTUP, 0, 0, 0, 0)
+    time.sleep(0.15)
+
+    if have_prev:
+        user32.SetCursorPos(prev.x, prev.y)
+    return True
 
 
 def looks_like_vera(title: str, exe: str) -> bool:
@@ -205,7 +290,7 @@ def _send_ctrl_v() -> bool:
 # ------------------------------------------------------------------ #
 
 def autopaste_into_vera(timeout: float = DEFAULT_TIMEOUT) -> dict:
-    """Wait for the Vera browser window, then send one Ctrl+V.
+    """Wait for the Vera browser window, focus its composer, then send Ctrl+V.
 
     Returns {"status": ..., "message": ...} where status is one of:
       pasted       -- the keystroke was delivered
@@ -230,6 +315,10 @@ def autopaste_into_vera(timeout: float = DEFAULT_TIMEOUT) -> dict:
         title, exe = _foreground_info()
         if looks_like_vera(title, exe):
             matched = True
+            # Vera's own page title -- no patient data. Logged because it is
+            # the only way to tell "matched the wrong window" from "the paste
+            # went nowhere" after the fact.
+            logger.info("auto-paste: matched %s window %r", exe, title[:80])
             break
         time.sleep(POLL_INTERVAL)
 
@@ -239,11 +328,28 @@ def autopaste_into_vera(timeout: float = DEFAULT_TIMEOUT) -> dict:
 
     # Let the page settle, then re-check: the clinician may have switched away
     # while we waited, and a stale match would paste patient data elsewhere.
-    time.sleep(SETTLE_SECONDS)
+    time.sleep(settle_seconds())
     title, exe = _foreground_info()
     if not looks_like_vera(title, exe):
         logger.info("auto-paste aborted: foreground changed during settle")
         return {"status": "not_focused", "message": manual}
+
+    # Put the caret in the composer. Without this the window has focus but no
+    # editable element does, so Ctrl+V is silently swallowed -- or worse, lands
+    # in the address bar.
+    if click_focus_enabled():
+        try:
+            clicked = _click_input_area()
+        except Exception as exc:  # pragma: no cover - defensive
+            logger.warning("auto-paste: click-to-focus failed: %s", exc)
+            clicked = False
+        logger.info("auto-paste: click-to-focus %s",
+                    "ok" if clicked else "skipped")
+        # The click cannot leave the app, but re-check anyway before pasting.
+        title, exe = _foreground_info()
+        if not looks_like_vera(title, exe):
+            logger.info("auto-paste aborted: foreground changed after click")
+            return {"status": "not_focused", "message": manual}
 
     try:
         ok = _send_ctrl_v()

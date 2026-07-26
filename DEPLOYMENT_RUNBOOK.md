@@ -286,9 +286,23 @@ clinician alt-tabs while the page loads, nothing is sent — this is what stops 
 full case note being pasted into an email or another patient's record. It never
 presses Enter; the clinician reviews the prompt and submits.
 
+Focusing the window is not enough — Ctrl+V goes wherever the caret is, which
+right after opening a tab is often the address bar (nothing appears in Vera).
+So after the guard passes, GDES clicks once in the composer strip at the
+bottom-centre of the verified Vera window, then pastes.
+
 Any failure is harmless: the clipboard still holds the prompt and the UI says
-to press Ctrl+V. Disable entirely with `GDES_VERA_AUTOPASTE=0`. Keystroke
-automation can be flagged by aggressive EDR — same allowlist as §7 applies.
+to press Ctrl+V. Keystroke automation can be flagged by aggressive EDR — same
+allowlist as §7 applies.
+
+| Env var | Default | Use |
+|---|---|---|
+| `GDES_VERA_AUTOPASTE` | `1` | `0` disables auto-paste entirely (copy only). |
+| `GDES_VERA_AUTOPASTE_SETTLE` | `3.5` | Seconds to wait for Vera's page to render. Raise on a slow PC if the paste lands before the composer exists. |
+| `GDES_VERA_AUTOPASTE_CLICK` | `1` | `0` skips the click (paste only into whatever is already focused). |
+
+Check `startup.log` for `bgddr.vera.autopaste` lines — they record the matched
+window title, whether the click landed, and the final outcome.
 
 ---
 
