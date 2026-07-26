@@ -130,10 +130,13 @@ def looks_like_vera(title: str, exe: str) -> bool:
     return any(hint in low for hint in TITLE_HINTS)
 
 
-def _send_ctrl_v() -> bool:
-    """Send one Ctrl+V through SendInput.  Returns True if it was accepted."""
+def _build_ctrl_v_events():
+    """Build the four INPUT records for Ctrl down, V down, V up, Ctrl up.
+
+    Split out from _send_ctrl_v so the ctypes layout can be exercised in tests
+    without delivering a real keystroke.  Returns (events_array, INPUT_type).
+    """
     ctypes, wintypes = _win32()
-    user32 = ctypes.WinDLL("user32", use_last_error=True)
 
     ULONG_PTR = wintypes.WPARAM
     INPUT_KEYBOARD = 1
@@ -162,21 +165,32 @@ def _send_ctrl_v() -> bool:
         _anonymous_ = ("u",)
         _fields_ = [("type", wintypes.DWORD), ("u", _INPUTUNION)]
 
-    user32.SendInput.argtypes = (wintypes.UINT, ctypes.POINTER(INPUT), ctypes.c_int)
-    user32.SendInput.restype = wintypes.UINT
-
     def key(vk: int, up: bool) -> INPUT:
         inp = INPUT()
         inp.type = INPUT_KEYBOARD
+        # dwExtraInfo is a ULONG_PTR: it must be 0, not None.
         inp.ki = KEYBDINPUT(wVk=vk, wScan=0,
                             dwFlags=KEYEVENTF_KEYUP if up else 0,
-                            time=0, dwExtraInfo=None)
+                            time=0, dwExtraInfo=0)
         return inp
 
     events = (INPUT * 4)(
         key(VK_CONTROL, False), key(VK_V, False),
         key(VK_V, True), key(VK_CONTROL, True),
     )
+    return events, INPUT
+
+
+def _send_ctrl_v() -> bool:
+    """Send one Ctrl+V through SendInput.  Returns True if it was accepted."""
+    ctypes, wintypes = _win32()
+    user32 = ctypes.WinDLL("user32", use_last_error=True)
+
+    events, INPUT = _build_ctrl_v_events()
+
+    user32.SendInput.argtypes = (wintypes.UINT, ctypes.POINTER(INPUT), ctypes.c_int)
+    user32.SendInput.restype = wintypes.UINT
+
     sent = user32.SendInput(4, events, ctypes.sizeof(INPUT))
     if sent != 4:
         # Usually UIPI: the foreground window belongs to an elevated process.

@@ -4,9 +4,34 @@ The point of these tests is the *guard*: the clipboard holds a full case note,
 so a paste must never fire unless the foreground window is verifiably a browser
 showing Vera. Everything is mocked -- no real keystroke is ever sent.
 """
+import sys
 from unittest.mock import patch
 
+import pytest
+
 from clinical_evidence.services import vera_autopaste as ap
+
+
+@pytest.mark.skipif(sys.platform != "win32", reason="Win32 structures")
+class TestKeystrokeStructs:
+    """Build the real INPUT records -- SendInput is never called.
+
+    Regression: dwExtraInfo was passed as None (it is a ULONG_PTR), so every
+    paste died with "NoneType object cannot be interpreted as an integer".
+    Mocking _send_ctrl_v hid this, hence this test.
+    """
+
+    def test_builds_four_events_without_error(self):
+        events, INPUT = ap._build_ctrl_v_events()
+        assert len(events) == 4
+
+    def test_events_are_ctrl_v_down_then_up(self):
+        events, _ = ap._build_ctrl_v_events()
+        VK_CONTROL, VK_V, KEYUP = 0x11, 0x56, 0x0002
+        assert [e.ki.wVk for e in events] == [VK_CONTROL, VK_V, VK_V, VK_CONTROL]
+        assert [bool(e.ki.dwFlags & KEYUP) for e in events] == [False, False, True, True]
+        assert all(e.ki.dwExtraInfo == 0 for e in events)
+        assert all(e.type == 1 for e in events)  # INPUT_KEYBOARD
 
 
 class TestGuard:
