@@ -1,4 +1,4 @@
-﻿"""Personalized Management Plan Generator â€” Phase 6 of GDES transformation.
+"""Personalized Management Plan Generator â€” Phase 6 of GDES transformation.
 
 Generates comprehensive, evidence-based management plans per disease profile
 including: first-line therapy, second-line therapy, rescue therapy,
@@ -38,8 +38,10 @@ GDES should automatically generate a comprehensive management plan."
 from __future__ import annotations
 
 import logging
+from copy import deepcopy
 from dataclasses import dataclass, field
 from typing import Any
+from .audit import audit_management_plan
 
 logger = logging.getLogger(__name__)
 
@@ -1999,18 +2001,25 @@ def generate_management_plan(
     """
     profile = DISEASE_TREATMENT_PROFILES.get(disease_id)
     if not profile:
-        return _build_default_plan(patient, disease_id)
+        # No KDIGO protocol for this disease -- approved KB entries are then the
+        # only therapy content there is, so merge them here too.
+        return merge_kb_recommendations(
+            _build_default_plan(patient, disease_id), disease_id)
 
+    # deepcopy: DISEASE_TREATMENT_PROFILES is module-level reference data. Handing
+    # out its lists directly means anything that appends to a plan (KB merge,
+    # monitoring intensification, CKD modifications) permanently mutates the
+    # KDIGO table for every later patient. Copy first.
     plan = ManagementPlan(
         disease_id=disease_id,
         disease_name=profile["disease_name"],
         patient_id=patient.patient_id,
-        first_line=profile.get("first_line", []),
-        second_line=profile.get("second_line", []),
-        rescue_therapy=profile.get("rescue_therapy", []),
-        contraindicated=profile.get("contraindicated", []),
-        monitoring=profile.get("monitoring", []),
-        follow_up=profile.get("follow_up", {}),
+        first_line=deepcopy(profile.get("first_line", [])),
+        second_line=deepcopy(profile.get("second_line", [])),
+        rescue_therapy=deepcopy(profile.get("rescue_therapy", [])),
+        contraindicated=deepcopy(profile.get("contraindicated", [])),
+        monitoring=deepcopy(profile.get("monitoring", [])),
+        follow_up=deepcopy(profile.get("follow_up", {})),
         general_measures=_build_general_measures(disease_id, features or {}),
         safety_checks=_build_safety_checks(patient, disease_id, features or {}),
         patient_education=_build_patient_education(disease_id),
@@ -2024,6 +2033,96 @@ def generate_management_plan(
     if features and features.get("egfrTrend") == "reduced":
         plan = _add_ckd_modifications(plan, features)
 
+    # Fold in clinician-approved knowledge-base entries (e.g. recommendations
+    # captured from Vera Health and since activated).
+    plan = merge_kb_recommendations(plan, disease_id)
+
+    # Record recommendation in audit trail
+    audit_management_plan(patient, plan, disease_id)
+
+    return plan
+
+
+def merge_kb_recommendations(plan: ManagementPlan, disease_id: str) -> ManagementPlan:
+    """Append ACTIVE knowledge-base treatment entries to the plan.
+
+    This is how a recommendation captured from Vera Health reaches future
+    management plans.  Three rules keep it safe:
+
+    1. Only ``status="active"`` entries are used.  Everything imported from an
+       AI is saved as a draft, so nothing influences a plan until a clinician
+       has reviewed and activated it.
+    2. KDIGO protocol entries are never replaced or reordered -- KB entries are
+       appended after them, and a drug already covered by the protocol is
+       skipped so the plan cannot show the same agent twice.
+    3. Every appended item carries its provenance (source, KB entry id) so the
+       clinician can see at a glance which lines are guideline-derived and
+       which came from the knowledge base.
+
+    Failures here are never allowed to break plan generation.
+    """
+    try:
+        from knowledge.models import KnowledgeBaseEntry
+    except Exception:  # pragma: no cover - knowledge app unavailable
+        return plan
+
+    try:
+        entries = list(
+            KnowledgeBaseEntry.objects
+            .filter(disease_id=disease_id, rule_type="treatment", status="active")
+            .select_related("source")
+            .order_by("effective_date")
+        )
+    except Exception as exc:  # pragma: no cover - DB not ready
+        logger.warning("KB merge skipped for %s: %s", disease_id, exc)
+        return plan
+
+    if not entries:
+        return plan
+
+    buckets = {
+        "first_line": plan.first_line,
+        "second_line": plan.second_line,
+        "rescue_therapy": plan.rescue_therapy,
+    }
+    known = {
+        (item.get("drug") or "").strip().lower()
+        for bucket in buckets.values() for item in bucket
+    }
+
+    added = 0
+    for entry in entries:
+        data = entry.rule_data or {}
+        drug = (data.get("drug") or "").strip()
+        if not drug or drug.lower() in known:
+            continue
+        bucket = buckets.get(data.get("plan_line") or "first_line")
+        if bucket is None:
+            continue
+
+        item = {
+            "drug": drug,
+            "dose": data.get("dose", ""),
+            "duration": data.get("duration", ""),
+            "target": data.get("target", ""),
+            "rationale": data.get("rationale", ""),
+            "evidence_grade": entry.evidence_grade,
+            "source_label": getattr(entry.source, "abbreviation", "") or "KB",
+            "kb_entry_id": entry.entry_id,
+            "from_knowledge_base": True,
+        }
+        for optional in ("frequency", "route", "renal_adjustment", "monitoring",
+                         "evidence", "contraindications", "precautions"):
+            if data.get(optional):
+                item[optional] = data[optional]
+
+        bucket.append(item)
+        known.add(drug.lower())
+        added += 1
+
+    if added:
+        logger.info("Management plan for %s: merged %s active KB recommendation(s)",
+                    disease_id, added)
     return plan
 
 

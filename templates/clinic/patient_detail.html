@@ -862,6 +862,8 @@
               {% if tx.target %}<div style="font-size:11px;color:#15803d;margin-top:2px">Target: {{ tx.target }}</div>{% endif %}
               {% if tx.rationale %}<div style="font-size:11px;color:#94a3b8;margin-top:4px;font-style:italic">{{ tx.rationale }}</div>{% endif %}
               {% if tx.evidence_grade %}<span class="badge ok" style="font-size:10px;margin-top:4px">Grade {{ tx.evidence_grade }}</span>{% endif %}
+              {# Knowledge-base additions must be visibly distinct from KDIGO protocol lines. #}
+              {% if tx.from_knowledge_base %}<span class="badge info" style="font-size:10px;margin-top:4px" title="Clinician-approved knowledge-base entry ({{ tx.kb_entry_id }})"><i class="fas fa-database"></i> {{ tx.source_label }}</span>{% endif %}
             </div>
             {% endfor %}
           </div>
@@ -875,6 +877,7 @@
               {% if tx.target %}<div style="font-size:11px;color:#b45309;margin-top:2px">Target: {{ tx.target }}</div>{% endif %}
               {% if tx.conditions %}<div style="font-size:11px;color:#dc2626;margin-top:2px">When: {{ tx.conditions }}</div>{% endif %}
               {% if tx.evidence_grade %}<span class="badge {% if tx.evidence_grade == '1' %}ok{% else %}warn{% endif %}" style="font-size:10px;margin-top:4px">Grade {{ tx.evidence_grade }}</span>{% endif %}
+              {% if tx.from_knowledge_base %}<span class="badge info" style="font-size:10px;margin-top:4px" title="Clinician-approved knowledge-base entry ({{ tx.kb_entry_id }})"><i class="fas fa-database"></i> {{ tx.source_label }}</span>{% endif %}
             </div>
             {% endfor %}
             {% for tx in management_plan.rescue_therapy %}

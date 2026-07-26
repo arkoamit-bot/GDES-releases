@@ -1672,22 +1672,19 @@ def save_vera_response(request, pk):
         disease_id = top.get("disease_id", "")
         disease_name = top.get("disease_name", "Unknown")
 
-    # --- Parse medication blocks from Vera's response ---
-    medications = _parse_vera_medications(raw)
+    # --- Parse Vera's markdown into plan-shaped recommendations ---
+    from clinical_reasoning.services import vera_ingest
+
+    vera_plan = vera_ingest.parse_vera_response(raw)
+    medications = vera_plan.medications
 
     if not medications:
-        # If no structured blocks found, save the entire response as a single
-        # treatment rule (the clinician can refine it later).
+        # Nothing confidently parseable: keep the response verbatim so the
+        # clinician can still review it, rather than guessing at its content.
         medications = [{
             "drug": "Vera recommendation (unstructured)",
-            "dose": "",
-            "frequency": "",
-            "route": "",
-            "duration": "",
-            "renal_adjustment": "",
-            "monitoring": "",
-            "evidence": "",
             "rationale": raw[:2000],
+            "section": "first_line",
         }]
 
     from knowledge.models import KnowledgeBaseEntry, GuidelineSource
@@ -1703,26 +1700,31 @@ def save_vera_response(request, pk):
         },
     )
 
+    stamp = tz.now().strftime("%Y%m%d%H%M")
+    captured_at = tz.now().isoformat(timespec="seconds")
+
     entries_created = []
     for med in medications:
-        entry_id = f"VERA-{patient.patient_id}-{tz.now().strftime('%Y%m%d%H%M')}-{len(entries_created)+1:02d}"
-        rule_data = {
-            "drug": med.get("drug", ""),
-            "dose": med.get("dose", ""),
-            "frequency": med.get("frequency", ""),
-            "route": med.get("route", ""),
-            "duration": med.get("duration", ""),
-            "renal_adjustment": med.get("renal_adjustment", ""),
-            "monitoring": med.get("monitoring", ""),
-            "evidence": med.get("evidence", ""),
-            "rationale": med.get("rationale", ""),
-            "patient_id": patient.patient_id,
-            "patient_name": patient.name,
-            "disease_id": disease_id,
-            "disease_name": disease_name,
-            "source": "vera_health_ai",
-            "raw_response": raw[:5000],
-        }
+        entry_id = f"VERA-{patient.patient_id}-{stamp}-{len(entries_created)+1:02d}"
+        rule_data = vera_ingest.medication_to_rule_data(
+            med,
+            disease_id=disease_id,
+            disease_name=disease_name,
+            patient_id=patient.patient_id,
+            captured_at=captured_at,
+        )
+        # The narrative sections belong to the whole response, so they are
+        # attached once, to the first entry, rather than duplicated per drug.
+        if not entries_created:
+            rule_data["response_context"] = {
+                "contraindicated": vera_plan.contraindicated,
+                "pre_treatment": vera_plan.pre_treatment,
+                "vaccinations": vera_plan.vaccinations,
+                "interactions": vera_plan.interactions,
+                "monitoring": vera_plan.monitoring,
+                "counselling": vera_plan.counselling,
+            }
+            rule_data["raw_response"] = raw[:8000]
 
         entry = KnowledgeBaseEntry.objects.create(
             entry_id=entry_id,
@@ -1733,76 +1735,34 @@ def save_vera_response(request, pk):
             rule_type="treatment",
             status="draft",
             effective_date=tz.now().date(),
-            tags=["vera_health", "ai_generated", patient.patient_id],
-            review_notes=f"Auto-imported from Vera Health response for {patient.patient_id}. "
-                         f"Clinician review required before activation.",
+            tags=["vera_health", "ai_generated", patient.patient_id,
+                  rule_data.get("plan_line", "first_line")],
+            review_notes=(
+                f"Auto-imported from Vera Health for {patient.patient_id} "
+                f"({disease_name}). Draft: it does NOT affect management plans "
+                f"until a clinician activates it in the Knowledge Base."
+            ),
             author=request.user if request.user.is_authenticated else None,
         )
         entries_created.append(entry.entry_id)
 
+    counts = vera_plan.counts()
+    parsed = bool(vera_plan.medications)
     return JsonResponse({
         "ok": True,
         "entries_created": entries_created,
         "count": len(entries_created),
-        "message": f"Saved {len(entries_created)} recommendation(s) as draft KB entries. "
-                   f"Review in Knowledge Base admin before activation.",
+        "parsed": parsed,
+        "counts": counts,
+        "message": (
+            f"Saved {len(entries_created)} structured recommendation(s) as draft "
+            f"knowledge-base entries. Activate them in the Knowledge Base to let "
+            f"them inform future management plans for {disease_name}."
+            if parsed else
+            "Could not identify medication blocks in that response — saved the "
+            "full text as a single draft entry for manual review."
+        ),
     })
-
-
-def _parse_vera_medications(text):
-    """Parse structured medication blocks from Vera's response text.
-
-    Looks for blocks starting with 'Drug:' or 'Medication:' and extracts
-    the structured fields that follow.
-    """
-    import re
-
-    medications = []
-    # Split into lines and find drug blocks
-    lines = text.split("\n")
-    current_med = None
-
-    field_map = {
-        "drug": "drug", "medication": "drug",
-        "dose": "dose", "dosage": "dose",
-        "frequency": "frequency", "freq": "frequency",
-        "route": "route",
-        "duration": "duration",
-        "renal adjustment": "renal_adjustment", "renal": "renal_adjustment",
-        "monitoring": "monitoring",
-        "evidence": "evidence", "guideline": "evidence", "reference": "evidence",
-        "rationale": "rationale", "reasoning": "rationale",
-    }
-
-    for line in lines:
-        stripped = line.strip()
-        if not stripped:
-            continue
-
-        # Check for a new drug block
-        m = re.match(r'^(?:Drug|Medication)\s*:\s*(.+)', stripped, re.IGNORECASE)
-        if m:
-            if current_med and current_med.get("drug"):
-                medications.append(current_med)
-            current_med = {"drug": m.group(1).strip()}
-            continue
-
-        if current_med is None:
-            continue
-
-        # Check for field: value pattern
-        m = re.match(r'^(\w[\w\s]*?)\s*:\s*(.+)', stripped)
-        if m:
-            key = m.group(1).strip().lower()
-            val = m.group(2).strip()
-            if key in field_map:
-                current_med[field_map[key]] = val
-
-    # Don't forget the last one
-    if current_med and current_med.get("drug"):
-        medications.append(current_med)
-
-    return medications
 
 
 # --- Prescriptions list -----------------------------------------------------
