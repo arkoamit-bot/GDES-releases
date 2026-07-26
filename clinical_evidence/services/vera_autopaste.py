@@ -24,8 +24,8 @@ Making Vera's *window* foreground is not sufficient: Ctrl+V goes to whatever
 element holds the caret.  Right after window.open that is often the address bar
 (the case note would land in the omnibox) or nothing at all (the keystroke is
 silently swallowed -- "delivered" but nothing appears).  So, after the guard
-passes, a single click is placed in the composer strip at the bottom-centre of
-the *already-verified* Vera window before pasting.
+passes, a single click is placed in Vera's "Ask" box -- a card in the middle of
+the *already-verified* Vera window -- before pasting.
 
 Deliberate non-goals
 --------------------
@@ -59,10 +59,15 @@ POLL_INTERVAL = 0.4
 # Ctrl+V is a no-op until an editable element holds the caret, so this is
 # deliberately generous; tune with GDES_VERA_AUTOPASTE_SETTLE.
 SETTLE_SECONDS = 3.5
-# Where the chat input sits, as a fraction of window height above the bottom.
-CLICK_BOTTOM_FRACTION = 0.11
-CLICK_MIN_ABOVE_BOTTOM = 70
-CLICK_MAX_ABOVE_BOTTOM = 170
+# Where to click to focus Vera's composer, as a fraction of window height.
+#
+# We always open a FRESH verahealth.ai tab, so the clinician always lands on the
+# "Ask" screen, whose input box is a large card in the middle of the page -- not
+# a bottom strip like most chat UIs. Measured at ~0.57 of window height on a
+# maximised Edge window; the card is ~110px tall, so 0.56 has room to spare
+# whether or not the bookmarks bar is shown. Tune with
+# GDES_VERA_AUTOPASTE_CLICK_Y if Vera changes its layout.
+CLICK_Y_FRACTION = 0.56
 
 
 def _env_float(name: str, default: float) -> float:
@@ -74,6 +79,12 @@ def _env_float(name: str, default: float) -> float:
 
 def settle_seconds() -> float:
     return max(0.0, _env_float("GDES_VERA_AUTOPASTE_SETTLE", SETTLE_SECONDS))
+
+
+def click_y_fraction() -> float:
+    """Clamped so a bad env value can never click outside the page area."""
+    return min(0.9, max(0.2, _env_float("GDES_VERA_AUTOPASTE_CLICK_Y",
+                                        CLICK_Y_FRACTION)))
 
 
 def is_enabled() -> bool:
@@ -158,11 +169,11 @@ def _foreground_info() -> tuple[str, str]:
 
 
 def _click_input_area() -> bool:
-    """Left-click the chat-input strip of the foreground window.
+    """Left-click Vera's "Ask" box to put the caret in it before pasting.
 
-    Puts the caret in Vera's input before pasting.  The click lands near the
-    bottom-centre of the window -- where chat UIs put their composer -- not on
-    an arbitrary point, and the cursor is put back where the clinician left it.
+    The box is a card in the middle of the page (see CLICK_Y_FRACTION), so the
+    click lands at the horizontal centre of the window a little below halfway.
+    The cursor is put back where the clinician left it.
 
     Only ever called after the Vera guard has passed, so the click cannot land
     in another application.
@@ -183,10 +194,10 @@ def _click_input_area() -> bool:
     if width < 200 or height < 200:
         return False
 
-    above = min(CLICK_MAX_ABOVE_BOTTOM,
-                max(CLICK_MIN_ABOVE_BOTTOM, int(height * CLICK_BOTTOM_FRACTION)))
     x = rect.left + width // 2
-    y = rect.bottom - above
+    y = rect.top + int(height * click_y_fraction())
+    logger.info("auto-paste: clicking Ask box at (%s,%s) in %sx%s window",
+                x, y, width, height)
 
     prev = wintypes.POINT()
     have_prev = bool(user32.GetCursorPos(ctypes.byref(prev)))

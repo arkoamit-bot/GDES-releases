@@ -107,6 +107,21 @@ class TestAutopaste:
             result = ap.autopaste_into_vera(timeout=1)
         assert result["status"] == "pasted"
 
+    def test_click_target_lands_in_veras_ask_box(self):
+        # Measured on a maximised Edge window (1591x855 client): Vera's "Ask"
+        # card spans y 437-547, x 607-1275. The first attempt aimed at a
+        # bottom strip (y~737) and hit empty page, so the paste went nowhere.
+        win_w, win_h = 1591, 855
+        x = win_w // 2
+        y = int(win_h * ap.click_y_fraction())
+        assert 437 <= y <= 547, f"y={y} outside the Ask box"
+        assert 607 <= x <= 1275, f"x={x} outside the Ask box"
+
+    def test_click_y_fraction_is_clamped(self):
+        for value in ("99", "-5", "nonsense"):
+            with patch.dict("os.environ", {"GDES_VERA_AUTOPASTE_CLICK_Y": value}):
+                assert 0.2 <= ap.click_y_fraction() <= 0.9
+
     def test_settle_is_env_tunable(self):
         with patch.dict("os.environ", {"GDES_VERA_AUTOPASTE_SETTLE": "6.5"}):
             assert ap.settle_seconds() == 6.5
