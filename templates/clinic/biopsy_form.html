@@ -55,6 +55,7 @@
       <summary style="cursor:pointer;font-weight:600">
         {% if key == "igan" %}Oxford MEST-C score (IgA nephropathy)
         {% elif key == "lupus" %}Lupus nephritis — ISN/RPS class &amp; indices
+        <span id="isn-derived-note" class="help" style="display:none;font-weight:400;color:#4f46e5">— class carried from the diagnosis</span>
         {% elif key == "fsgs" %}FSGS — primary/secondary &amp; variant
         {% elif key == "mn" %}Membranous — PLA2R/THSD7A &amp; stage{% endif %}
         <span class="help" style="font-weight:400">— optional, fill only if relevant</span>
@@ -85,6 +86,30 @@
     var hints = JSON.parse(document.getElementById('score-hints').textContent);
     var sel = document.getElementById('id_dx-diagnosis');
     if (!sel) return;
+    // The ISN/RPS class is stated on the diagnosis. When the chosen diagnosis
+    // names one, mirror it into the lupus panel and lock the select, so the two
+    // cannot be made to disagree. (The server re-derives it either way.)
+    var isn = document.getElementById('id_lupus-isn_rps_class');
+    function syncLupusClass() {
+      if (!isn) return;
+      var m = /lupus nephritis\s+class\s+([IV]+(?:\s*\+\s*[IV]+)?)\s*$/i.exec(sel.value || '');
+      var note = document.getElementById('isn-derived-note');
+      if (m) {
+        isn.value = m[1].replace(/\s+/g, '').toUpperCase();
+        isn.disabled = true;
+        if (note) note.style.display = '';
+      } else {
+        isn.disabled = false;
+        if (note) note.style.display = 'none';
+      }
+    }
+    // A disabled select is not submitted, so re-enable it just before submit —
+    // the value must still reach the server.
+    var form = sel.closest('form');
+    if (form) form.addEventListener('submit', function () {
+      if (isn) isn.disabled = false;
+    });
+
     function sync() {
       var v = (sel.value || '').toLowerCase();
       Object.keys(hints).forEach(function (key) {
@@ -92,6 +117,7 @@
         var block = document.querySelector('details[data-score="' + key + '"]');
         if (block && match) block.open = true;
       });
+      syncLupusClass();
     }
     sel.addEventListener('change', sync);
     sync();

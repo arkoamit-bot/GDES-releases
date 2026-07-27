@@ -340,6 +340,10 @@ class LupusPathologyForm(forms.ModelForm):
     class Meta:
         model = LupusPathology
         exclude = ["biopsy"]
+        help_texts = {
+            "isn_rps_class": "Leave blank if the diagnosis above already states "
+                             "the class — it is carried across automatically.",
+        }
 
 
 class FSGSPathologyForm(forms.ModelForm):

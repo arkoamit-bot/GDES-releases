@@ -159,9 +159,13 @@ class LupusPathology(models.Model):
         IV = "IV", "Class IV"
         V = "V", "Class V"
         VI = "VI", "Class VI"
+        # Mixed lesions. The diagnosis list has always offered these; without
+        # them here the class could not be carried across from the diagnosis.
+        III_V = "III+V", "Class III+V"
+        IV_V = "IV+V", "Class IV+V"
 
     biopsy = models.OneToOneField(Biopsy, on_delete=models.CASCADE, related_name="lupus")
-    isn_rps_class = models.CharField(max_length=4, choices=ISNClass.choices, blank=True)
+    isn_rps_class = models.CharField(max_length=6, choices=ISNClass.choices, blank=True)
     activity_index = models.PositiveSmallIntegerField(**_ordinal(24))
     chronicity_index = models.PositiveSmallIntegerField(**_ordinal(12))
 
@@ -259,7 +263,7 @@ class PathologyReview(models.Model):
     mest_t = models.PositiveSmallIntegerField(null=True, blank=True)
     mest_c = models.PositiveSmallIntegerField(null=True, blank=True)
     isn_rps_class = models.CharField(   # LN
-        max_length=4, blank=True, choices=LupusPathology.ISNClass.choices)
+        max_length=6, blank=True, choices=LupusPathology.ISNClass.choices)
     fsgs_variant = models.CharField(    # FSGS
         max_length=10, blank=True, choices=FSGSPathology.Variant.choices)
 

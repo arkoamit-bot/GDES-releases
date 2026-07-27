@@ -632,6 +632,42 @@ _SCORE_HINTS = {
 }
 
 
+def _reconcile_lupus_class(dx_form, lupus_form):
+    """Keep the ISN/RPS class consistent between the diagnosis and the panel.
+
+    Returns False (and attaches a form error) when the two contradict each
+    other — that is the case only the pathologist can resolve. Otherwise the
+    class is carried across, whichever of the two states it.
+    """
+    from pathology import lupus as lupus_rules
+
+    if not dx_form.is_valid():
+        return True  # the diagnosis has its own errors; nothing to reconcile
+
+    diagnosis = dx_form.cleaned_data.get("diagnosis") or ""
+    if not lupus_rules.is_lupus(diagnosis):
+        return True
+
+    panel_class = ""
+    if lupus_form.is_valid():
+        panel_class = lupus_form.cleaned_data.get("isn_rps_class") or ""
+
+    new_diagnosis, new_class, error = lupus_rules.reconcile(diagnosis, panel_class)
+    if error:
+        lupus_form.add_error("isn_rps_class", error)
+        return False
+
+    # cleaned_data is not enough: the model instance was already populated
+    # during validation, and that is what save() writes.
+    if new_diagnosis != diagnosis:
+        dx_form.cleaned_data["diagnosis"] = new_diagnosis
+        dx_form.instance.diagnosis = new_diagnosis
+    if new_class != panel_class and lupus_form.is_bound and lupus_form.is_valid():
+        lupus_form.cleaned_data["isn_rps_class"] = new_class
+        lupus_form.instance.isn_rps_class = new_class
+    return True
+
+
 def _sync_biopsy_to_patient(patient, dxo, active_scores):
     """Sync Level 2 biopsy data to Patient model (single source of truth)."""
     changed = False
@@ -654,13 +690,17 @@ def _sync_biopsy_to_patient(patient, dxo, active_scores):
         if not patient.oxford_mestc:
             patient.oxford_mestc = score
             changed = True
-    # ISN/RPS class
-    lupus = active_scores.get("lupus")
-    if lupus and lupus.is_valid():
-        cls = lupus.cleaned_data.get("isn_rps_class", "")
-        if cls and not patient.isn_rps_class:
-            patient.isn_rps_class = cls
-            changed = True
+    # ISN/RPS class — from the diagnosis, which is where it is stated; the panel
+    # is only a fallback for a diagnosis recorded without a class.
+    from pathology import lupus as lupus_rules
+    cls = lupus_rules.class_from_diagnosis(dxo.diagnosis)
+    if not cls:
+        lupus = active_scores.get("lupus")
+        if lupus and lupus.is_valid():
+            cls = lupus.cleaned_data.get("isn_rps_class", "")
+    if cls and not patient.isn_rps_class:
+        patient.isn_rps_class = cls
+        changed = True
     if changed:
         patient.save(update_fields=[
             "biopsy_diagnosis", "primary_diagnosis", "gn_broad_group",
@@ -692,6 +732,10 @@ def biopsy_create(request, pk):
         active = {k: f for k, f in scores.items() if f.has_changed()}
         for f in active.values():
             ok = f.is_valid() and ok
+        # The ISN/RPS class is stated once: the diagnosis and the lupus panel
+        # must agree, and a contradiction is reported rather than resolved.
+        ok = _reconcile_lupus_class(dx, scores["lupus"]) and ok
+
         if ok:
             biopsy = bx.save(commit=False)
             biopsy.patient = patient
