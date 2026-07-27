@@ -1,0 +1,75 @@
+{% extends "base.html" %}{% load static %}
+{% block title %}Predictive Alerts — GDES{% endblock %}
+{% block heading %}Predictive Alerts{% endblock %}
+{% block content %}
+
+<!-- Filters -->
+<div style="display:flex;align-items:center;gap:12px;margin-bottom:20px">
+  <form method="get" style="display:flex;align-items:center;gap:8px">
+    <label class="text-sm text-slate-600">Severity:</label>
+    <select name="severity" onchange="this.form.submit()" class="text-sm border rounded px-2 py-1">
+      <option value="">All</option>
+      <option value="critical" {% if severity_filter == "critical" %}selected{% endif %}>Critical</option>
+      <option value="warning" {% if severity_filter == "warning" %}selected{% endif %}>Warning</option>
+      <option value="info" {% if severity_filter == "info" %}selected{% endif %}>Info</option>
+    </select>
+  </form>
+</div>
+
+<!-- KPI Cards -->
+<div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+  <div class="card"><div class="card-body text-center">
+    <div class="text-3xl font-bold text-red-600">{{ severity_counts.critical }}</div>
+    <div class="text-sm text-slate-500">Critical</div>
+  </div></div>
+  <div class="card"><div class="card-body text-center">
+    <div class="text-3xl font-bold text-amber-600">{{ severity_counts.warning }}</div>
+    <div class="text-sm text-slate-500">Warning</div>
+  </div></div>
+  <div class="card"><div class="card-body text-center">
+    <div class="text-3xl font-bold text-blue-600">{{ severity_counts.info }}</div>
+    <div class="text-sm text-slate-500">Info</div>
+  </div></div>
+</div>
+
+<!-- Alert List -->
+<div class="card"><div class="card-body">
+  <h3 class="section-title">Active Alerts ({{ alerts|length }})</h3>
+  <div style="display:flex;flex-direction:column;gap:10px">
+    {% for a in alerts %}
+    <div style="display:flex;align-items:flex-start;gap:12px;padding:14px;border-radius:10px;border:1px solid {% if a.severity == 'critical' %}#fecaca{% elif a.severity == 'warning' %}#fde68a{% else %}#bfdbfe{% endif %};background:{% if a.severity == 'critical' %}#fef2f2{% elif a.severity == 'warning' %}#fffbeb{% else %}#eff6ff{% endif %}">
+      <div style="margin-top:2px">
+        {% if a.severity == "critical" %}
+          <i class="fas fa-circle-exclamation text-red-600" style="font-size:18px"></i>
+        {% elif a.severity == "warning" %}
+          <i class="fas fa-triangle-exclamation text-amber-600" style="font-size:18px"></i>
+        {% else %}
+          <i class="fas fa-circle-info text-blue-600" style="font-size:18px"></i>
+        {% endif %}
+      </div>
+      <div style="flex:1">
+        <div style="display:flex;align-items:center;gap:8px;margin-bottom:4px">
+          <a href="{% url 'clinic:patient_detail' a.patient_pk %}" class="font-semibold text-indigo-600 hover:underline" style="font-size:14px">
+            {{ a.patient_name }}
+          </a>
+          <span class="text-xs text-slate-400">({{ a.patient_id }})</span>
+          <span class="badge {% if a.severity == 'critical' %}danger{% elif a.severity == 'warning' %}warn{% else %}info{% endif %}" style="font-size:10px">{{ a.alert_type }}</span>
+        </div>
+        <div style="font-size:13px;font-weight:600;color:{% if a.severity == 'critical' %}#dc2626{% elif a.severity == 'warning' %}#d97706{% else %}#2563eb{% endif %};margin-bottom:4px">
+          {{ a.message }}
+        </div>
+        <div style="font-size:12px;color:#64748b">{{ a.detail }}</div>
+      </div>
+      <div style="font-size:11px;color:#94a3b8;white-space:nowrap">{{ a.created }}</div>
+    </div>
+    {% empty %}
+    <div class="empty-state" style="padding:40px">
+      <div class="icon" style="font-size:36px"><i class="fas fa-shield-check text-green-500"></i></div>
+      <div class="title">No active alerts</div>
+      <div class="desc">All patient predictions are within acceptable ranges.</div>
+    </div>
+    {% endfor %}
+  </div>
+</div></div>
+
+{% endblock %}

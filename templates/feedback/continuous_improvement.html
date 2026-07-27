@@ -1,0 +1,198 @@
+{% extends "base.html" %}{% load static %}
+{% block title %}Continuous Improvement — GDES{% endblock %}
+{% block heading %}Continuous Improvement Dashboard{% endblock %}
+{% block content %}
+
+<div style="display:flex;align-items:center;gap:12px;margin-bottom:20px">
+  <form method="get" style="display:flex;align-items:center;gap:8px">
+    <label class="text-sm text-slate-600">Period:</label>
+    <select name="days" onchange="this.form.submit()" class="text-sm border rounded px-2 py-1">
+      <option value="30" {% if days == 30 %}selected{% endif %}>Last 30 days</option>
+      <option value="90" {% if days == 90 %}selected{% endif %}>Last 90 days</option>
+      <option value="180" {% if days == 180 %}selected{% endif %}>Last 180 days</option>
+      <option value="365" {% if days == 365 %}selected{% endif %}>Last year</option>
+    </select>
+  </form>
+</div>
+
+<!-- Top-level metrics -->
+<div class="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
+  <div class="card"><div class="card-body text-center">
+    <div class="text-3xl font-bold {% if overall_override.override_rate > 15 %}text-red-600{% elif overall_override.override_rate > 10 %}text-amber-600{% else %}text-green-600{% endif %}">{{ overall_override.override_rate }}%</div>
+    <div class="text-sm text-slate-500">Overall Override Rate</div>
+    <div class="text-xs text-slate-400">{{ overall_override.overrides }} of {{ overall_override.total }} recommendations</div>
+  </div></div>
+  <div class="card"><div class="card-body text-center">
+    <div class="text-3xl font-bold text-indigo-600">{{ overall_override.total }}</div>
+    <div class="text-sm text-slate-500">Total Feedback</div>
+    <div class="text-xs text-slate-400">Avg rating: {{ overall_override.avg_rating }}/5</div>
+  </div></div>
+  <div class="card"><div class="card-body text-center">
+    <div class="text-3xl font-bold text-purple-600">{{ suggestion_stats.total|default:0 }}</div>
+    <div class="text-sm text-slate-500">Improvement Suggestions</div>
+    <div class="text-xs text-slate-400">{{ suggestion_stats.pending|default:0 }} pending review</div>
+  </div></div>
+  <div class="card"><div class="card-body text-center">
+    <div class="text-3xl font-bold {% if overall_override.override_rate > 15 %}text-red-600{% elif overall_override.override_rate > 10 %}text-amber-600{% else %}text-green-600{% endif %}">{% if overall_override.override_rate <= 15 %}<i class="fas fa-check-circle"></i>{% else %}<i class="fas fa-exclamation-triangle"></i>{% endif %}</div>
+    <div class="text-sm text-slate-500">Target: &lt;15%</div>
+    <div class="text-xs text-slate-400">System override rate goal</div>
+  </div></div>
+</div>
+
+<!-- Override by disease -->
+<div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
+  <div class="card"><div class="card-body">
+    <h3 class="section-title">Override Rate by Category</h3>
+    {% for item in override_by_disease %}
+    <div class="flex items-center justify-between py-2" style="{% if not forloop.last %}border-bottom:1px solid #f1f5f9{% endif %}">
+      <div>
+        <span class="font-medium text-sm">{{ item.feedback_type|title }}</span>
+        <span class="text-xs text-slate-400 ml-2">({{ item.total }} total)</span>
+      </div>
+      <div class="flex items-center gap-3">
+        <div class="flex items-center gap-1 text-xs">
+          <span class="text-green-600">{{ item.accepted }} accept</span>
+          <span class="text-slate-300">|</span>
+          <span class="text-amber-600">{{ item.modified }} mod</span>
+          <span class="text-slate-300">|</span>
+          <span class="text-red-600">{{ item.rejected }} rej</span>
+        </div>
+        <div class="w-20 h-2 bg-slate-100 rounded overflow-hidden">
+          <div class="h-full rounded" style="width:{{ item.override_rate }}%;background:{% if item.override_rate > 15 %}#dc2626{% elif item.override_rate > 10 %}#d97706{% else %}#16a34a{% endif %}"></div>
+        </div>
+        <span class="text-sm font-semibold" style="color:{% if item.override_rate > 15 %}#dc2626{% elif item.override_rate > 10 %}#d97706{% else %}#16a34a{% endif %};min-width:42px;text-align:right">{{ item.override_rate }}%</span>
+      </div>
+    </div>
+    {% empty %}<p class="empty-state">No feedback data yet</p>{% endfor %}
+  </div></div>
+
+  <div class="card"><div class="card-body">
+    <h3 class="section-title">Most-Overridden Rules</h3>
+    {% for item in override_by_rule|slice:":10" %}
+    <div class="flex items-center justify-between py-2" style="{% if not forloop.last %}border-bottom:1px solid #f1f5f9{% endif %}">
+      <div>
+        <code class="text-xs font-mono">{{ item.recommendation_ref }}</code>
+        <span class="text-xs text-slate-400 ml-2">({{ item.total }} feedback)</span>
+      </div>
+      <div class="flex items-center gap-2">
+        <div class="w-16 h-2 bg-slate-100 rounded overflow-hidden">
+          <div class="h-full rounded" style="width:{{ item.override_rate }}%;background:{% if item.override_rate > 20 %}#dc2626{% elif item.override_rate > 10 %}#d97706{% else %}#16a34a{% endif %}"></div>
+        </div>
+        <span class="text-sm font-semibold" style="color:{% if item.override_rate > 20 %}#dc2626{% elif item.override_rate > 10 %}#d97706{% else %}#16a34a{% endif %}">{{ item.override_rate }}%</span>
+      </div>
+    </div>
+    {% empty %}<p class="empty-state">No rules with 2+ overrides yet</p>{% endfor %}
+  </div></div>
+</div>
+
+<!-- Trend chart -->
+<div class="card mb-6"><div class="card-body">
+  <h3 class="section-title">Override Trend</h3>
+  {% if override_trend %}
+  <div style="height:240px;position:relative">
+    <canvas id="ciTrendChart"></canvas>
+  </div>
+  <script>
+  (function(){
+    const data = {{ override_trend|safe }};
+    const labels = data.map(d => d.period);
+    const acceptData = data.map(d => d.accepted);
+    const modData = data.map(d => d.modified);
+    const rejData = data.map(d => d.rejected);
+    const rateData = data.map(d => d.override_rate);
+    const ctx = document.getElementById('ciTrendChart');
+    if (ctx) {
+      new Chart(ctx, {
+        type: 'bar',
+        data: {
+          labels: labels,
+          datasets: [
+            { label: 'Accepted', data: acceptData, backgroundColor: '#16a34a', stack: 'a', yAxisID: 'y' },
+            { label: 'Modified', data: modData, backgroundColor: '#d97706', stack: 'a', yAxisID: 'y' },
+            { label: 'Rejected', data: rejData, backgroundColor: '#dc2626', stack: 'a', yAxisID: 'y' },
+            { label: 'Override %', data: rateData, type: 'line', borderColor: '#6366f1', backgroundColor: 'transparent', yAxisID: 'y1', tension: 0.3, pointRadius: 3 }
+          ]
+        },
+        options: {
+          responsive: true, maintainAspectRatio: false,
+          plugins: { legend: { position: 'bottom', labels: { boxWidth: 12 } } },
+          scales: {
+            x: { stacked: true, ticks: { font: { size: 10 } } },
+            y: { stacked: true, beginAtZero: true, title: { display: true, text: 'Count' } },
+            y1: { position: 'right', beginAtZero: true, max: 100, grid: { drawOnChartArea: false }, title: { display: true, text: 'Override %' } }
+          }
+        }
+      });
+    }
+  })();
+  </script>
+  {% else %}<p class="empty-state">No trend data yet</p>{% endif %}
+</div></div>
+
+<!-- Pending suggestions for expert review -->
+<div class="card mb-6"><div class="card-body">
+  <h3 class="section-title">Pending Expert Reviews</h3>
+  <p class="text-xs text-slate-400 mb-4">Suggestions auto-generated from clinician overrides. Reviewed by an expert before any knowledge base change.</p>
+  {% if pending_suggestions %}
+  <div class="overflow-x-auto">
+    <table class="min-w-full text-sm">
+      <thead>
+        <tr class="text-left text-slate-500 border-b">
+          <th class="py-2 pr-4">Rule / Ref</th>
+          <th class="py-2 pr-4">Disease</th>
+          <th class="py-2 pr-4 text-right">Overrides</th>
+          <th class="py-2 pr-4">Common Reason</th>
+          <th class="py-2">Actions</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for s in pending_suggestions %}
+        <tr class="border-b" style="border-color:#f1f5f9">
+          <td class="py-2 pr-4"><code class="text-xs">{{ s.rule_id }}</code></td>
+          <td class="py-2 pr-4">{{ s.disease|default:"—" }}</td>
+          <td class="py-2 pr-4 text-right font-semibold">{{ s.override_count }}</td>
+          <td class="py-2 pr-4 text-xs text-slate-600 max-w-xs truncate">{{ s.common_override_reason|default:"No reason given" }}</td>
+          <td class="py-2">
+            <form method="post" action="{% url 'feedback:improvement_suggestions' %}" style="display:inline">
+              {% csrf_token %}
+              <input type="hidden" name="suggestion_id" value="{{ s.pk }}">
+              <button type="submit" name="action" value="approve" class="text-xs px-2 py-1 rounded bg-green-100 text-green-700 hover:bg-green-200">Approve</button>
+              <button type="submit" name="action" value="reject" class="text-xs px-2 py-1 rounded bg-red-100 text-red-700 hover:bg-red-200">Reject</button>
+            </form>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% else %}<p class="empty-state">No pending suggestions</p>{% endif %}
+</div></div>
+
+<!-- Suggestion lifecycle -->
+<div class="card mb-6"><div class="card-body">
+  <h3 class="section-title">Suggestion Lifecycle</h3>
+  <div class="grid grid-cols-2 md:grid-cols-5 gap-4">
+    <div class="text-center p-3 rounded bg-slate-50">
+      <div class="text-2xl font-bold text-slate-600">{{ suggestion_stats.pending|default:0 }}</div>
+      <div class="text-xs text-slate-500">Pending</div>
+    </div>
+    <div class="text-center p-3 rounded bg-amber-50">
+      <div class="text-2xl font-bold text-amber-600">{{ suggestion_stats.under_review|default:0 }}</div>
+      <div class="text-xs text-slate-500">Under Review</div>
+    </div>
+    <div class="text-center p-3 rounded bg-green-50">
+      <div class="text-2xl font-bold text-green-600">{{ suggestion_stats.approved|default:0 }}</div>
+      <div class="text-xs text-slate-500">Approved</div>
+    </div>
+    <div class="text-center p-3 rounded bg-red-50">
+      <div class="text-2xl font-bold text-red-600">{{ suggestion_stats.rejected|default:0 }}</div>
+      <div class="text-xs text-slate-500">Rejected</div>
+    </div>
+    <div class="text-center p-3 rounded bg-indigo-50">
+      <div class="text-2xl font-bold text-indigo-600">{{ suggestion_stats.total|default:0 }}</div>
+      <div class="text-xs text-slate-500">Total</div>
+    </div>
+  </div>
+</div></div>
+
+{% endblock %}

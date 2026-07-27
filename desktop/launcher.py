@@ -300,15 +300,27 @@ _GITHUB_REPO = os.environ.get("BGDDR_GITHUB_REPO", "arkoamit-bot/GDES-releases")
 # Optional read-only token for a PRIVATE releases repo. Prefer a PUBLIC releases
 # repo (no token needed, no token shipped to clinic PCs). If you must use a
 # private repo, set BGDDR_GITHUB_TOKEN to a fine-grained token with read-only
-# access to that repo's Contents/Releases.
+# access to that repo's Contents/Releases. Falls back to bgddr_paths.json.
 _GITHUB_TOKEN = os.environ.get("BGDDR_GITHUB_TOKEN", "").strip()
 _GITHUB_API = "https://api.github.com/repos/{repo}/releases/latest"
 
 
-def _github_headers(accept: str = "application/vnd.github+json") -> dict:
-    h = {"Accept": accept, "User-Agent": "GDES-Updater"}
+def _resolve_github_token(data_dir: Path) -> str:
+    """Return the GitHub token from env var, or fall back to bgddr_paths.json."""
     if _GITHUB_TOKEN:
-        h["Authorization"] = f"Bearer {_GITHUB_TOKEN}"
+        return _GITHUB_TOKEN
+    try:
+        saved = _read_paths_config(data_dir / _PATHS_CONFIG_NAME) or {}
+        return saved.get("github_token", "")
+    except Exception:
+        return ""
+
+
+def _github_headers(accept: str = "application/vnd.github+json", token: str = "") -> dict:
+    h = {"Accept": accept, "User-Agent": "GDES-Updater"}
+    tok = token or _GITHUB_TOKEN
+    if tok:
+        h["Authorization"] = f"Bearer {tok}"
     return h
 
 
@@ -538,6 +550,10 @@ def run_update_check(root: Path, interactive: bool = True) -> bool:
             log(f"Update check failed for {candidate}: {exc}")
             continue
     if not manifest:
+        # Resolve GitHub token from env or config file before checking
+        global _GITHUB_TOKEN
+        if not _GITHUB_TOKEN:
+            _GITHUB_TOKEN = _resolve_github_token(root)
         manifest = _github_update_available(current)
         github_mode = bool(manifest)
     if not manifest:
@@ -577,10 +593,9 @@ def run_update_check(root: Path, interactive: bool = True) -> bool:
         old_version=current, new_version=manifest["version"],
         log_path=Path(root) / "Logs" / "update.log", log=log,
     )
-    if started and interactive:
-        _info_msg("GDES - Updating",
-                  f"Updating to {manifest['version']}. GDES will close and reopen "
-                  "in a moment.")
+    # Do NOT show a blocking dialog after apply_update — the helper is already
+    # waiting for this process to exit.  A modal _info_msg here causes the helper
+    # to time out (90 s) and roll back if the user doesn't click OK in time.
     return started
 
 
@@ -630,7 +645,11 @@ def initialise(data_dir: Path) -> None:
             f"(installed={get_installed_kb_version() or 'none'} -> {PACKAGED_KB_VERSION}) ...")
         for cmd in ("seed_knowledge_base", "seed_v4_knowledge",
                      "seed_clinical_cases", "seed_drug_knowledge",
-                     "seed_drug_intelligence", "activate_entries"):
+                     "seed_drug_intelligence", "activate_entries",
+                     # Build the reasoning knowledge graph from the seeded
+                     # entities (must run AFTER them); the engine's graph layer
+                     # is inert without it.
+                     "build_knowledge_graph"):
             try:
                 run_cmd(cmd, verbosity=0)
             except Exception as exc:

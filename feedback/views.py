@@ -27,6 +27,10 @@ from .services import (
     export_feedback_package, generate_improvement_suggestions,
     generate_summary_report,
 )
+from .analytics import (
+    override_rate_by_disease, override_rate_by_rule, override_rate_by_clinician,
+    temporal_override_trend, overall_override_rate, suggestion_lifecycle_stats,
+)
 
 
 class FeedbackViewSet(viewsets.ModelViewSet):
@@ -288,6 +292,13 @@ def feedback_dashboard(request):
             .annotate(count=Count("id"))
             .order_by("severity")
         ),
+        # Sprint 6: Override analytics
+        "override_by_type": override_rate_by_disease(),
+        "override_by_rule": override_rate_by_rule(),
+        "override_by_clinician": override_rate_by_clinician(),
+        "override_trend": temporal_override_trend(),
+        "overall_override": overall_override_rate(),
+        "suggestion_stats": suggestion_lifecycle_stats(),
     }
     return render(request, "feedback/dashboard.html", context)
 
@@ -367,3 +378,25 @@ def improvement_suggestions(request):
 def summary_report_view(request):
     report = generate_summary_report()
     return render(request, "feedback/summary_report.html", {"report": report})
+
+
+@login_required
+def continuous_improvement(request):
+    """Sprint 6: Continuous improvement dashboard showing override analytics,
+    suggestion lifecycle, and pending expert reviews."""
+    from .analytics import (
+        overall_override_rate, override_rate_by_disease, override_rate_by_rule,
+        temporal_override_trend, suggestion_lifecycle_stats, pending_suggestions_for_review,
+    )
+
+    days = int(request.GET.get("days", 90))
+    context = {
+        "overall_override": overall_override_rate(days),
+        "override_by_disease": override_rate_by_disease(days),
+        "override_by_rule": override_rate_by_rule(days),
+        "override_trend": temporal_override_trend(days),
+        "suggestion_stats": suggestion_lifecycle_stats(),
+        "pending_suggestions": pending_suggestions_for_review(),
+        "days": days,
+    }
+    return render(request, "feedback/continuous_improvement.html", context)

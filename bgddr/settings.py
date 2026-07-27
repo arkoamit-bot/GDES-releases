@@ -8,6 +8,9 @@ for the materialized-view analytics layer and pgaudit).
 import os
 from pathlib import Path
 
+import django
+from packaging.version import Version
+
 BASE_DIR = Path(__file__).resolve().parent.parent
 
 # Security-critical settings are read from the environment. The dev defaults keep
@@ -107,6 +110,8 @@ INSTALLED_APPS = [
     "followup",
     # V8 — Field Error Reporting & Continuous Improvement
     "feedback",
+    # Phase 6 — Clinical Evidence Intelligence (CEI)
+    "clinical_evidence",
 ]
 
 # --- Django REST Framework --------------------------------------------------
@@ -192,14 +197,17 @@ else:
             # briefly touches the file. Connection-level only — ignored on Postgres.
             # WAL journal mode makes the local db file far more resilient to
             # corruption from an unclean shutdown/crash (the scenario the backup
-            # strategy protects against). Django 5.1+ runs OPTIONS["init_command"]
-            # on each new connection; the PRAGMA is persistent and idempotent.
+            # strategy protects against). Django 5.1+ supports OPTIONS["init_command"]
+            # which runs the PRAGMA on each new connection; the PRAGMA is persistent
+            # and idempotent. On Django 5.0 we omit it (fall back to default journal).
             "OPTIONS": {
                 "timeout": 30,
-                "init_command": "PRAGMA journal_mode=WAL;",
             },
         }
     }
+    _opts = DATABASES["default"]["OPTIONS"]
+    if Version(django.get_version()) >= Version("5.1"):
+        _opts["init_command"] = "PRAGMA journal_mode=WAL;"
 
 AUTH_PASSWORD_VALIDATORS = [
     {"NAME": "django.contrib.auth.password_validation.UserAttributeSimilarityValidator"},
@@ -233,6 +241,13 @@ PRESCRIPTION_PDF_DIR = MEDIA_ROOT / "prescriptions"
 # with a clinician-entered text query — it never transmits patient data and is
 # never invoked automatically. Enable with GDES_AI_ONLINE_EVIDENCE=1.
 AI_ONLINE_EVIDENCE_ENABLED = os.environ.get("GDES_AI_ONLINE_EVIDENCE", "0") == "1"
+
+# Vera Health Clinical AI Integration
+# Set VERAHEALTH_API_KEY for the enterprise API (api.verahealth.ai).
+# Alternatively, configure Vera Web credentials via ProviderConfiguration.
+VERA_API_BASE_URL = os.environ.get("VERA_API_BASE_URL", "")
+VERAHEALTH_API_KEY = os.environ.get("VERAHEALTH_API_KEY", "")
+VERAHEALTH_MODEL = os.environ.get("VERAHEALTH_MODEL", "vera-clinical-1")
 
 BACKUP_CONFIG = {
     "directory": str(BACKUPS_DIR),

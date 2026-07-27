@@ -190,7 +190,7 @@ DISEASE_TREATMENT_PROFILES: dict[str, dict[str, Any]] = {
         "second_line": [
             {
                 "drug": "Rituximab (steroid-dependent/relapsing)",
-                "dose": "375mg/mÂ² IV Ã— 1-4 doses",
+                "dose": "375mg/m² IV Ã— 1-4 doses",
                 "duration": "As needed for relapse prevention",
                 "target": "Sustained remission off steroids",
                 "rationale": "Emerging evidence for rituximab in steroid-dependent MCD to avoid cumulative steroid toxicity",
@@ -259,7 +259,7 @@ DISEASE_TREATMENT_PROFILES: dict[str, dict[str, Any]] = {
             },
             {
                 "drug": "Rituximab",
-                "dose": "375mg/mÂ² Ã— 1-4 doses",
+                "dose": "375mg/m² Ã— 1-4 doses",
                 "duration": "As needed",
                 "target": "Remission in steroid-resistant/dependent FSGS",
                 "rationale": "Emerging evidence; may be considered in steroid-resistant cases",
@@ -312,7 +312,7 @@ DISEASE_TREATMENT_PROFILES: dict[str, dict[str, Any]] = {
         "second_line": [
             {
                 "drug": "IV Cyclophosphamide (Euro-Lupus or NIH protocol)",
-                "dose": "Euro-Lupus: 500mg IV every 2 weeks Ã— 6 doses; NIH: 0.5-1g/mÂ² monthly Ã— 6",
+                "dose": "Euro-Lupus: 500mg IV every 2 weeks Ã— 6 doses; NIH: 0.5-1g/m² monthly Ã— 6",
                 "duration": "3-6 months induction",
                 "target": "Remission in severe/rapidly progressive LN",
                 "rationale": "Reserved for severe cases (crescentic GN, rapid GFR decline) or MMF failure",
@@ -330,7 +330,7 @@ DISEASE_TREATMENT_PROFILES: dict[str, dict[str, Any]] = {
         "rescue_therapy": [
             {
                 "drug": "Rituximab",
-                "dose": "375mg/mÂ² Ã— 4 weekly doses or 1000mg Ã— 2 doses",
+                "dose": "375mg/m² Ã— 4 weekly doses or 1000mg Ã— 2 doses",
                 "duration": "As needed",
                 "target": "Refractory lupus nephritis",
                 "rationale": "For refractory cases failing MMF and cyclophosphamide",
@@ -356,7 +356,7 @@ DISEASE_TREATMENT_PROFILES: dict[str, dict[str, Any]] = {
         "first_line": [
             {
                 "drug": "Rituximab (induction)",
-                "dose": "375mg/mÂ² weekly Ã— 4 weeks",
+                "dose": "375mg/m² weekly Ã— 4 weeks",
                 "duration": "4 weeks induction; may extend to 6 months for granulomatous disease",
                 "target": "Remission (BVAS = 0)",
                 "rationale": "RAVE and RITUXVAS trials: rituximab non-inferior to cyclophosphamide for induction; preferred for relapsing disease",
@@ -669,7 +669,7 @@ DISEASE_TREATMENT_PROFILES: dict[str, dict[str, Any]] = {
         "second_line": [
             {
                 "drug": "High-dose melphalan + autologous stem cell transplant (AL amyloidosis)",
-                "dose": "Melphalan 200mg/mÂ² (adjust for cardiac/renal staging) with ASCT",
+                "dose": "Melphalan 200mg/m² (adjust for cardiac/renal staging) with ASCT",
                 "duration": "Inpatient; engraftment typically 2-3 weeks",
                 "target": "Deep and durable hematologic complete response",
                 "rationale": "Highest CR rate (~40%) but limited to early-stage patients (Mayo Stage I/II) with adequate organ function",
@@ -705,7 +705,7 @@ DISEASE_TREATMENT_PROFILES: dict[str, dict[str, Any]] = {
             },
             {
                 "drug": "Rituximab + corticosteroids (idiopathic or refractory after DAA)",
-                "dose": "Rituximab 375mg/mÂ² Ã— 4 weekly doses + prednisolone 0.5mg/kg/day taper",
+                "dose": "Rituximab 375mg/m² Ã— 4 weekly doses + prednisolone 0.5mg/kg/day taper",
                 "duration": "4 weeks induction, then assess response",
                 "target": "Resolution of cryoglobulinemia, proteinuria reduction",
                 "rationale": "Depletes B-cell clone producing cryoglobulins; used when HCV-negative or persistent disease after SVR",
@@ -713,7 +713,7 @@ DISEASE_TREATMENT_PROFILES: dict[str, dict[str, Any]] = {
             },
             {
                 "drug": "Plasmapheresis + rituximab (severe/critical disease)",
-                "dose": "PLEX every other day Ã— 5-7 sessions + rituximab 375mg/mÂ² Ã— 4 weekly doses",
+                "dose": "PLEX every other day Ã— 5-7 sessions + rituximab 375mg/m² Ã— 4 weekly doses",
                 "duration": "2-3 weeks intensive phase",
                 "target": "Rapid reduction of pathogenic cryoglobulins; prevent organ damage",
                 "rationale": "Combination removes circulating cryoglobulins while rituximab suppresses production; for severe GN, vasculitis, or alveolar hemorrhage",
@@ -724,7 +724,7 @@ DISEASE_TREATMENT_PROFILES: dict[str, dict[str, Any]] = {
         "second_line": [
             {
                 "drug": "Cyclophosphamide",
-                "dose": "1-2mg/kg/day oral or 500-750mg/mÂ² IV monthly",
+                "dose": "1-2mg/kg/day oral or 500-750mg/m² IV monthly",
                 "duration": "2-3 months, then transition to maintenance",
                 "target": "Severe or refractory cryoglobulinemic GN",
                 "rationale": "For cases refractory to rituximab; limited use due to toxicity",
@@ -770,7 +770,7 @@ DISEASE_TREATMENT_PROFILES: dict[str, dict[str, Any]] = {
         "second_line": [
             {
                 "drug": "Rituximab-based regimen (if autoimmune-associated)",
-                "dose": "375mg/mÂ² Ã— 4 weekly doses or 1000mg Ã— 2 doses",
+                "dose": "375mg/m² Ã— 4 weekly doses or 1000mg Ã— 2 doses",
                 "duration": "4 weeks or 2 doses, repeat as needed",
                 "target": "B-cell depletion, reduce immunoglobulin production",
                 "rationale": "For cases associated with autoimmune disease (SjÃ¶gren's, SLE) rather than monoclonal gammopathy",
@@ -803,7 +803,7 @@ DISEASE_TREATMENT_PROFILES: dict[str, dict[str, Any]] = {
             },
             {
                 "drug": "Rituximab (progressive disease)",
-                "dose": "375mg/mÂ² Ã— 4 weekly doses or 1000mg Ã— 2 doses",
+                "dose": "375mg/m² Ã— 4 weekly doses or 1000mg Ã— 2 doses",
                 "duration": "4 weeks or 2 doses; repeat based on response",
                 "target": "Stabilize or improve eGFR, reduce proteinuria",
                 "rationale": "Emerging evidence for rituximab in progressive fibrillary GN; may stabilize renal function in subset of patients",
@@ -1229,7 +1229,7 @@ DISEASE_TREATMENT_PROFILES: dict[str, dict[str, Any]] = {
         "second_line": [
             {
                 "drug": "Rituximab for cryoglobulinemic vasculitis",
-                "dose": "375mg/mÂ² Ã— 4 weekly doses or 1000mg Ã— 2 doses",
+                "dose": "375mg/m² Ã— 4 weekly doses or 1000mg Ã— 2 doses",
                 "duration": "4 weeks or 2 doses; repeat based on response",
                 "target": "Resolution of cryoglobulinemic vasculitis symptoms",
                 "rationale": "For persistent cryoglobulinemic manifestations (vasculitis, neuropathy, hypocomplementemia) despite DAA-induced SVR",
@@ -1294,7 +1294,7 @@ DISEASE_TREATMENT_PROFILES: dict[str, dict[str, Any]] = {
             },
             {
                 "drug": "Rituximab as steroid-sparing agent",
-                "dose": "375mg/mÂ² Ã— 4 weekly doses or 1000mg Ã— 2 doses",
+                "dose": "375mg/m² Ã— 4 weekly doses or 1000mg Ã— 2 doses",
                 "duration": "2 doses; repeat based on relapse pattern",
                 "target": "B-cell depletion, maintain remission",
                 "rationale": "Emerging evidence for rituximab as steroid-sparing or relapse-prevention therapy in IgG4-RD",
@@ -1304,7 +1304,7 @@ DISEASE_TREATMENT_PROFILES: dict[str, dict[str, Any]] = {
         "rescue_therapy": [
             {
                 "drug": "Rituximab for refractory disease",
-                "dose": "375mg/mÂ² Ã— 4 weekly doses or 1000mg Ã— 2 doses",
+                "dose": "375mg/m² Ã— 4 weekly doses or 1000mg Ã— 2 doses",
                 "duration": "Repeat based on relapse",
                 "target": "Remission in steroid-refractory or relapsing IgG4-RD",
                 "rationale": "Rituximab targets CD20+ B cells involved in IgG4 production; effective in refractory IgG4-RD",
@@ -1613,7 +1613,7 @@ DISEASE_TREATMENT_PROFILES: dict[str, dict[str, Any]] = {
         "second_line": [
             {
                 "drug": "Rituximab (if plasmapheresis response incomplete)",
-                "dose": "375mg/mÂ² Ã— 4 weekly doses or 1000mg Ã— 2 doses",
+                "dose": "375mg/m² Ã— 4 weekly doses or 1000mg Ã— 2 doses",
                 "duration": "4 weeks or 2 doses; repeat based on response",
                 "target": "B-cell depletion, complete remission",
                 "rationale": "Added when plasmapheresis alone achieves only partial response; may reduce circulating permeability factors",
@@ -1763,7 +1763,7 @@ DISEASE_TREATMENT_PROFILES: dict[str, dict[str, Any]] = {
         "second_line": [
             {
                 "drug": "Rituximab for persistent DSA",
-                "dose": "375mg/mÂ² Ã— 4 weekly doses or 1000mg Ã— 2 doses",
+                "dose": "375mg/m² Ã— 4 weekly doses or 1000mg Ã— 2 doses",
                 "duration": "4 weeks or 2 doses; repeat based on DSA response",
                 "target": "B-cell depletion, reduce DSA production",
                 "rationale": "Added when DSA persists despite plasmapheresis and IVIG; targets B-cell antibody production",
@@ -1782,7 +1782,7 @@ DISEASE_TREATMENT_PROFILES: dict[str, dict[str, Any]] = {
         "rescue_therapy": [
             {
                 "drug": "Bortezomib (plasma cell depletion) for refractory AMR",
-                "dose": "1.3mg/mÂ² SC on days 1, 4, 8, 11 of 21-day cycle",
+                "dose": "1.3mg/m² SC on days 1, 4, 8, 11 of 21-day cycle",
                 "duration": "2-4 cycles",
                 "target": "Plasma cell depletion, reduce antibody production",
                 "rationale": "Bortezomib targets proteasome-dependent plasma cells; for refractory AMR with high DSA despite standard therapy",

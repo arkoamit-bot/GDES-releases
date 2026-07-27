@@ -1,4 +1,4 @@
-﻿"""Seed V4.0 Medical Knowledge Expansion: diseases, guidelines, pathways, and drug knowledge.
+"""Seed V4.0 Medical Knowledge Expansion: diseases, guidelines, pathways, and drug knowledge.
 
 This command is the entry point for the V4.0 knowledge expansion.
 It seeds:

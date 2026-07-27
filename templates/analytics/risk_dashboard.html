@@ -1,0 +1,125 @@
+{% extends "base.html" %}{% load static %}
+{% block title %}Risk Dashboard — GDES{% endblock %}
+{% block heading %}Risk-Stratified Cohort Dashboard{% endblock %}
+{% block content %}
+
+<!-- Filters -->
+<div style="display:flex;align-items:center;gap:12px;margin-bottom:20px">
+  <form method="get" style="display:flex;align-items:center;gap:8px">
+    <label class="text-sm text-slate-600">Disease:</label>
+    <input type="text" name="disease" value="{{ disease_filter }}" placeholder="All"
+           class="text-sm border rounded px-2 py-1 w-36">
+    <label class="text-sm text-slate-600">Risk:</label>
+    <select name="risk" onchange="this.form.submit()" class="text-sm border rounded px-2 py-1">
+      <option value="">All tiers</option>
+      <option value="critical" {% if risk_filter == "critical" %}selected{% endif %}>Critical</option>
+      <option value="high" {% if risk_filter == "high" %}selected{% endif %}>High</option>
+      <option value="moderate" {% if risk_filter == "moderate" %}selected{% endif %}>Moderate</option>
+      <option value="low" {% if risk_filter == "low" %}selected{% endif %}>Low</option>
+    </select>
+    <button type="submit" class="text-sm bg-indigo-600 text-white rounded px-3 py-1">Filter</button>
+  </form>
+</div>
+
+<!-- KPI Cards -->
+<div class="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
+  <div class="card"><div class="card-body text-center">
+    <div class="text-3xl font-bold text-red-600">{{ tier_counts.critical }}</div>
+    <div class="text-sm text-slate-500">Critical</div>
+  </div></div>
+  <div class="card"><div class="card-body text-center">
+    <div class="text-3xl font-bold text-amber-600">{{ tier_counts.high }}</div>
+    <div class="text-sm text-slate-500">High</div>
+  </div></div>
+  <div class="card"><div class="card-body text-center">
+    <div class="text-3xl font-bold text-yellow-600">{{ tier_counts.moderate }}</div>
+    <div class="text-sm text-slate-500">Moderate</div>
+  </div></div>
+  <div class="card"><div class="card-body text-center">
+    <div class="text-3xl font-bold text-green-600">{{ tier_counts.low }}</div>
+    <div class="text-sm text-slate-500">Low</div>
+  </div></div>
+</div>
+
+<!-- Patient Table -->
+<div class="card"><div class="card-body">
+  <h3 class="section-title">Patients ({{ summaries|length }})</h3>
+  <div class="overflow-x-auto">
+    <table class="min-w-full text-sm">
+      <thead>
+        <tr class="text-left text-xs text-slate-500 border-b">
+          <th class="p-2">Patient</th>
+          <th class="p-2">Disease</th>
+          <th class="p-2">eGFR Slope</th>
+          <th class="p-2">eGFR Trend</th>
+          <th class="p-2">Relapse Risk</th>
+          <th class="p-2">Treatment Response</th>
+          <th class="p-2">Risk Tier</th>
+          <th class="p-2">Next Action</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for s in summaries %}
+        <tr class="border-b hover:bg-slate-50">
+          <td class="p-2">
+            <a href="{% url 'clinic:patient_detail' s.pk %}" class="text-indigo-600 hover:underline">
+              {{ s.name }} <span class="text-slate-400 text-xs">({{ s.patient_id }})</span>
+            </a>
+          </td>
+          <td class="p-2 text-xs">{{ s.disease }}</td>
+          <td class="p-2">
+            {% if s.egfr_slope is not None %}
+              <span class="{% if s.egfr_slope < -5 %}text-red-600{% elif s.egfr_slope < -2 %}text-amber-600{% else %}text-green-600{% endif %}">
+                {{ s.egfr_slope|floatformat:1 }} ml/min/yr
+              </span>
+            {% else %}<span class="text-slate-400">—</span>{% endif %}
+          </td>
+          <td class="p-2">
+            {% if s.egfr_trend == "declining_rapidly" %}
+              <span class="text-red-600"><i class="fas fa-arrow-down"></i> Rapid</span>
+            {% elif s.egfr_trend == "declining" %}
+              <span class="text-amber-600"><i class="fas fa-arrow-down"></i> Slow</span>
+            {% elif s.egfr_trend == "stable" %}
+              <span class="text-green-600"><i class="fas fa-minus"></i> Stable</span>
+            {% elif s.egfr_trend == "improving" %}
+              <span class="text-blue-600"><i class="fas fa-arrow-up"></i> Improving</span>
+            {% else %}
+              <span class="text-slate-400">—</span>
+            {% endif %}
+          </td>
+          <td class="p-2">
+            {% if s.relapse_risk_pct is not None %}
+              <span class="{% if s.relapse_risk > 0.5 %}text-red-600{% elif s.relapse_risk > 0.3 %}text-amber-600{% else %}text-green-600{% endif %}">
+                {{ s.relapse_risk_pct }}%
+              </span>
+            {% else %}<span class="text-slate-400">—</span>{% endif %}
+          </td>
+          <td class="p-2">
+            {% if s.response_pct is not None %}
+              <span class="{% if s.treatment_response < 0.3 %}text-red-600{% elif s.treatment_response < 0.5 %}text-amber-600{% else %}text-green-600{% endif %}">
+                {{ s.response_pct }}%
+              </span>
+            {% else %}<span class="text-slate-400">—</span>{% endif %}
+          </td>
+          <td class="p-2">
+            {% if s.overall_risk_tier == "critical" %}
+              <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-red-100 text-red-800">Critical</span>
+            {% elif s.overall_risk_tier == "high" %}
+              <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-amber-100 text-amber-800">High</span>
+            {% elif s.overall_risk_tier == "moderate" %}
+              <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-yellow-100 text-yellow-800">Moderate</span>
+            {% else %}
+              <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-green-100 text-green-800">Low</span>
+            {% endif %}
+          </td>
+          <td class="p-2 text-xs">{{ s.next_action }}</td>
+        </tr>
+        {% empty %}
+        <tr><td colspan="8" class="p-4 text-center text-slate-400">No patients match the current filters.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div></div>
+
+{% endblock %}

@@ -170,4 +170,4 @@ def apply_reconciliation(prescription, *, stop_reasons=None, force=False):
 
     prescription.reconciled_at = timezone.now()
     prescription.save(update_fields=["reconciled_at"])
-    return plan_reconciliation  # caller can re-plan if needed
+    return plan_reconciliation(prescription)  # caller can re-plan if needed

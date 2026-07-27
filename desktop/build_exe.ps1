@@ -11,7 +11,10 @@ Write-Host "==> Ensuring build dependencies ..." -ForegroundColor Cyan
 # (PowerShell 5.1) that would abort the script even on success. Relax locally.
 $prevEAP = $ErrorActionPreference
 $ErrorActionPreference = "Continue"
-python -m pip install --quiet pyinstaller waitress whitenoise openpyxl
+# Install the full runtime set from requirements.txt (incl. celery/kombu, which
+# the spec bundles via collect_submodules) plus the build-only pyinstaller, so a
+# clean build machine cannot silently produce a broken exe.
+python -m pip install --quiet -r requirements.txt pyinstaller
 if ($LASTEXITCODE -ne 0) {
     Write-Warning "pip reported a non-zero exit; continuing (dependencies may already be installed)."
 }
@@ -112,15 +115,15 @@ if (Test-Path $seedFile) {
     # Count disease keys
     $diseaseMatches = [regex]::Matches($seedContent, '^\s+"(\w+)":\s*\{', 'Multiline')
     $versionObj.diseases = $diseaseMatches.Count
-    # Count rules
-    $ruleMatches = [regex]::Matches($seedContent, '\(\[', 'Multiline')
+    # Count rules (tuples inside "rules": [...] lists)
+    $ruleMatches = [regex]::Matches($seedContent, '\(\["[^"]+",\s*"[^"]+"\],\s*-?\d+,')
     $versionObj.active_rules = $ruleMatches.Count
 }
 
-# Count test functions
+# Count test functions (all test_*.py files, excluding migrations/cache)
 $testCount = 0
-Get-ChildItem -Path "$root" -Recurse -Filter "tests*.py" -Exclude "*.pyc" | ForEach-Object {
-    if ($_.FullName -notmatch "\\(dist|build|\.venv|node_modules)\\") {
+Get-ChildItem -Path "$root" -Recurse -Filter "test*.py" -Exclude "*.pyc" | ForEach-Object {
+    if ($_.FullName -notmatch "\\(dist|build|\.venv|node_modules|migrations)\\") {
         $content = Get-Content $_.FullName -Raw
         $defMatches = [regex]::Matches($content, 'def\s+test_\w+')
         $testCount += $defMatches.Count

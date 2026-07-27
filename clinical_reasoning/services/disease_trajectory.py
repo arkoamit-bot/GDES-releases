@@ -77,7 +77,8 @@ def estimate_remission_probability(features: dict) -> dict:
         remission_potential = "good"
         if egfr_trend == "rapidDecline":
             remission_potential = "guarded"
-        if latest_egfr := features.get("latest_egfr") and features["latest_egfr"] < 30:
+        latest_egfr = features.get("latest_egfr")
+        if latest_egfr is not None and latest_egfr < 30:
             remission_potential = "poor"
         return {
             "current_status": "active_disease",

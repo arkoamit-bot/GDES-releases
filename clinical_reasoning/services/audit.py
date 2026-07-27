@@ -204,6 +204,10 @@ def audit_clinical_reasoning(patient, profile, care_pathway_data: dict, clinicia
     rule_results = care_pathway_data.get("rule_results", [])
     if rule_results:
         disease_id = rule_results[0].get("disease_id", "")
+    # The engine does not put rule_results in care_pathway_data; fall back to the
+    # profile's top differential so audit rows carry a real disease_id.
+    if not disease_id and getattr(profile, "differential", None):
+        disease_id = (profile.differential[0] or {}).get("disease_id", "")
 
     for rec in recommendations:
         create_audit_record(

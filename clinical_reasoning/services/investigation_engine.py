@@ -14,6 +14,7 @@ from __future__ import annotations
 import logging
 from dataclasses import dataclass, field
 from typing import Any
+from .audit import audit_investigation_recommendations
 
 logger = logging.getLogger(__name__)
 
@@ -186,13 +187,19 @@ def generate_investigation_recommendations(
 
     summary = _build_summary(all_recommendations, differential, completed)
 
-    return InvestigationPlan(
+    _inv_plan = InvestigationPlan(
         patient_id=patient.patient_id,
         differential=differential,
         recommendations=all_recommendations,
         completed_investigations=completed,
         summary=summary,
     )
+
+    # Record recommendation in audit trail
+    disease_id = differential[0].get("disease_id", "") if differential else ""
+    audit_investigation_recommendations(patient, _inv_plan, disease_id)
+
+    return _inv_plan
 
 
 def _extract_basic_features(patient) -> dict:

@@ -83,6 +83,9 @@ class PatientOutcome(models.Model):
         max_length=10, choices=Remission.choices, default=Remission.NONE)
     any_relapse = models.BooleanField(default=False)   # trajectory or event-based
 
+    # V10 Sprint 11: Prediction audit trail (JSON list of prediction events)
+    prediction_log = models.JSONField(default=list, blank=True)
+
     computed_at = models.DateTimeField(auto_now=True)
 
     class Meta:

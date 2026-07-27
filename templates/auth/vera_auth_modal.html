@@ -1,0 +1,329 @@
+{% load static %}
+<!-- Vera Health Authentication Modal — Manual Browser Integration -->
+<div id="vera-auth-modal" class="fixed inset-0 z-50 hidden" style="background:rgba(0,0,0,0.5);">
+  <div class="flex items-center justify-center min-h-screen p-4">
+    <div class="bg-white rounded-xl shadow-xl max-w-md w-full" style="border:1px solid #e5e7eb;">
+
+      <!-- Modal Header -->
+      <div class="px-6 py-4 border-b" style="border-color:#e5e7eb;">
+        <div class="flex items-center justify-between">
+          <div class="flex items-center gap-3">
+            <div class="w-10 h-10 rounded-lg flex items-center justify-center" style="background:#7c3aed;">
+              <i class="fas fa-robot text-white"></i>
+            </div>
+            <div>
+              <h3 class="text-lg font-semibold" style="color:#1f2937;">Connect to Vera Health</h3>
+              <p class="text-sm" style="color:#6b7280;">Manual browser authentication</p>
+            </div>
+          </div>
+          <button onclick="closeVeraAuthModal()" class="text-gray-400 hover:text-gray-600">
+            <i class="fas fa-times text-xl"></i>
+          </button>
+        </div>
+      </div>
+
+      <!-- Modal Body -->
+      <div class="px-6 py-5">
+
+        <!-- Step 1: Open Vera -->
+        <div id="vera-auth-step-open">
+          <div class="mb-4">
+            <p class="text-sm" style="color:#4b5563;line-height:1.6;">
+              GDES will open the Vera Health website in your browser.
+              Complete your login there, then return here.
+            </p>
+          </div>
+
+          <div id="vera-auth-email-field" class="mb-4">
+            <label class="block text-sm font-medium mb-2" style="color:#374151;">Vera Email (optional)</label>
+            <input type="email"
+                   id="vera-auth-email"
+                   class="w-full px-4 py-2.5 rounded-lg border focus:ring-2 focus:ring-purple-500 focus:border-purple-500"
+                   style="border-color:#d1d5db;"
+                   placeholder="you@example.com"
+                   autocomplete="email">
+            <p class="mt-1 text-xs" style="color:#9ca3af;">Remembered for next time.</p>
+          </div>
+
+          <div id="vera-auth-status" class="mb-4 hidden">
+            <div class="flex items-center gap-2 text-sm" style="color:#6b7280;">
+              <i class="fas fa-spinner fa-spin"></i>
+              <span id="vera-auth-status-text">Opening Vera Health...</span>
+            </div>
+          </div>
+
+          <div id="vera-auth-error" class="mb-4 hidden">
+            <div class="flex items-center gap-2 text-sm" style="color:#dc2626;">
+              <i class="fas fa-exclamation-triangle"></i>
+              <span id="vera-auth-error-text"></span>
+            </div>
+          </div>
+
+          <div class="flex gap-3">
+            <button onclick="closeVeraAuthModal()"
+                    class="flex-1 px-4 py-2.5 rounded-lg border font-medium text-sm"
+                    style="border-color:#d1d5db;color:#374151;">
+              Cancel
+            </button>
+            <button onclick="veraAuthOpenVera()"
+                    id="vera-auth-open-btn"
+                    class="flex-1 px-4 py-2.5 rounded-lg font-medium text-white text-sm"
+                    style="background:#7c3aed;">
+              Open Vera
+            </button>
+          </div>
+        </div>
+
+        <!-- Step 2: Waiting for Login -->
+        <div id="vera-auth-step-waiting" class="hidden">
+          <div class="text-center py-4">
+            <div class="w-16 h-16 rounded-full mx-auto mb-4 flex items-center justify-center" style="background:#eff6ff;">
+              <i class="fas fa-external-link-alt text-3xl" style="color:#2563eb;"></i>
+            </div>
+            <h4 class="text-lg font-semibold mb-2" style="color:#1f2937;">Waiting for Vera Login</h4>
+            <p class="text-sm mb-1" style="color:#6b7280;">
+              Complete your login on the Vera Health website.
+            </p>
+            <p class="text-sm" style="color:#6b7280;">
+              When finished, return here and click <strong>Continue Verification</strong>.
+            </p>
+          </div>
+
+          <div class="flex gap-3">
+            <button onclick="veraAuthGoBack()"
+                    class="flex-1 px-4 py-2.5 rounded-lg border font-medium text-sm"
+                    style="border-color:#d1d5db;color:#374151;">
+              Back
+            </button>
+            <button onclick="veraAuthContinueVerification()"
+                    class="flex-1 px-4 py-2.5 rounded-lg font-medium text-white text-sm"
+                    style="background:#16a34a;">
+              <i class="fas fa-check" style="margin-right:6px;"></i>Continue Verification
+            </button>
+          </div>
+
+          <div class="mt-4 text-center">
+            <button onclick="veraAuthOpenVeraAgain()"
+                    class="text-sm font-medium"
+                    style="color:#7c3aed;">
+              Open Vera Again
+            </button>
+          </div>
+        </div>
+
+        <!-- Step 3: Success -->
+        <div id="vera-auth-step-success" class="hidden">
+          <div class="text-center py-4">
+            <div class="w-16 h-16 rounded-full mx-auto mb-4 flex items-center justify-center" style="background:#dcfce7;">
+              <i class="fas fa-check text-3xl" style="color:#16a34a;"></i>
+            </div>
+            <h4 class="text-lg font-semibold mb-2" style="color:#1f2937;">Connected!</h4>
+            <p class="text-sm" style="color:#6b7280;">
+              You are now connected to Vera Health.
+            </p>
+            <p class="text-sm mt-2" style="color:#6b7280;" id="vera-auth-user-email"></p>
+          </div>
+          <button onclick="closeVeraAuthModal()"
+                  class="w-full px-4 py-2.5 rounded-lg font-medium text-white text-sm"
+                  style="background:#7c3aed;">
+            Continue
+          </button>
+        </div>
+
+        <!-- Error State -->
+        <div id="vera-auth-step-error" class="hidden">
+          <div class="text-center py-4">
+            <div class="w-16 h-16 rounded-full mx-auto mb-4 flex items-center justify-center" style="background:#fef2f2;">
+              <i class="fas fa-exclamation-triangle text-3xl" style="color:#dc2626;"></i>
+            </div>
+            <h4 class="text-lg font-semibold mb-2" style="color:#1f2937;" id="vera-auth-error-title">Connection Failed</h4>
+            <p class="text-sm" style="color:#6b7280;" id="vera-auth-error-message"></p>
+          </div>
+          <div class="flex gap-3">
+            <button onclick="closeVeraAuthModal()"
+                    class="flex-1 px-4 py-2.5 rounded-lg border font-medium text-sm"
+                    style="border-color:#d1d5db;color:#374151;">
+              Cancel
+            </button>
+            <button onclick="veraAuthRetry()"
+                    class="flex-1 px-4 py-2.5 rounded-lg font-medium text-white text-sm"
+                    style="background:#7c3aed;">
+              Try Again
+            </button>
+          </div>
+        </div>
+
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+// Vera Health Authentication Modal — Manual Browser Integration
+let veraAuthEmail = '';
+
+function openVeraAuthModal() {
+  document.getElementById('vera-auth-modal').classList.remove('hidden');
+  veraAuthShowStep('open');
+  document.getElementById('vera-auth-email').value = veraAuthEmail;
+  document.getElementById('vera-auth-status').classList.add('hidden');
+  document.getElementById('vera-auth-error').classList.add('hidden');
+}
+
+function closeVeraAuthModal() {
+  document.getElementById('vera-auth-modal').classList.add('hidden');
+}
+
+function veraAuthShowStep(step) {
+  ['open', 'waiting', 'success', 'error'].forEach(s => {
+    document.getElementById('vera-auth-step-' + s).classList.add('hidden');
+  });
+  document.getElementById('vera-auth-step-' + step).classList.remove('hidden');
+}
+
+function veraAuthShowStatus(show, text) {
+  const el = document.getElementById('vera-auth-status');
+  if (show) {
+    el.classList.remove('hidden');
+    document.getElementById('vera-auth-status-text').textContent = text;
+  } else {
+    el.classList.add('hidden');
+  }
+}
+
+function veraAuthShowError(text) {
+  const el = document.getElementById('vera-auth-error');
+  if (text) {
+    el.classList.remove('hidden');
+    document.getElementById('vera-auth-error-text').textContent = text;
+  } else {
+    el.classList.add('hidden');
+  }
+}
+
+function veraAuthOpenVera() {
+  const email = document.getElementById('vera-auth-email').value.trim();
+  veraAuthEmail = email;
+  veraAuthShowError('');
+  veraAuthShowStatus(true, 'Opening Vera Health...');
+
+  fetch('/auth/vera/open/', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'X-CSRFToken': document.querySelector('meta[name="csrf-token"]').content
+    },
+    body: JSON.stringify({ email: veraAuthEmail })
+  })
+  .then(response => {
+    return response.json().then(data => ({ status: response.status, data }));
+  })
+  .then(({ status, data }) => {
+    veraAuthShowStatus(false);
+    if (status === 503) {
+      veraAuthShowError(data.message || 'Internet connection required for Vera verification.');
+      return;
+    }
+    if (data.status === 'browser_opened') {
+      veraAuthShowStep('waiting');
+    } else {
+      veraAuthShowError(data.message || 'Unable to open Vera Health website.');
+    }
+  })
+  .catch(error => {
+    veraAuthShowStatus(false);
+    veraAuthShowError('Unable to connect. Please try again.');
+  });
+}
+
+function veraAuthOpenVeraAgain() {
+  veraAuthShowStatus(true, 'Opening Vera Health...');
+
+  fetch('/auth/vera/open/', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'X-CSRFToken': document.querySelector('meta[name="csrf-token"]').content
+    },
+    body: JSON.stringify({ email: veraAuthEmail })
+  })
+  .then(response => response.json())
+  .then(data => {
+    veraAuthShowStatus(false);
+    if (data.status === 'browser_opened') {
+      // Already on waiting step, just refresh
+    } else {
+      veraAuthShowError(data.message || 'Unable to open Vera Health website.');
+    }
+  })
+  .catch(error => {
+    veraAuthShowStatus(false);
+  });
+}
+
+function veraAuthContinueVerification() {
+  fetch('/auth/vera/connect/', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'X-CSRFToken': document.querySelector('meta[name="csrf-token"]').content
+    },
+    body: JSON.stringify({ email: veraAuthEmail })
+  })
+  .then(response => response.json())
+  .then(data => {
+    if (data.status === 'connected') {
+      document.getElementById('vera-auth-user-email').textContent = data.email || '';
+      veraAuthShowStep('success');
+      updateVeraStatus('connected');
+      document.dispatchEvent(new CustomEvent('vera-auth-success', { detail: data }));
+    } else {
+      veraAuthShowError(data.message || 'Connection failed.');
+    }
+  })
+  .catch(error => {
+    veraAuthShowError('Unable to connect. Please try again.');
+  });
+}
+
+function veraAuthGoBack() {
+  veraAuthShowStep('open');
+}
+
+function veraAuthRetry() {
+  veraAuthShowStep('open');
+}
+
+function updateVeraStatus(status) {
+  const indicator = document.getElementById('vera-status-indicator');
+  const dot = document.getElementById('vera-status-dot');
+  const text = document.getElementById('vera-status-text');
+
+  if (!indicator) return;
+
+  indicator.classList.remove('hidden');
+
+  if (status === 'connected') {
+    dot.style.background = '#16a34a';
+    text.textContent = 'Connected';
+  } else if (status === 'connecting') {
+    dot.style.background = '#ca8a04';
+    text.textContent = 'Connecting...';
+  } else {
+    dot.style.background = '#dc2626';
+    text.textContent = 'Disconnected';
+  }
+}
+
+// Check auth status on page load
+document.addEventListener('DOMContentLoaded', function() {
+  fetch('/auth/vera/status/')
+    .then(response => response.json())
+    .then(data => {
+      updateVeraStatus(data.authenticated ? 'connected' : 'disconnected');
+    })
+    .catch(() => {
+      updateVeraStatus('disconnected');
+    });
+});
+</script>

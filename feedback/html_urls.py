@@ -9,4 +9,5 @@ urlpatterns = [
     path("feedback/workflow/", views.workflow_feedback_page, name="workflow_feedback"),
     path("feedback/improvements/", views.improvement_suggestions, name="improvement_suggestions"),
     path("feedback/summary/", views.summary_report_view, name="summary_report"),
+    path("feedback/continuous-improvement/", views.continuous_improvement, name="continuous_improvement"),
 ]

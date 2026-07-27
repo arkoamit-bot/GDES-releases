@@ -87,8 +87,8 @@ def new_version_from(prescription):
     """Real-world edits after printing don't mutate history — they create the
     next immutable version, copying the current medication list forward."""
     items = list(prescription.items.all())
-    next_version = (prescription.encounter.prescriptions
-                    .order_by("-version").first().version + 1)
+    last_rx = prescription.encounter.prescriptions.order_by("-version").first()
+    next_version = (last_rx.version + 1) if last_rx else 1
     clone = prescription.__class__.objects.create(
         encounter=prescription.encounter,
         version=next_version,

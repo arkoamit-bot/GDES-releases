@@ -30,6 +30,11 @@ class TestRecommendationAuditWiring(TestCase):
     def setUp(self):
         self.user = User.objects.create_user(username="testdoc", password="testpass")
         self.patient = _make_patient("Audit Test Patient")
+        # Creating/registering the patient fires the reasoning signal, which now
+        # (WS-1) writes RecommendationAudit rows. Clear them so the per-test count
+        # assertions below measure only what each test itself creates — otherwise
+        # the tests are order-dependent (pass in the full suite, fail in isolation).
+        RecommendationAudit.objects.all().delete()
 
     def test_create_audit_record_returns_instance(self):
         from clinical_reasoning.services.audit import create_audit_record

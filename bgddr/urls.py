@@ -71,6 +71,10 @@ urlpatterns = [
     path("", include(("feedback.html_urls", "feedback"))),
     # FHIR R4 interoperability (Phase 3.3)
     path("fhir/", include("fhir.urls")),
+    # Clinical Evidence Intelligence (Phase 6)
+    path("api/v1/", include("clinical_evidence.urls")),
+    # Vera Health Authentication
+    path("auth/", include("auth.urls")),
 ]
 
 # Serve media files in development (Django dev server only).

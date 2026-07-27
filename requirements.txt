@@ -1,6 +1,7 @@
 Django>=5.0
 djangorestframework>=3.15
 django-jazzmin>=3.0
+requests>=2.31
 WeasyPrint>=60
 
 # Excel export (research datasets + data-dictionary sheet).
@@ -20,6 +21,7 @@ whitenoise>=6.6
 
 # Production hardening
 # ----------------------
+pytest>=7.0
 
 # xhtml2pdf is a pure-Python PDF fallback when WeasyPrint/native GTK is unavailable.
 # It uses pypdf + reportlab under the hood and renders the same HTML template.

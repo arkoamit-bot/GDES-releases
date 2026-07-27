@@ -21,6 +21,7 @@ from knowledge.graph_reasoning import (
 )
 from clinical_reasoning.models import ClinicalProfile, ClinicalInsight
 from clinical_reasoning.json_util import json_safe
+from .audit import audit_clinical_reasoning
 
 logger = logging.getLogger(__name__)
 
@@ -125,6 +126,9 @@ def reason_about_patient(patient: Patient) -> ClinicalProfile:
     profile.save()
 
     _generate_insights(profile, care_gaps, rule_results)
+
+    # Record reasoning output in audit trail
+    audit_clinical_reasoning(patient, profile, care_pathway_data)
 
     return profile
 
