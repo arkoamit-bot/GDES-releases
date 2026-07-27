@@ -68,6 +68,10 @@ os.environ.setdefault("DJANGO_SETTINGS_MODULE", "bgddr.settings_desktop")
 
 PROJECT = Path(os.getcwd())
 
+# OneDrive renames the losing copy with the device name when this folder is
+# synced from two machines. Add a suffix here for every device that syncs it.
+CONFLICT_SUFFIXES = ("-Dr-Wasim", "-Home")
+
 # Local Django apps that ship templates / static / migrations.
 # NOTE: keep in sync with INSTALLED_APPS in bgddr/settings.py. Django imports
 # apps dynamically (importlib), so PyInstaller's static analysis will NOT find
@@ -175,9 +179,8 @@ for app in LOCAL_APPS:
         if "__pycache__" in str(py_file):
             continue
         # OneDrive conflict copies ("version-Dr-Wasim.py") are stale duplicates;
-        # bundling them ships dead code and, in _internal, confuses nothing but
-        # bloats every clinic PC's download.
-        if "-Dr-Wasim" in py_file.name:
+        # bundling them ships dead code and bloats every clinic PC's download.
+        if any(suffix in py_file.name for suffix in CONFLICT_SUFFIXES):
             continue
         rel = py_file.relative_to(PROJECT)
         datas.append((str(py_file), str(rel.parent)))

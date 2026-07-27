@@ -19,6 +19,9 @@
 #    .\desktop\make_update_zip.ps1 -Notes "..."
 # =====================================================================
 param(
+    # OneDrive renames the losing copy with the device name when this folder is
+    # synced from two machines. Add an entry for every device that syncs it.
+    [string[]] $ConflictSuffixes = @("-Dr-Wasim", "-Home"),
     [string] $Notes = "",
     [string] $DistDir = "dist\GDES"
 )
@@ -35,7 +38,8 @@ Write-Host "==> Packaging GDES $version" -ForegroundColor Cyan
 if (-not (Test-Path $DistDir)) { throw "Build output not found: $DistDir (run desktop\build_exe.ps1 first)." }
 
 # --- strip OneDrive conflict copies from the build output ---
-$conflicts = Get-ChildItem $DistDir -Recurse -File | Where-Object { $_.Name -like "*-Dr-Wasim*" }
+$conflicts = Get-ChildItem $DistDir -Recurse -File |
+    Where-Object { $n = $_.Name; $ConflictSuffixes | Where-Object { $n -like "*$_*" } }
 if ($conflicts) {
     $mb = [math]::Round(($conflicts | Measure-Object Length -Sum).Sum / 1MB, 1)
     Write-Host "==> Removing $($conflicts.Count) OneDrive conflict copies ($mb MB)" -ForegroundColor Yellow
@@ -58,7 +62,7 @@ try {
     # Compress-Archive writes backslash separators on PS 5.1; normalise so
     # the root checks below work on either.
     $names = $zip.Entries | ForEach-Object { $_.FullName.Replace("\", "/") }
-    $bad = $names | Where-Object { $_ -like "*-Dr-Wasim*" }
+    $bad = $names | Where-Object { $n = $_; $ConflictSuffixes | Where-Object { $n -like "*$_*" } }
     if ($bad) { throw "Zip still contains $($bad.Count) OneDrive conflict copies -- aborting." }
     if (-not ($names -contains "GDES.exe")) {
         throw "GDES.exe is not at the zip root -- the updater would not find it."

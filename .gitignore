@@ -63,8 +63,10 @@ Thumbs.db
 # OneDrive conflict copies. Syncing this folder from two machines renames the
 # loser with a device suffix — "launcher-Dr-Wasim.py", and "-Dr-Wasim-2.py" for
 # the second collision. The old pattern (*-Dr-Wasim.*) missed the numbered
-# variants, so one of them was committed.
+# variants, so one of them was committed. Add a line per device that syncs
+# this folder.
 *-Dr-Wasim*
+*-Home*
 
 # Keep the COMPILED stylesheet (static/css/app.css) and vendored JS committed so
 # the app runs without a Node build; only re-run `npm run build:css` when the
