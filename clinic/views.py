@@ -445,10 +445,12 @@ def patient_detail(request, pk):
 def baseline_edit(request, pk):
     patient = get_object_or_404(Patient, pk=pk)
     instance = getattr(patient, "baseline", None)
-    form = BaselineForm(request.POST or None, instance=instance)
+    form = BaselineForm(request.POST or None, instance=instance, patient=patient)
     if request.method == "POST" and form.is_valid():
         obj = form.save(commit=False)
         obj.patient = patient
+        # BaselineAssessment.save() syncs Level 2 comorbidities back to the
+        # Patient record itself (_sync_level2_to_patient), so nothing to do here.
         obj.save()
         import datetime as _dt
         n = _save_labs(patient, form, obj.assessment_date or _dt.date.today())
@@ -1015,16 +1017,15 @@ def prescription_create(request, pk):
     comorbidity_options = ["Hypertension", "Diabetes mellitus", "Bronchial asthma",
                            "Hypothyroidism", "Dyslipidaemia", "Ischaemic heart disease",
                            "COPD", "CKD"]
+    # Patient Level 2 + baseline, via the shared helper, so everything recorded
+    # at registration or baseline is pre-ticked here.
+    from patients.comorbidity import comorbidity_summary
     prefill_comorbid = set()
-    # Use Patient Level 2 (single source of truth) for comorbidities.
-    if patient.hypertension:
-        prefill_comorbid.add("Hypertension")
-    if patient.autoimmune_disease:
-        prefill_comorbid.add("Autoimmune disease")
-    if patient.chronic_infection:
-        prefill_comorbid.add("Chronic infection")
-    if patient.diabetes_status not in ("", "none", None):
-        prefill_comorbid.add("Diabetes mellitus")
+    for label in comorbidity_summary(patient, getattr(patient, "baseline", None)):
+        # The tick-list uses the short label; "Diabetes mellitus (Type 2)" and
+        # the like must still match their checkbox.
+        match = next((o for o in comorbidity_options if label.startswith(o)), None)
+        prefill_comorbid.add(match or label)
     if prev and prev.comorbidities:
         prefill_comorbid |= {s.strip() for s in prev.comorbidities.split(",") if s.strip()}
     # Any carried-forward value not in the standard list -> free-text box.
@@ -1201,15 +1202,10 @@ def verify_treatment_with_vera(request, pk):
         else:
             ckd_stage = "G5"
 
-    # Comorbidities
-    comorbidities = []
-    if patient.hypertension or (baseline and baseline.hypertension):
-        comorbidities.append("Hypertension")
-    if patient.diabetes_status and patient.diabetes_status != "none":
-        comorbidities.append(f"Diabetes ({patient.diabetes_status})")
-    if baseline and baseline.cvd_history:
-        comorbidities.append("CVD")
-    comorbidities_text = ", ".join(comorbidities) if comorbidities else "None"
+    # Comorbidities — one shared list so the AI prompt sees everything recorded,
+    # not just HTN/DM/CVD.
+    from patients.comorbidity import comorbidity_text
+    comorbidities_text = comorbidity_text(patient, baseline)
 
     # Current medications
     meds = []
@@ -1487,15 +1483,9 @@ def _build_prescription_prompt(patient, profile, management_plan):
     else:
         biopsy_text = "Not available"
 
-    # Comorbidities
-    comorbidities = []
-    if patient.hypertension or (baseline and baseline.hypertension):
-        comorbidities.append("Hypertension")
-    if patient.diabetes_status and patient.diabetes_status != "none":
-        comorbidities.append(f"Diabetes ({patient.diabetes_status})")
-    if baseline and baseline.cvd_history:
-        comorbidities.append("CVD")
-    comorbidities_text = ", ".join(comorbidities) if comorbidities else "None"
+    # Comorbidities — shared helper (see patients/comorbidity.py).
+    from patients.comorbidity import comorbidity_text
+    comorbidities_text = comorbidity_text(patient, baseline)
 
     # Current management plan summary
     plan_lines = []

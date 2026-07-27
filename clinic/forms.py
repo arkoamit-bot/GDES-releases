@@ -196,7 +196,7 @@ class BaselineForm(forms.ModelForm):
             "volume_status": "Volume status", "drug_history": "Drug history",
         }
 
-    def __init__(self, *args, **kwargs):
+    def __init__(self, *args, patient=None, **kwargs):
         super().__init__(*args, **kwargs)
         add_lab_fields(self)
         # presentation_syndromes is stored as a JSON list; the form edits a single
@@ -205,6 +205,13 @@ class BaselineForm(forms.ModelForm):
             existing = self.instance.presentation_syndromes or []
             if existing:
                 self.initial["presentation_syndromes"] = existing[0]
+        # Carry the comorbidities recorded at registration forward, so the
+        # clinician confirms them instead of re-entering them. Only for a NEW
+        # baseline — a saved one may hold a deliberate correction.
+        elif patient is not None:
+            from patients.comorbidity import baseline_initial_from_patient
+            for field, value in baseline_initial_from_patient(patient).items():
+                self.initial.setdefault(field, value)
 
     def clean_presentation_syndromes(self):
         # Store the single choice back as a 1-element list (model field is JSON).
