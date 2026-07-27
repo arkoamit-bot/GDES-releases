@@ -274,7 +274,7 @@ Write-Host "==> Validating distribution ..." -ForegroundColor Cyan
 $validationFailed = $false
 $internal = Join-Path $pkg "_internal"
 
-# Required directories — some live at package root, others inside _internal/
+# Required directories -- some live at package root, others inside _internal/
 $rootDirs = @("backups", "logs", "config", "media")
 foreach ($dir in $rootDirs) {
     $full = Join-Path $pkg $dir

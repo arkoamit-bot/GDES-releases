@@ -18,7 +18,7 @@
 #    .\desktop\publish_github_release.ps1 -Repo arkoamit-bot/GDES-releases -ZipPath dist\update\GDES-6.6.1.zip
 #
 #  SECURITY: prefer a PUBLIC "releases-only" repo (e.g. arkoamit-bot/GDES-releases)
-#  that holds only the built zips — then clinic PCs need NO token. Point them at
+#  that holds only the built zips -- then clinic PCs need NO token. Point them at
 #  it with BGDDR_GITHUB_REPO. Do NOT ship a token that can read your private
 #  source repo to clinic machines.
 # =====================================================================
@@ -87,4 +87,4 @@ $asset = Invoke-RestMethod -Uri $uploadUrl -Headers $uploadHdr -Method Post -InF
 Write-Host "   uploaded: $($asset.browser_download_url)" -ForegroundColor Green
 Write-Host ""
 Write-Host "DONE. Clinic PCs on version < $version will now offer this update on next launch." -ForegroundColor Green
-Write-Host "(They must be able to reach $Repo — public repo = no token; private = set BGDDR_GITHUB_TOKEN on each PC.)" -ForegroundColor Green
+Write-Host "(They must be able to reach $Repo -- public repo = no token; private = set BGDDR_GITHUB_TOKEN on each PC.)" -ForegroundColor Green
