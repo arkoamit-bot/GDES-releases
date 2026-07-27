@@ -32,8 +32,8 @@
         {% include "clinic/_field.html" with f=form.monthly_income_bdt %}
         {% include "clinic/_field.html" with f=form.education %}
         {% include "clinic/_field.html" with f=form.occupation %}
-        {# Smoking status is Level 2 — recorded on the patient record, shown in
-           section B with the other carried comorbidities. #}
+        {% comment %}Smoking status is Level 2 — recorded on the patient record,
+        shown in section B with the other carried comorbidities.{% endcomment %}
         {% include "clinic/_field.html" with f=form.alcohol_use %}
       </div>
     </fieldset>
@@ -45,9 +45,9 @@
         {% include "clinic/_field.html" with f=form.dm_duration_years %}
         {% include "clinic/_field.html" with f=form.hba1c %}
       </div>
-      {# Comorbidities are Level 2 data, recorded once on the patient record.
-         Shown here read-only so they are visible without a second copy that
-         can disagree with the first. #}
+      {% comment %}Comorbidities are Level 2 data, recorded once on the patient
+      record. Shown here read-only so they are visible without a second copy
+      that can disagree with the first.{% endcomment %}
       <label style="font-size:12px;color:#64748b;margin:8px 0 4px;display:block">Comorbidities &amp; complications</label>
       <div style="display:flex;flex-wrap:wrap;gap:8px;align-items:center">
         {% for c in form.carried_comorbidities %}
