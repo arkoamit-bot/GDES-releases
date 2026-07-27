@@ -81,7 +81,32 @@ LOCAL_APPS = [
     "clinical", "knowledge", "timeline", "reminders", "fhir", "events",
     "clinical_reasoning", "followup",
     "feedback",
+    # Vera Health integration (auth + the guarded auto-paste). This was missing
+    # until 7.3.12, so no packaged build shipped its loose .py files.
+    "clinical_evidence",
 ]
+# Guard: every local Django app must be listed above, or its templates and
+# loose .py files are silently dropped from the build.
+def _check_local_apps_cover_installed_apps():
+    import ast
+    settings_py = PROJECT / "bgddr" / "settings.py"
+    try:
+        tree = ast.parse(settings_py.read_text(encoding="utf-8"))
+    except Exception:
+        return
+    for node in ast.walk(tree):
+        if not (isinstance(node, ast.Assign)
+                and any(getattr(t, "id", "") == "INSTALLED_APPS" for t in node.targets)):
+            continue
+        for element in getattr(node.value, "elts", []):
+            name = getattr(element, "value", None)
+            if not isinstance(name, str):
+                continue
+            root = name.split(".")[0]
+            if (PROJECT / root / "__init__.py").exists() and root not in LOCAL_APPS:
+                print(f"BGDDR.spec WARNING: local app {root!r} is in INSTALLED_APPS "
+                      f"but not in LOCAL_APPS — its files will not be bundled.")
+_check_local_apps_cover_installed_apps()
 
 # Third-party packages whose Python submodules must be fully bundled.
 THIRD_PARTY = [
@@ -148,6 +173,11 @@ for app in LOCAL_APPS:
         continue
     for py_file in app_dir.rglob("*.py"):
         if "__pycache__" in str(py_file):
+            continue
+        # OneDrive conflict copies ("version-Dr-Wasim.py") are stale duplicates;
+        # bundling them ships dead code and, in _internal, confuses nothing but
+        # bloats every clinic PC's download.
+        if "-Dr-Wasim" in py_file.name:
             continue
         rel = py_file.relative_to(PROJECT)
         datas.append((str(py_file), str(rel.parent)))
