@@ -98,6 +98,22 @@ class Patient(models.Model):
     hiv_status = models.CharField(
         max_length=10, blank=True,
         choices=[("", "—"), ("negative", "Negative"), ("positive", "Positive")])
+    # Persistent comorbidities. These used to be asked only on the baseline
+    # assessment, which meant they could not be recorded at registration and
+    # never reached the prescription pre-fill or the AI prompts. They belong
+    # here with the rest of Level 2 — recorded once, carried forward.
+    cvd_history = models.BooleanField(
+        default=False, verbose_name="Cardiovascular disease")
+    malignancy = models.BooleanField(default=False)
+    previous_kidney_disease = models.BooleanField(default=False)
+    prior_immunosuppression = models.BooleanField(
+        default=False, verbose_name="Previous immunosuppressive therapy")
+    family_history_kidney = models.BooleanField(
+        default=False, verbose_name="Family history of kidney disease")
+    diabetic_retinopathy = models.BooleanField(default=False)
+    neuropathy = models.BooleanField(default=False)
+    diabetic_foot_history = models.BooleanField(
+        default=False, verbose_name="Diabetic foot disease")
     biopsy_diagnosis = models.CharField(
         max_length=120, blank=True,
         help_text="GN diagnosis from biopsy (auto-synced from GNDiagnosis)")

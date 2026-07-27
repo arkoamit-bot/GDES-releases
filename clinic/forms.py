@@ -15,6 +15,7 @@ from decimal import Decimal
 from django import forms
 
 from patients import choices
+from patients.comorbidity import BASELINE_MIRROR_FIELDS
 from patients.models import Patient
 from patients.workflow import RelapseType
 from baseline.models import BaselineAssessment
@@ -126,8 +127,14 @@ class PatientForm(forms.ModelForm):
                   "enrollment_date", "cohort", "diabetes_status",
                   "primary_diagnosis",
                   # Level 2: persistent clinical data (single source of truth).
-                  "hypertension", "autoimmune_disease", "chronic_infection",
+                  # Comorbidities are asked HERE and nowhere else — the baseline
+                  # form no longer repeats them.
+                  "hypertension", "cvd_history", "autoimmune_disease",
+                  "chronic_infection", "malignancy", "previous_kidney_disease",
+                  "prior_immunosuppression", "family_history_kidney",
+                  "diabetic_retinopathy", "neuropathy", "diabetic_foot_history",
                   "smoking_status", "hepatitis_status", "hiv_status",
+                  # Histology — only shown once a biopsy exists (see __init__).
                   "biopsy_diagnosis", "gn_broad_group", "gn_primary_secondary",
                   "oxford_mestc", "isn_rps_class",
                   "ckd_etiology", "transplant_status"]
@@ -145,6 +152,35 @@ class PatientForm(forms.ModelForm):
             "isn_rps_class": "ISN/RPS class for lupus nephritis (auto-synced from pathology).",
             "ckd_etiology": "CKD aetiology (auto-derived or clinician-entered).",
         }
+
+    # Histological fields. Before a biopsy these have no answer -- and each is
+    # auto-synced from pathology anyway (see the help texts), so asking at
+    # registration invites a guess that a later biopsy report will overwrite.
+    HISTOLOGY_FIELDS = ["biopsy_diagnosis", "gn_broad_group",
+                        "gn_primary_secondary", "oxford_mestc", "isn_rps_class"]
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        if not self._has_biopsy():
+            for name in self.HISTOLOGY_FIELDS:
+                self.fields.pop(name, None)
+
+    def _has_biopsy(self) -> bool:
+        """True once this patient has a biopsy on file (or a histology value
+        already recorded, so an existing entry is never hidden from editing)."""
+        patient = getattr(self, "instance", None)
+        if patient is None or not patient.pk:
+            return False
+        if any(getattr(patient, name, "") for name in self.HISTOLOGY_FIELDS):
+            return True
+        try:
+            return patient.biopsies.exists()
+        except Exception:  # pragma: no cover - relation unavailable
+            return False
+
+    def histology_visible(self) -> bool:
+        """For the template: whether the histology block should be rendered."""
+        return any(name in self.fields for name in self.HISTOLOGY_FIELDS)
 
 
 class BaselineForm(forms.ModelForm):
@@ -177,19 +213,18 @@ class BaselineForm(forms.ModelForm):
         model = BaselineAssessment
         # BMI + category are auto-derived on save; patient is set from the URL;
         # presentation_syndrome (legacy single) is synced from the multi-select.
+        # Comorbidities are excluded: they are Level 2 data, asked once on the
+        # patient record. Re-asking them here is what let the two copies drift.
+        # The columns remain (historical data, analytics) and are mirrored from
+        # the patient on save.
         exclude = ["patient", "bmi", "bmi_category", "created_at", "updated_at",
-                   "presentation_syndrome"]
+                   "presentation_syndrome"] + BASELINE_MIRROR_FIELDS
         widgets = {
             "assessment_date": _date(),
             "notes": forms.Textarea(attrs={"rows": 3}),
             "drug_history": forms.Textarea(attrs={"rows": 2}),
         }
         labels = {
-            "family_history_kidney": "Family history of kidney disease",
-            "previous_kidney_disease": "Previous kidney disease",
-            "autoimmune_disease": "Autoimmune disease",
-            "chronic_infection": "Chronic infection (HBV/HCV/HIV/TB)",
-            "prior_immunosuppression": "Previous immunosuppressive therapy",
             "alcohol_use": "Alcohol use",
             "pulse_bpm": "Pulse (bpm)", "temperature_c": "Temperature (°C)",
             "respiratory_rate": "Respiratory rate (/min)",
@@ -199,19 +234,22 @@ class BaselineForm(forms.ModelForm):
     def __init__(self, *args, patient=None, **kwargs):
         super().__init__(*args, **kwargs)
         add_lab_fields(self)
+        self.patient = patient
         # presentation_syndromes is stored as a JSON list; the form edits a single
         # value, so seed the initial from the first stored element.
         if self.instance and self.instance.pk:
             existing = self.instance.presentation_syndromes or []
             if existing:
                 self.initial["presentation_syndromes"] = existing[0]
-        # Carry the comorbidities recorded at registration forward, so the
-        # clinician confirms them instead of re-entering them. Only for a NEW
-        # baseline — a saved one may hold a deliberate correction.
-        elif patient is not None:
-            from patients.comorbidity import baseline_initial_from_patient
-            for field, value in baseline_initial_from_patient(patient).items():
-                self.initial.setdefault(field, value)
+
+    def carried_comorbidities(self):
+        """Comorbidities from the patient record, shown read-only on this form.
+
+        They are displayed rather than re-asked so the clinician can see what is
+        already known without a second copy that can disagree with the first.
+        """
+        from patients.comorbidity import comorbidity_summary
+        return comorbidity_summary(self.patient, self.instance)
 
     def clean_presentation_syndromes(self):
         # Store the single choice back as a 1-element list (model field is JSON).
@@ -225,12 +263,9 @@ class BaselineForm(forms.ModelForm):
                 for code, label, unit, _q in BASELINE_SEROLOGY]
 
     def comorbidity_fields(self):
-        """Bound boolean fields for the B. Medical-history checkbox grid."""
-        names = ["hypertension", "cvd_history", "previous_kidney_disease",
-                 "autoimmune_disease", "chronic_infection", "malignancy",
-                 "prior_immunosuppression", "family_history_kidney",
-                 "diabetic_retinopathy", "neuropathy", "diabetic_foot_history"]
-        return [self[n] for n in names]
+        """Kept for templates: the checkbox grid is gone (comorbidities are
+        recorded on the patient record), so there is nothing left to bind."""
+        return []
 
 
 class AdverseEventForm(forms.ModelForm):

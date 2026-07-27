@@ -44,8 +44,13 @@ _PATIENT_DEM_FIELDS = ["name", "hospital_id", "phone", "sex", "dob"]
 _PATIENT_CLIN_FIELDS = ["enrollment_date", "cohort", "diabetes_status",
                          "primary_diagnosis"]
 _PATIENT_LEVEL2_FIELDS = [
-    "hypertension", "autoimmune_disease", "chronic_infection", "smoking_status",
-    "hepatitis_status", "hiv_status", "biopsy_diagnosis", "gn_broad_group",
+    "hypertension", "cvd_history", "autoimmune_disease", "chronic_infection",
+    "malignancy", "previous_kidney_disease", "prior_immunosuppression",
+    "family_history_kidney", "diabetic_retinopathy", "neuropathy",
+    "diabetic_foot_history", "smoking_status", "hepatitis_status", "hiv_status",
+    # Histology — PatientForm drops these until a biopsy exists, so a field
+    # listed here simply will not be rendered before then.
+    "biopsy_diagnosis", "gn_broad_group",
     "gn_primary_secondary", "oxford_mestc", "isn_rps_class",
     "ckd_etiology", "transplant_status"]
 

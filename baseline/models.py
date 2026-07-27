@@ -129,36 +129,24 @@ class BaselineAssessment(models.Model):
         else:
             self.bmi = None
             self.bmi_category = ""
+        # Comorbidities are recorded on the Patient record (Level 2) and are no
+        # longer asked here; keep this row's mirror columns in step so historical
+        # data and analytics over the baseline table stay valid.
+        from patients.comorbidity import mirror_to_baseline
+        mirror_to_baseline(self.patient, self)
         super().save(*args, **kwargs)
-        # --- Level 2: sync persistent clinical data to Patient (single source) ---
-        self._sync_level2_to_patient()
+        self._infer_diabetes_status()
 
-    def _sync_level2_to_patient(self):
-        """Copy Level 2 persistent fields from baseline to Patient model."""
+    def _infer_diabetes_status(self):
+        """Seed the patient's diabetes status from the baseline DM duration.
+
+        This still flows baseline -> Patient because DM duration is only ever
+        collected here, and only when the patient record says nothing.
+        """
         p = self.patient
-        changed = False
-        _set = lambda attr, val: (
-            setattr(p, attr, val) if getattr(p, attr) != val else None) or True
-        # Only set Patient fields if they are currently empty (don't overwrite
-        # clinician edits on Patient — baseline is the initial seed).
-        if not p.hypertension:
-            p.hypertension = self.hypertension
-            changed = True
-        if not p.autoimmune_disease:
-            p.autoimmune_disease = self.autoimmune_disease
-            changed = True
-        if not p.chronic_infection:
-            p.chronic_infection = self.chronic_infection
-            changed = True
-        if not p.smoking_status:
-            p.smoking_status = self.smoking or ""
-            changed = True
-        if not p.diabetes_status or p.diabetes_status == "none":
-            # Infer diabetes status from baseline if available.
-            if self.dm_duration_years:
-                p.diabetes_status = "t2"  # default to T2 if duration known
-                changed = True
-        if changed:
-            p.save(update_fields=[
-                "hypertension", "autoimmune_disease", "chronic_infection",
-                "smoking_status", "diabetes_status", "updated_at"])
+        if p is None or not self.dm_duration_years:
+            return
+        if p.diabetes_status and p.diabetes_status != "none":
+            return
+        p.diabetes_status = "t2"  # default to T2 when only duration is known
+        p.save(update_fields=["diabetes_status", "updated_at"])
