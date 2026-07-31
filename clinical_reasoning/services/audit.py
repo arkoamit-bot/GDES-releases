@@ -44,9 +44,32 @@ def create_audit_record(
     This function is the canonical way to write to the audit trail.
     Call it from every recommendation-producing service.
 
-    Returns the created RecommendationAudit instance.
+    Idempotent: re-issuing an identical recommendation returns the record
+    already on file instead of writing another one. The recommendation
+    generators run on every page render, so without this the trail filled with
+    copies -- one patient had 44 rows for 8 distinct recommendations, a log of
+    page views rather than of clinical decisions, which is what made it
+    unreadable. The FIRST issuance is kept: that is the date the recommendation
+    was actually made.
+
+    Returns the RecommendationAudit instance (existing or newly created).
     """
     from knowledge.models import RecommendationAudit
+
+    # Deliberately inside a guard: this function has always been best-effort —
+    # a failure to write the trail must never break the recommendation itself.
+    try:
+        existing = (RecommendationAudit.objects
+                    .filter(patient=patient,
+                            recommendation_type=recommendation_type,
+                            disease_id=disease_id,
+                            recommendation_text=recommendation_text)
+                    .order_by("issued_at")
+                    .first())
+    except Exception:
+        existing = None
+    if existing is not None:
+        return existing
 
     rec_id = _generate_recommendation_id(recommendation_type, patient.pk)
     today = date.today()

@@ -366,14 +366,22 @@ def evaluate_entry(entry: KnowledgeBaseEntry, features: dict) -> DiseaseScore:
     if entry.source:
         source_str = f"{entry.source.abbreviation} {entry.source.version_year}"
 
-    disease_name = entry.disease_id
+    # Name resolution, best source first. Seven disease_ids used by active rules
+    # have no Disease row ("hypertensiveNephrosclerosis", "infectionRelated",
+    # ...), and the raw camelCase id was being shown to clinicians in the
+    # differential. The rule itself carries a proper name, so use it before
+    # falling back to the id.
+    disease_name = ""
     try:
         from .models import Disease
         disease_obj = Disease.objects.get(pk=entry.disease_id)
-        if disease_obj.name:
-            disease_name = disease_obj.name
+        disease_name = disease_obj.name or ""
     except Exception:
         pass
+    if not disease_name:
+        disease_name = (entry.rule_data or {}).get("disease_name") or ""
+    if not disease_name:
+        disease_name = entry.disease_id
 
     return DiseaseScore(
         disease_id=entry.disease_id,

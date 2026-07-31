@@ -420,10 +420,17 @@ def patient_detail(request, pk):
     ]
     last_visit = encounters[0] if encounters else None
 
+    # The full ranking stays on the profile for audit/export; the page shows
+    # only what is clinically in contention (see services/differential.py).
+    from clinical_reasoning.services.differential import differential_for_display
+    dx_display = differential_for_display(
+        patient, getattr(profile, "differential", None) if profile else None)
+
     return render(request, "clinic/patient_detail.html", {
         "active": "patients", "patient": patient, "baseline": baseline,
         "encounters": encounters, "prescriptions": prescriptions,
         "outcome": outcome, "profile": profile, "steps": steps,
+        "dx_display": dx_display,
         "adverse_events": adverse_events,
         "biopsies": biopsies, "enrollments": enrollments, "consents": consents,
         "exposures": exposures, "lab_orders": lab_orders,

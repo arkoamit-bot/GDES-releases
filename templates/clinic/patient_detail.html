@@ -284,8 +284,15 @@
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px">
         <!-- Left: Top differentials + complexity -->
         <div>
-          <div style="font-size:11px;font-weight:700;color:#64748b;text-transform:uppercase;margin-bottom:8px">Top Diagnoses</div>
-          {% for dx in profile.differential|slice:":3" %}
+          <div style="font-size:11px;font-weight:700;color:#64748b;text-transform:uppercase;margin-bottom:8px">{% if dx_display.confirmed %}Diagnosis{% else %}Top Diagnoses{% endif %}</div>
+          {% if dx_display.confirmed %}
+          <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px">
+            <i class="fas fa-microscope" style="color:#15803d"></i>
+            <span style="font-size:13px;font-weight:600;color:var(--ink)">{{ dx_display.confirmed }}</span>
+            <span class="badge ok" style="font-size:10px">Biopsy</span>
+          </div>
+          {% endif %}
+          {% for dx in dx_display.entries|slice:":3" %}
           <div style="display:flex;align-items:center;gap:10px;margin-bottom:8px">
             <div style="flex:1;min-width:0">
               <div style="font-size:13px;font-weight:600;color:var(--ink);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{{ dx.disease_name|default:dx.disease_id }}</div>
@@ -549,7 +556,29 @@
     <div class="card">
       <div class="card-header" style="color:#4f46e5"><i class="fas fa-list"></i> Differential Diagnosis</div>
       <div class="card-body" style="padding:0">
-        {% for dx in profile.differential %}
+        {% if dx_display.confirmed %}
+        {% comment %}Biopsy has settled it — a ranked list of alternatives here
+        understates a confirmed finding.{% endcomment %}
+        <div style="padding:14px">
+          <div style="display:flex;align-items:center;gap:8px">
+            <i class="fas fa-microscope" style="color:#15803d"></i>
+            <span style="font-weight:600;font-size:14px">{{ dx_display.confirmed }}</span>
+            <span class="badge ok" style="font-size:10px">Confirmed on biopsy</span>
+          </div>
+          <div style="font-size:12px;color:#64748b;margin-top:6px">{{ dx_display.note }}</div>
+          <details style="margin-top:8px">
+            <summary style="cursor:pointer;font-size:12px;color:#4f46e5">Show the pre-biopsy differential ({{ dx_display.hidden_count }})</summary>
+            <div style="margin-top:8px">
+              {% for dx in profile.differential %}
+              <div style="display:flex;justify-content:space-between;font-size:12px;color:#64748b;padding:3px 0">
+                <span>{{ dx.disease_name|default:dx.disease_id }}</span><span>{{ dx.confidence }}%</span>
+              </div>
+              {% endfor %}
+            </div>
+          </details>
+        </div>
+        {% else %}
+        {% for dx in dx_display.entries %}
         <div style="display:flex;align-items:center;gap:8px;padding:10px 14px;{% if not forloop.last %}border-bottom:1px solid var(--line){% endif %}">
           <div style="flex:1;min-width:0">
             <div style="display:flex;align-items:center;gap:6px">
@@ -576,6 +605,10 @@
           <div class="desc">No differential computed yet.</div>
         </div>
         {% endfor %}
+        {% if dx_display.note %}
+        <div style="padding:8px 14px;font-size:11px;color:#94a3b8;border-top:1px solid var(--line)">{{ dx_display.note }}</div>
+        {% endif %}
+        {% endif %}
       </div>
     </div>
     <div>
