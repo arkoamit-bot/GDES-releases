@@ -1839,6 +1839,24 @@ def quality_page(request):
 
 # --- Analytics & Export landing pages --------------------------------------
 
+def _drug_group_options():
+    """"drug:<class>" options for the exposure -> outcome comparison.
+
+    Only classes a patient is actually exposed to are offered: an option that
+    splits the cohort into "everyone" vs "nobody" produces an empty comparison
+    and looks like a broken page.
+    """
+    try:
+        from treatments.models import TreatmentExposure
+        classes = (TreatmentExposure.objects
+                   .exclude(drug__drug_class="")
+                   .values_list("drug__drug_class", flat=True)
+                   .distinct())
+        return [f"drug:{c}" for c in sorted(set(classes)) if c]
+    except Exception:  # pragma: no cover - DB not ready
+        return []
+
+
 @login_required(login_url=LOGIN)
 def analytics_page(request):
     """Cohort analytics rendered as tables (not raw JSON). Each computation is
@@ -1847,7 +1865,10 @@ def analytics_page(request):
     endpoint = request.GET.get("endpoint", "composite_kidney_event")
     ctx = {
         "active": "analytics", "group_by": group_by, "endpoint": endpoint,
-        "group_options": ["diabetes", "diagnosis", "cohort"],
+        # Exposure -> outcome: cohort.split_patients has always supported
+        # "drug:<class>" (ever-exposed vs never-exposed), but the option was
+        # never offered here, so the analysis was unreachable from the app.
+        "group_options": ["diabetes", "diagnosis", "cohort"] + _drug_group_options(),
         "endpoint_options": [
             "composite_kidney_event", "eskd", "death",
             "sustained_40_decline", "sustained_50_decline",

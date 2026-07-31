@@ -69,12 +69,21 @@ class ReconciliationPlan:
 
 
 def _open_exposures_by_drug(patient):
+    """Open episodes keyed by drug — the base the diff is computed against.
+
+    At most one ongoing episode per drug is a database constraint
+    (one_ongoing_exposure_per_drug). Keying by drug therefore loses nothing;
+    before the constraint existed a second episode would have been silently
+    dropped here and then never continued or closed by any later prescription.
+    Ordering is explicit so the survivor is deterministic on legacy rows that
+    predate the constraint.
+    """
     by_drug: dict[int, TreatmentExposure] = {}
     qs = (TreatmentExposure.objects
           .filter(patient=patient, ongoing=True)
-          .select_related("drug"))
+          .select_related("drug")
+          .order_by("drug_id", "start_date", "id"))
     for exp in qs:
-        # Engine invariant: at most one ongoing episode per drug.
         by_drug[exp.drug_id] = exp
     return by_drug
 

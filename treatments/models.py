@@ -205,6 +205,21 @@ class TreatmentExposure(models.Model):
             models.Index(fields=["patient", "ongoing"]),
             models.Index(fields=["drug", "ongoing"]),
         ]
+        constraints = [
+            # One ongoing episode per drug. The reconciliation engine assumes
+            # this ("Engine invariant" in _open_exposures_by_drug) and the
+            # manual form checked it, but nothing enforced it in the database —
+            # so the API, an import or a race could open a second episode for a
+            # drug already running. The engine keys its diff by drug, so the
+            # extra episode is invisible to it: never continued, never closed,
+            # left ongoing forever, and counted again by every exposure query
+            # downstream.
+            models.UniqueConstraint(
+                fields=["patient", "drug"],
+                condition=models.Q(ongoing=True),
+                name="one_ongoing_exposure_per_drug",
+            ),
+        ]
 
     def __str__(self):
         span = f"{self.start_date} → {self.stop_date or 'ongoing'}"
