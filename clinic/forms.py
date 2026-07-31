@@ -217,8 +217,14 @@ class BaselineForm(forms.ModelForm):
         # patient record. Re-asking them here is what let the two copies drift.
         # The columns remain (historical data, analytics) and are mirrored from
         # the patient on save.
+        # drug_history is excluded for the same reason as the comorbidities:
+        # medication belongs in TreatmentExposure episodes, which the
+        # prescription -> reconciliation engine maintains and every exposure ->
+        # outcome analysis reads. Free text typed here reaches no analysis and
+        # can contradict the structured record. The column stays for the legacy
+        # text, which the form shows read-only.
         exclude = ["patient", "bmi", "bmi_category", "created_at", "updated_at",
-                   "presentation_syndrome"] + BASELINE_MIRROR_FIELDS
+                   "presentation_syndrome", "drug_history"] + BASELINE_MIRROR_FIELDS
         widgets = {
             "assessment_date": _date(),
             "notes": forms.Textarea(attrs={"rows": 3}),
@@ -250,6 +256,22 @@ class BaselineForm(forms.ModelForm):
         """
         from patients.comorbidity import comorbidity_summary
         return comorbidity_summary(self.patient, self.instance)
+
+    def carried_medications(self):
+        """Ongoing medication episodes, shown read-only on this form.
+
+        Recorded once — by prescribing (the reconciliation engine opens the
+        episode) or via Add medication for drugs started elsewhere — so the
+        exposure -> outcome analyses see them.
+        """
+        if self.patient is None:
+            return []
+        return list(self.patient.exposures.filter(ongoing=True)
+                    .select_related("drug").order_by("drug_name"))
+
+    def legacy_drug_history(self):
+        """Free text from a baseline recorded before medication was structured."""
+        return (getattr(self.instance, "drug_history", "") or "").strip()
 
     def clean_presentation_syndromes(self):
         # Store the single choice back as a 1-element list (model field is JSON).

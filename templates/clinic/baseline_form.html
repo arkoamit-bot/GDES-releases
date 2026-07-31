@@ -59,7 +59,27 @@
           <i class="fas fa-pen"></i> Edit on patient record
         </a>
       </div>
-      <div style="margin-top:10px">{% include "clinic/_field.html" with f=form.drug_history %}</div>
+      {% comment %}Medication is recorded as structured episodes — by
+      prescribing, or via Add medication for drugs started elsewhere — so the
+      exposure-to-outcome analyses can read it. Shown read-only here rather
+      than re-typed as free text that reaches no analysis.{% endcomment %}
+      <label style="font-size:12px;color:#64748b;margin:12px 0 4px;display:block">Current medication</label>
+      <div style="display:flex;flex-wrap:wrap;gap:8px;align-items:center">
+        {% for m in form.carried_medications %}
+        <span class="badge neutral" style="font-size:12px">{{ m.drug_name }}{% if m.dose %} {{ m.dose }}{{ m.dose_unit }}{% endif %}</span>
+        {% empty %}
+        <span style="font-size:12px;color:#94a3b8">No ongoing medication recorded.</span>
+        {% endfor %}
+        <a href="{% url 'clinic:treatment' patient.pk %}" style="font-size:12px;color:#4f46e5;margin-left:4px">
+          <i class="fas fa-plus"></i> Add medication
+        </a>
+      </div>
+      {% if form.legacy_drug_history %}
+      <div style="margin-top:8px;font-size:12px;color:#64748b">
+        <span style="font-weight:600">Drug history (recorded before medication was structured):</span>
+        {{ form.legacy_drug_history }}
+      </div>
+      {% endif %}
     </fieldset>
 
     <!-- C. Clinical presentation -->

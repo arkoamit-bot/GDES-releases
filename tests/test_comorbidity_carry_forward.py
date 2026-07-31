@@ -61,7 +61,7 @@ class TestAskedOnce:
     def test_the_baseline_form_still_asks_its_own_data(self):
         from clinic.forms import BaselineForm
         fields = BaselineForm(patient=_patient("BGD-COM-3")).fields
-        for name in ("dm_duration_years", "hba1c", "drug_history", "occupation"):
+        for name in ("dm_duration_years", "hba1c", "occupation", "notes"):
             assert name in fields
 
     def test_baseline_shows_the_patient_comorbidities_read_only(self):

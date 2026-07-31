@@ -280,7 +280,12 @@ def _map_comorbidities(patient) -> dict[str, Any]:
             patient=patient
         ).order_by("-created_at").first()
         if baseline and baseline.drug_history:
-            comorbidities["drug_allergies_note"] = baseline.drug_history
+            # This field is a MEDICATION history, not an allergy list — it used
+            # to be sent as "drug_allergies_note", which told the AI a patient
+            # was allergic to drugs they were merely taking. Current medication
+            # goes out structured under "current_medications"; this carries only
+            # whatever free text legacy baselines still hold.
+            comorbidities["prior_drug_history_note"] = baseline.drug_history
     except Exception:
         pass
 
