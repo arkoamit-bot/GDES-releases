@@ -252,13 +252,15 @@ TIME_ZONE = "Asia/Dhaka"
 USE_I18N = True
 USE_TZ = True
 
-STATIC_URL = "static/"
+STATIC_URL = '/static/'
 # Under the data dir so the packaged (read-only) app can still collectstatic
 # into a writable location. Equals BASE_DIR/staticfiles in local development.
 STATIC_ROOT = BGDDR_DATA_DIR / "staticfiles"
 # Project-level static assets (compiled Tailwind CSS, vendored JS). App static
 # dirs (e.g. clinic/static) are found automatically by the app-dirs finder.
-STATICFILES_DIRS = [BASE_DIR / "static"]
+STATICFILES_DIRS = [
+    BASE_DIR / 'staticfile', # If files are manually placed here during development
+]
 MEDIA_URL = "media/"
 MEDIA_ROOT = MEDIA_DIR
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
@@ -292,6 +294,15 @@ STORAGES = {
     "default": {"BACKEND": "django.core.files.storage.FileSystemStorage"},
     "staticfiles": {"BACKEND": "whitenoise.storage.CompressedStaticFilesStorage"},
 }
+
+# STORAGES = {
+#     "default": {
+#         "BACKEND": "django.core.files.storage.FileSystemStorage",
+#     },
+#     "staticfiles": {
+#         "BACKEND": "django.contrib.staticfiles.storage.StaticFilesStorage",
+#     },
+# }
 
 # --- Logging (P1-4: split, rotated logs under Logs/) ------------------------
 # Four subsystem logs, each RotatingFileHandler (5 MB x 5):

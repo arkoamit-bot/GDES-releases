@@ -2,7 +2,8 @@ version: "3.9"
 
 x-app-common: &app-common
   build: .
-  env_file: .env
+  env_file:
+    - .env
   volumes:
     - bgddr_data:/data
     - static_volume:/app/staticfiles
@@ -13,6 +14,7 @@ x-app-common: &app-common
       condition: service_started
 
 services:
+
   postgres:
     image: postgres:16-alpine
     environment:
@@ -22,10 +24,26 @@ services:
     volumes:
       - postgres_data:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U bgddr"]
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-bgddr}"]
       interval: 10s
       timeout: 5s
       retries: 5
+    restart: unless-stopped
+
+  pgadmin:
+    image: dpage/pgadmin4:latest
+    container_name: pgadmin
+    environment:
+      PGADMIN_DEFAULT_EMAIL: ${PGADMIN_DEFAULT_EMAIL:-admin@admin.com}
+      PGADMIN_DEFAULT_PASSWORD: ${PGADMIN_DEFAULT_PASSWORD:-root}
+      PGADMIN_CONFIG_SERVER_MODE: "False"
+    ports:
+      - "8080:80"
+    volumes:
+      - pgadmin_data:/var/lib/pgadmin
+    depends_on:
+      postgres:
+        condition: service_healthy
     restart: unless-stopped
 
   redis:
@@ -42,9 +60,16 @@ services:
   app:
     <<: *app-common
     command: >
-      sh -c "python manage.py migrate --settings=bgddr.settings_prod &&
-             python manage.py collectstatic --noinput --settings=bgddr.settings_prod &&
-             gunicorn bgddr.wsgi:application --bind 0.0.0.0:8000 --workers 4 --timeout 120 --access-logfile - --error-logfile -"
+      sh -c "
+      python manage.py migrate --settings=bgddr.settings_prod &&
+      python manage.py collectstatic --noinput --settings=bgddr.settings_prod &&
+      gunicorn bgddr.wsgi:application
+      --bind 0.0.0.0:8000
+      --workers 4
+      --timeout 120
+      --access-logfile -
+      --error-logfile -
+      "
     ports:
       - "8000:8000"
     restart: unless-stopped
@@ -78,3 +103,4 @@ volumes:
   redis_data:
   static_volume:
   bgddr_data:
+  pgadmin_data:
