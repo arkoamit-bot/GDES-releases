@@ -211,14 +211,17 @@ LOGIN_REDIRECT_URL = "/"
 # (Everything below uses the ORM only — no SQLite-specific features, no raw SQL.)
 if os.environ.get("DJANGO_DB_ENGINE", "sqlite").lower().startswith("postgres"):
     DATABASES = {
-        "default": {
-            "ENGINE": "django.db.backends.postgresql",
-            "NAME": os.environ.get("POSTGRES_DB", "bgddr"),
-            "USER": os.environ.get("POSTGRES_USER", "bgddr"),
-            "PASSWORD": os.environ.get("POSTGRES_PASSWORD", ""),
-            "HOST": os.environ.get("POSTGRES_HOST", "localhost"),
-            "PORT": os.environ.get("POSTGRES_PORT", "5432"),
-            "CONN_MAX_AGE": 600,
+        'default': {
+            'ENGINE': 'django.db.backends.mysql',
+            'NAME': os.environ.get("MYSQL_DATABASE", "gdes"),
+            'USER': os.environ.get("MYSQL_USER", "gdes"),
+            'PASSWORD': os.environ.get("MYSQL_PASSWORD", "pass"),
+            'HOST': os.environ.get("MYSQL_HOST", "127.0.0.1"), # or database host IP
+            'PORT': '3306',
+            'OPTIONS': {
+                'charset': 'utf8mb4',
+                'init_command': "SET sql_mode='STRICT_TRANS_TABLES'",
+            },
         }
     }
 else:
