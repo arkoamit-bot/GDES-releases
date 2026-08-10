@@ -8,41 +8,40 @@ x-app-common: &app-common
     - bgddr_data:/data
     - static_volume:/app/staticfiles
   depends_on:
-    postgres:
+    mariadb:
       condition: service_healthy
     redis:
       condition: service_started
 
 services:
 
-  postgres:
-    image: postgres:16-alpine
+  mariadb:
+    image: mariadb:11
     environment:
-      POSTGRES_DB: ${POSTGRES_DB:-bgddr}
-      POSTGRES_USER: ${POSTGRES_USER:-bgddr}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD required}
+      MARIADB_DATABASE: ${MYSQL_DATABASE:-bgddr}
+      MARIADB_USER: ${MYSQL_USER:-bgddr}
+      MARIADB_PASSWORD: ${MYSQL_PASSWORD:?MYSQL_PASSWORD required}
+      MARIADB_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:-root}
     volumes:
-      - postgres_data:/var/lib/postgresql/data
+      - mariadb_data:/var/lib/mysql
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-bgddr}"]
+      test: ["CMD-SHELL", "healthcheck.sh --connect --innodb_initialized"]
       interval: 10s
       timeout: 5s
       retries: 5
     restart: unless-stopped
 
-  pgadmin:
-    image: dpage/pgadmin4:latest
-    container_name: pgadmin
+  phpmyadmin:
+    image: phpmyadmin:latest
+    container_name: phpmyadmin
     environment:
-      PGADMIN_DEFAULT_EMAIL: ${PGADMIN_DEFAULT_EMAIL:-admin@admin.com}
-      PGADMIN_DEFAULT_PASSWORD: ${PGADMIN_DEFAULT_PASSWORD:-root}
-      PGADMIN_CONFIG_SERVER_MODE: "False"
+      PMA_HOST: mariadb
+      PMA_PORT: 3306
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:-root}
     ports:
-      - "8080:80"
-    volumes:
-      - pgadmin_data:/var/lib/pgadmin
+      - "9999:80"
     depends_on:
-      postgres:
+      mariadb:
         condition: service_healthy
     restart: unless-stopped
 
@@ -99,8 +98,7 @@ services:
     restart: unless-stopped
 
 volumes:
-  postgres_data:
+  mariadb_data:
   redis_data:
   static_volume:
   bgddr_data:
-  pgadmin_data:
