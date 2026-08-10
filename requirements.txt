@@ -51,3 +51,5 @@ ruff~=0.15.22
 mypy~=1.13.0
 
 django-celery-beat
+
+pymysql
