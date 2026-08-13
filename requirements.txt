@@ -29,7 +29,7 @@ xhtml2pdf~=0.2.16
 # psycopg~=3.2.3
 
 # gunicorn for WSGI serving (uncomment / install for production deploy).
-# gunicorn~=22.0.0
+gunicorn==21.2.0
 
 # Background task infrastructure (Phase 3.2)
 celery~=5.4.0
@@ -50,6 +50,7 @@ pytest-cov~=6.0.0
 ruff~=0.15.22
 mypy~=1.13.0
 
-django-celery-beat
-
+django-celery-beat==2.7.0  # Use the version compatible with your Django setup
+python-dotenv
 pymysql
+mysqlclient

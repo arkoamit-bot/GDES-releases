@@ -76,6 +76,7 @@ INSTALLED_APPS = [
     "django.contrib.sessions",
     "django.contrib.messages",
     "django.contrib.staticfiles",
+    'django_celery_beat',  # <--- Must be present using underscores
     # Third-party
     "rest_framework",
     "rest_framework.authtoken",
@@ -262,7 +263,7 @@ STATIC_ROOT = BGDDR_DATA_DIR / "staticfiles"
 # Project-level static assets (compiled Tailwind CSS, vendored JS). App static
 # dirs (e.g. clinic/static) are found automatically by the app-dirs finder.
 STATICFILES_DIRS = [
-    BASE_DIR / 'staticfile', # If files are manually placed here during development
+    BASE_DIR / 'static', # If files are manually placed here during development
 ]
 MEDIA_URL = "media/"
 MEDIA_ROOT = MEDIA_DIR
