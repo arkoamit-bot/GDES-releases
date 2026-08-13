@@ -2,34 +2,55 @@ version: "3.9"
 
 x-app-common: &app-common
   build: .
-  env_file: .env
+  env_file:
+    - .env
+  environment:
+    - DJANGO_SETTINGS_MODULE=${DJANGO_SETTINGS_MODULE:-bgddr.settings_prod}
   volumes:
     - bgddr_data:/data
     - static_volume:/app/staticfiles
   depends_on:
-    postgres:
+    mariadb:
       condition: service_healthy
     redis:
-      condition: service_started
+      condition: service_healthy
 
 services:
-  postgres:
-    image: postgres:16-alpine
+
+  mariadb:
+    image: mariadb:11
+    container_name: bgddr_mariadb
     environment:
-      POSTGRES_DB: ${POSTGRES_DB:-bgddr}
-      POSTGRES_USER: ${POSTGRES_USER:-bgddr}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD required}
+      MARIADB_DATABASE: ${MYSQL_DATABASE:-bgddr}
+      MARIADB_USER: ${MYSQL_USER:-bgddr}
+      MARIADB_PASSWORD: ${MYSQL_PASSWORD:-bgddr_secure_password}
+      MARIADB_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:-root_secure_password}
     volumes:
-      - postgres_data:/var/lib/postgresql/data
+      - mariadb_data:/var/lib/mysql
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U bgddr"]
+      test: ["CMD-SHELL", "healthcheck.sh --connect --innodb_initialized"]
       interval: 10s
       timeout: 5s
       retries: 5
     restart: unless-stopped
 
+  phpmyadmin:
+    image: phpmyadmin:latest
+    container_name: bgddr_phpmyadmin
+    environment:
+      PMA_HOST: mariadb
+      PMA_PORT: 3306
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:-root_secure_password}
+    ports:
+      - "9999:80"
+    depends_on:
+      mariadb:
+        condition: service_healthy
+    restart: unless-stopped
+
   redis:
     image: redis:7-alpine
+    container_name: bgddr_redis
     volumes:
       - redis_data:/data
     healthcheck:
@@ -41,26 +62,39 @@ services:
 
   app:
     <<: *app-common
+    container_name: bgddr_app
     command: >
-      sh -c "python manage.py migrate --settings=bgddr.settings_prod &&
-             python manage.py collectstatic --noinput --settings=bgddr.settings_prod &&
-             gunicorn bgddr.wsgi:application --bind 0.0.0.0:8000 --workers 4 --timeout 120 --access-logfile - --error-logfile -"
+      gunicorn bgddr.wsgi:application
+      --bind 0.0.0.0:8000
+      --workers 4
+      --timeout 120
+      --access-logfile -
+      --error-logfile -
     ports:
       - "8000:8000"
     restart: unless-stopped
 
   celery_worker:
     <<: *app-common
+    container_name: bgddr_celery_worker
     command: celery -A bgddr worker -l INFO --concurrency=4
     restart: unless-stopped
+    depends_on:
+      app:
+        condition: service_started
 
   celery_beat:
     <<: *app-common
+    container_name: bgddr_celery_beat
     command: celery -A bgddr beat -l INFO --scheduler django_celery_beat.schedulers:DatabaseScheduler
     restart: unless-stopped
+    depends_on:
+      app:
+        condition: service_started
 
   nginx:
     image: nginx:1.25-alpine
+    container_name: bgddr_nginx
     ports:
       - "80:80"
       - "443:443"
@@ -69,12 +103,14 @@ services:
       - ./nginx/ssl:/etc/nginx/ssl:ro
       - static_volume:/static:ro
       - bgddr_data:/data:ro
+    # ADD THIS ENTRYPOINT OVERRIDE TO DISABLE DEFAULT CONF.D
+    command: /bin/sh -c "rm -f /etc/nginx/conf.d/* && exec nginx -g 'daemon off;'"
     depends_on:
       - app
     restart: unless-stopped
 
 volumes:
-  postgres_data:
+  mariadb_data:
   redis_data:
   static_volume:
   bgddr_data:

@@ -1,35 +1,27 @@
-# syntax=docker/dockerfile:1
-FROM python:3.12-slim-bookworm AS base
+FROM python:3.11-slim
 
 ENV PYTHONDONTWRITEBYTECODE=1 \
-    PYTHONUNBUFFERED=1 \
-    PIP_NO_CACHE_DIR=1 \
-    DEBIAN_FRONTEND=noninteractive
+    PYTHONUNBUFFERED=1
 
 WORKDIR /app
 
-# System dependencies for WeasyPrint and psycopg
+# Install necessary build dependencies and netcat for entrypoint health check
 RUN apt-get update && apt-get install -y --no-install-recommends \
-    libpango-1.0-0 \
-    libpangocairo-1.0-0 \
-    libgdk-pixbuf2.0-0 \
-    libffi-dev \
-    libgirepository1.0-dev \
-    libpq-dev \
+    default-libmysqlclient-dev \
+    build-essential \
+    pkg-config \
+    netcat-openbsd \
     && rm -rf /var/lib/apt/lists/*
 
-COPY requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt \
-    && pip install --no-cache-dir psycopg gunicorn
+# Install Python packages
+COPY requirements.txt /app/
+RUN pip install --no-cache-dir -r requirements.txt
 
-COPY . .
+# Copy application source code
+COPY . /app/
 
-RUN mkdir -p /data/Backups /data/Exports /data/Media /data/Logs
+# Add entrypoint
+COPY entrypoint.sh /entrypoint.sh
+RUN chmod +x /entrypoint.sh
 
-EXPOSE 8000
-
-# Health check
-HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
-    CMD python manage.py check --deploy --settings=bgddr.settings_prod 2>/dev/null || exit 1
-
-CMD ["gunicorn", "bgddr.wsgi:application", "--bind", "0.0.0.0:8000", "--workers", "4", "--timeout", "120", "--access-logfile", "-", "--error-logfile", "-"]
+ENTRYPOINT ["/entrypoint.sh"]

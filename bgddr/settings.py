@@ -76,6 +76,7 @@ INSTALLED_APPS = [
     "django.contrib.sessions",
     "django.contrib.messages",
     "django.contrib.staticfiles",
+    'django_celery_beat',  # <--- Must be present using underscores
     # Third-party
     "rest_framework",
     "rest_framework.authtoken",
@@ -211,14 +212,17 @@ LOGIN_REDIRECT_URL = "/"
 # (Everything below uses the ORM only — no SQLite-specific features, no raw SQL.)
 if os.environ.get("DJANGO_DB_ENGINE", "sqlite").lower().startswith("postgres"):
     DATABASES = {
-        "default": {
-            "ENGINE": "django.db.backends.postgresql",
-            "NAME": os.environ.get("POSTGRES_DB", "bgddr"),
-            "USER": os.environ.get("POSTGRES_USER", "bgddr"),
-            "PASSWORD": os.environ.get("POSTGRES_PASSWORD", ""),
-            "HOST": os.environ.get("POSTGRES_HOST", "localhost"),
-            "PORT": os.environ.get("POSTGRES_PORT", "5432"),
-            "CONN_MAX_AGE": 600,
+        'default': {
+            'ENGINE': 'django.db.backends.mysql',
+            'NAME': os.environ.get("MYSQL_DATABASE", "gdes"),
+            'USER': os.environ.get("MYSQL_USER", "gdes"),
+            'PASSWORD': os.environ.get("MYSQL_PASSWORD", "pass"),
+            'HOST': os.environ.get("MYSQL_HOST", "127.0.0.1"), # or database host IP
+            'PORT': '3306',
+            'OPTIONS': {
+                'charset': 'utf8mb4',
+                'init_command': "SET sql_mode='STRICT_TRANS_TABLES'",
+            },
         }
     }
 else:
@@ -252,13 +256,15 @@ TIME_ZONE = "Asia/Dhaka"
 USE_I18N = True
 USE_TZ = True
 
-STATIC_URL = "static/"
+STATIC_URL = '/static/'
 # Under the data dir so the packaged (read-only) app can still collectstatic
 # into a writable location. Equals BASE_DIR/staticfiles in local development.
 STATIC_ROOT = BGDDR_DATA_DIR / "staticfiles"
 # Project-level static assets (compiled Tailwind CSS, vendored JS). App static
 # dirs (e.g. clinic/static) are found automatically by the app-dirs finder.
-STATICFILES_DIRS = [BASE_DIR / "static"]
+STATICFILES_DIRS = [
+    BASE_DIR / 'static', # If files are manually placed here during development
+]
 MEDIA_URL = "media/"
 MEDIA_ROOT = MEDIA_DIR
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
@@ -292,6 +298,15 @@ STORAGES = {
     "default": {"BACKEND": "django.core.files.storage.FileSystemStorage"},
     "staticfiles": {"BACKEND": "whitenoise.storage.CompressedStaticFilesStorage"},
 }
+
+# STORAGES = {
+#     "default": {
+#         "BACKEND": "django.core.files.storage.FileSystemStorage",
+#     },
+#     "staticfiles": {
+#         "BACKEND": "django.contrib.staticfiles.storage.StaticFilesStorage",
+#     },
+# }
 
 # --- Logging (P1-4: split, rotated logs under Logs/) ------------------------
 # Four subsystem logs, each RotatingFileHandler (5 MB x 5):
