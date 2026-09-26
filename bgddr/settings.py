@@ -11,6 +11,14 @@ from pathlib import Path
 import django
 from packaging.version import Version
 
+try:
+    # Celery is optional: the single-user desktop build ships without a
+    # broker, and settings must stay importable there. The numeric fallback
+    # below is only used when celery is absent.
+    from celery.schedules import crontab
+except ImportError:  # pragma: no cover - desktop build without celery
+    crontab = None
+
 BASE_DIR = Path(__file__).resolve().parent.parent
 
 # Security-critical settings are read from the environment. The dev defaults keep
@@ -257,6 +265,28 @@ BACKUP_CONFIG = {
     "tiers": {"Daily": 7, "Weekly": 8, "Monthly": 12},
 }
 
+# --- Drug catalogue auto-update (medex.com.bd/brands) ------------------------
+# A full refresh walks ~848 catalogue pages at 0.4s each (~6 min of traffic),
+# and the catalogue changes slowly, so the default is weekly. Every knob is
+# env-overridable so a deployment can retune without a code change.
+#
+# `min_row_ratio` is the safety gate: a scrape that returns far fewer rows
+# than the last good run means MedEx changed its markup, the site is serving
+# a partial page, or the run was cut short. Rather than import a truncated
+# catalogue, the run is rejected and the database is left alone.
+DRUG_SYNC_CONFIG = {
+    "enabled": os.environ.get("BGDDR_DRUG_SYNC_ENABLED", "1") == "1",
+    # 168h = weekly. 0 disables the interval check (manual/--force only).
+    "interval_hours": int(os.environ.get("BGDDR_DRUG_SYNC_INTERVAL_HOURS", "168")),
+    "delay": float(os.environ.get("BGDDR_DRUG_SYNC_DELAY", "0.4")),
+    # Reject a scrape below this fraction of the last good row count.
+    "min_row_ratio": float(os.environ.get("BGDDR_DRUG_SYNC_MIN_ROW_RATIO", "0.5")),
+    # Take a DB backup before an unattended (scheduled) import.
+    "backup_before_import": os.environ.get(
+        "BGDDR_DRUG_SYNC_BACKUP", "1") == "1",
+    "csv_path": str(IMPORTS_DIR / "medex_brands.csv"),
+}
+
 # Default output folder for `export_dataset` / UI exports.
 EXPORT_DIR = EXPORTS_DIR
 
@@ -344,6 +374,17 @@ CELERY_BEAT_SCHEDULE = {
     "detect-lab-trends": {
         "task": "labs.tasks.detect_lab_trends",
         "schedule": 21600,  # every 6 hours
+    },
+    # Drug catalogue refresh. Weekly: the MedEx catalogue is ~848 pages and
+    # changes slowly, so this costs ~6 min of traffic per week. The task
+    # itself re-checks DRUG_SYNC_CONFIG and no-ops when not due, so a beat
+    # that fires early is harmless.
+    "sync-medex-drugs": {
+        "task": "prescriptions.tasks.sync_medex_drugs",
+        # Mon 03:17 Asia/Dhaka. Falls back to a plain 7-day interval where
+        # celery isn't installed.
+        "schedule": (crontab(hour=3, minute=17, day_of_week=1)
+                     if crontab else 604800),
     },
 }
 

@@ -1,6 +1,6 @@
 from django.contrib import admin
 
-from .models import DrugMaster, TreatmentExposure
+from .models import DrugMaster, DrugSyncRun, TreatmentExposure
 
 
 @admin.register(DrugMaster)
@@ -9,6 +9,24 @@ class DrugMasterAdmin(admin.ModelAdmin):
                     "renal_dose_adjust", "egfr_caution_below", "is_active")
     list_filter = ("drug_class", "renal_dose_adjust", "is_active")
     search_fields = ("generic_name",)
+
+
+@admin.register(DrugSyncRun)
+class DrugSyncRunAdmin(admin.ModelAdmin):
+    """Read-only audit trail for the automated MedEx refresh.
+
+    Clinicians need to be able to answer "when was the brand list last
+    verified?" - a stale catalogue is a clinical-safety issue, because it
+    drives what a prescriber can actually offer. Nothing here is editable:
+    the rows are written by the sync engine.
+    """
+    list_display = ("started_at", "state", "trigger", "rows_scraped",
+                    "brands_added", "generics_created", "rows_deleted",
+                    "duration_seconds")
+    list_filter = ("state", "trigger")
+    search_fields = ("error",)
+    date_hierarchy = "started_at"
+    readonly_fields = [f.name for f in DrugSyncRun._meta.fields]
 
 
 @admin.register(TreatmentExposure)

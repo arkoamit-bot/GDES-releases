@@ -1,8 +1,8 @@
 """
-Import BDDrugBank generics and brand names into DrugMaster.
+Import BDDrugBank / MedEx generics and brand names into DrugMaster.
 
 Usage:
-    python manage.py import_bddrugbank /path/to/medex_merged.csv [--dry-run] [--limit N]
+    python manage.py import_bddrugbank Imports/medex_brands.csv [--dry-run] [--limit N]
 
 - Existing DrugMaster generics get new Bangladeshi brand names and strengths
   merged in (deduped; brand names and strengths are additive).
@@ -11,10 +11,34 @@ Usage:
   therapeutic class says "Statins").
 - New generics not matching any existing row are created with DrugClass.OTHER
   and receive all BD brand names + strengths.
-- Mechanism: exact normalized match on generic name, plus a curated synonym
+- Mechanism: normalized match on generic name, plus a curated synonym
   dictionary for salt-form variants (e.g. "Metformin Hydrochloride" ->
   "Metformin"). Combination products and different drugs that share a word
-  are NOT merged — they get their own DrugMaster row.
+  are NOT merged - they get their own DrugMaster row.
+
+MedEx naming conventions this import reconciles
+----------------------------------------------
+MedEx does not key brands on a bare INN generic. It files them under a
+"generic" string that often carries a formulation or indication qualifier:
+
+    Budesonide (Inhaler)          -> Budesonide      route INH
+    Cyclosporine (Ophthalmic)     -> Cyclosporine    route TOP
+    Acyclovir (Oral)              -> Acyclovir       route PO
+    Zoledronic Acid [For osteoporosis] -> Zoledronic acid
+
+Left alone these become near-duplicate rows and the real formulary entry
+stops receiving brands, so the qualifier is folded onto the base generic and
+- where it names a route unambiguously - recorded in `available_routes` /
+`strengths_by_route`. Where it does not (bare "Injection", "MUPS
+preparation", a strength in brackets) the suffix is dropped but no route is
+asserted, so nothing is mislabelled.
+
+Non-medicines (devices, consumables) are dropped: they can never be
+prescribed and only clutter the drug picker. Cosmetics are kept.
+
+The import is a merge, never a replace: curated formulary data (dose,
+frequency, routes, safety flags, and the most-used brand names in
+`seed_drugs.DRUGS`) is preserved, and scraped brands are appended after it.
 """
 from __future__ import annotations
 
@@ -24,8 +48,82 @@ from collections import defaultdict
 from pathlib import Path
 
 from django.core.management.base import BaseCommand
+from django.db import transaction
 
-from treatments.models import DrugClass, DrugMaster
+from treatments.models import DrugClass, DrugMaster, Route
+
+# Curated, most-used-first brand lists for the research formulary. The
+# prescription form auto-selects brand_names[0] and persists it as the drug's
+# display name on the printed prescription and in FHIR exports, so scraped
+# brands (sorted alphabetically) must not displace these.
+try:
+    from prescriptions.management.commands.seed_drugs import DRUGS as _SEED_DRUGS
+    CURATED_BRANDS = {row[0]: list(row[4]) for row in _SEED_DRUGS}
+except Exception:  # pragma: no cover - seed module is optional at runtime
+    CURATED_BRANDS = {}
+
+# Model field limits. PrescriptionItem.brand is max_length=120.
+MAX_GENERIC = 120
+MAX_BRAND = 120
+
+# MedEx dosage-form / generic-suffix qualifiers that name a route
+# unambiguously, mapped to the app's Route vocabulary. Anything NOT listed
+# here is still folded off the generic name but never assigned a route:
+# a bare "Injection" could be IV, IM or SC, "Nasal Spray" is intranasal
+# rather than inhaled, and "Vaginal Pessary" is not rectal.
+FORM_ROUTES = {
+    "oral": Route.PO,
+    "tablet": Route.PO,
+    "capsule": Route.PO,
+    "ophthalmic": Route.TOP,
+    "eye drop": Route.TOP,
+    "ear drop": Route.TOP,
+    "topical": Route.TOP,
+    "cream": Route.TOP,
+    "lotion": Route.TOP,
+    "ointment": Route.TOP,
+    "jelly": Route.TOP,
+    "gel": Route.TOP,
+    "shampoo": Route.TOP,
+    "nail lacquer": Route.TOP,
+    "vaginal cream": Route.TOP,
+    "vaginal gel": Route.TOP,
+    "inhaler": Route.INH,
+    "inhalation capsule": Route.INH,
+    "nebuliser solution": Route.INH,
+    "nebuliser suspension": Route.INH,
+    "rectal": Route.PR,
+    "suppository": Route.PR,
+    "sublingual": Route.SL,
+    "intramuscular": Route.IM,
+    "im injection": Route.IM,
+    "subcutaneous": Route.SC,
+    "sc injection": Route.SC,
+    "intravenous": Route.IV,
+    "iv injection": Route.IV,
+    "iv infusion": Route.IV,
+}
+
+# Device / consumable "generics": never prescribable.
+DEVICE_RE = re.compile(
+    r"(?i)\b(device|surgical|cannula|syringe|needle set|adhesive bandage|"
+    r"dressing|graft|condom)\b"
+)
+
+# A trailing qualifier: "(Inhaler)" or "[For osteoporosis]".
+QUALIFIER_RE = re.compile(r"\s*(?:\(([^()]*)\)|\[([^\[\]]*)\])\s*$")
+
+
+
+class _NullContext:
+    """Stand-in for transaction.atomic() during --dry-run."""
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *exc):
+        return False
+
 
 
 # Curated synonyms: BDDrugBank generic name -> canonical DrugMaster generic.
@@ -494,7 +592,80 @@ SYNONYMS = {
 
 
 def norm(s: str) -> str:
+    """Fold a drug name to a match key: lowercase, alphanumerics only.
+
+    This is what makes "Losartan potassium", "losartan potassium" and
+    "LOSARTAN POTASSIUM" resolve to the same DrugMaster row. `generic_name`
+    is unique only case-sensitively, so an exact match alone would let
+    MedEx's inconsistent capitalisation create duplicate drugs - which then
+    breaks `seed_drug_knowledge`'s `generic_name__iexact` lookup with
+    MultipleObjectsReturned.
+    """
     return re.sub(r"[^a-z0-9]", "", (s or "").lower())
+
+
+# Same lookup keyed by norm() so consolidation finds a curated drug whose
+# stored casing differs from the folded base ("Zoledronic acid" vs
+# "Zoledronic Acid"). _consolidate only needs membership, not the list.
+CURATED_BRANDS_NORM = {norm(k): v for k, v in CURATED_BRANDS.items()}
+
+
+# SYNONYMS also indexed case/punctuation-insensitively, so MedEx's
+# inconsistent capitalisation ("Insulin Human" vs the curated "Insulin
+# human") resolves to the same canonical drug instead of creating a second
+# row for a drug the clinic already prescribes.
+SYNONYMS_BY_NORM = {}
+for _key, _val in SYNONYMS.items():
+    _folded = norm(_key)
+    if SYNONYMS_BY_NORM.get(_folded, _val) != _val:
+        # Two spellings of one key pointing at different drugs: refuse to
+        # guess, and fall back to the exact-match path.
+        SYNONYMS_BY_NORM[_folded] = None
+    else:
+        SYNONYMS_BY_NORM.setdefault(_folded, _val)
+
+
+def canonical_generic(generic: str) -> str:
+    """Resolve a scraped generic name to its canonical DrugMaster name."""
+    if generic in SYNONYMS:
+        return SYNONYMS[generic]
+    return SYNONYMS_BY_NORM.get(norm(generic)) or generic
+
+
+def is_device(generic: str) -> bool:
+    """True for MedEx device / consumable pseudo-generics."""
+    return bool(DEVICE_RE.search(generic or ""))
+
+
+def split_generic(generic: str) -> tuple[str, str | None]:
+    """Fold a MedEx generic onto its base name plus a route, if unambiguous.
+
+    >>> split_generic("Budesonide (Inhaler)")
+    ('Budesonide', 'INH')
+    >>> split_generic("Acyclovir (Oral)")
+    ('Acyclovir', 'PO')
+    >>> split_generic("Acyclovir (Injection)")   # ambiguous -> no route
+    ('Acyclovir', None)
+    >>> split_generic("Zoledronic Acid [For osteoporosis]")
+    ('Zoledronic acid', None)                    # indication, not a route
+    >>> split_generic("17 β Estradiol")
+    ('17 β Estradiol', None)
+    """
+    base, route = (generic or "").strip(), None
+    # Peel trailing qualifiers repeatedly: "Insulin (Human) (Injection)".
+    while True:
+        match = QUALIFIER_RE.search(base)
+        if not match:
+            break
+        qualifier = (match.group(1) or match.group(2) or "").strip().lower()
+        candidate = FORM_ROUTES.get(qualifier)
+        if candidate and route is None:
+            route = candidate
+        stripped = base[:match.start()].strip()
+        if not stripped:
+            break  # the whole name was a qualifier - keep it as-is
+        base = stripped
+    return base, route
 
 
 def classify_drug(generic_name: str, therapeutic_classes: list[str]) -> DrugClass:
@@ -590,7 +761,7 @@ class Command(BaseCommand):
     def add_arguments(self, parser):
         parser.add_argument(
             "csv_path", type=str,
-            help="Path to BDDrugBank medex_merged.csv",
+            help="Path to the scraped MedEx/BDDrugBank brand CSV",
         )
         parser.add_argument(
             "--dry-run", action="store_true",
@@ -599,6 +770,15 @@ class Command(BaseCommand):
         parser.add_argument(
             "--limit", type=int, default=0,
             help="Stop after this many generics (0 = process all; for testing)",
+        )
+        parser.add_argument(
+            "--consolidate", action="store_true",
+            help="Repair pre-existing rows first: merge DrugMaster rows whose "
+                 "names differ only by a MedEx qualifier "
+                 "('Chlorhexidine Gluconate [4%]' -> 'Chlorhexidine "
+                 "Gluconate'), repointing prescriptions/exposures/adverse "
+                 "events at the survivor, and delete pre-existing device "
+                 "rows. Destructive - always dry-run first.",
         )
 
     def handle(self, *args, csv_path=None, dry_run=False, limit=0, **options):
@@ -616,59 +796,130 @@ class Command(BaseCommand):
             generics = limited
             self.stdout.write(f"Limited to {limit} of {total_unique} generics\n")
 
+        if options.get("consolidate"):
+            self._consolidate(dry_run)
+
+        # Index the existing table by normalized name. `generic_name` is
+        # unique only case-sensitively, so matching on `norm()` is what
+        # stops MedEx's inconsistent capitalisation ("Losartan potassium"
+        # vs "losartan potassium") from creating a second row for a drug the
+        # clinicians already prescribe - a duplicate would also break
+        # seed_drug_knowledge's `generic_name__iexact` lookup.
+        existing = {}
+        exact = {}
+        collisions = defaultdict(list)
+        for obj in DrugMaster.objects.all():
+            exact[obj.generic_name] = obj
+            existing.setdefault(norm(obj.generic_name), obj)
+            collisions[norm(obj.generic_name)].append(obj.generic_name)
+        dupes = {k: v for k, v in collisions.items() if len(v) > 1}
+        if dupes:
+            self.stdout.write(self.style.WARNING(
+                f"  WARNING: {len(dupes)} pre-existing duplicate generic(s) "
+                f"in DrugMaster, e.g. {list(dupes.values())[:3]}. "
+                f"Resolve these before re-running."))
+
         created = updated = brands_added = strengths_added = 0
-        class_upgrades = 0
+        class_upgrades = routes_added = 0
+        too_long = 0
 
-        for idx, (generic, data) in enumerate(sorted(generics.items()), 1):
-            # Resolve canonical generic via synonym map, then exact match
-            canonical = SYNONYMS.get(generic, generic)
-            drug_class = classify_drug(canonical, data["therapeutic_classes"])
-            brands = sorted(data["brands"])
-            strengths = sorted(data["strengths"])
+        def apply(obj, canonical, data, is_new):
+            """Merge scraped data onto `obj`. Returns per-field change counts."""
+            counts = {"brands": 0, "strengths": 0, "routes": 0}
 
-            try:
-                obj = DrugMaster.objects.get(generic_name=canonical)
-                # Merge brand names (deduped)
-                existing_brands = set(obj.brand_names or [])
-                new_brands = [b for b in brands if b not in existing_brands]
-                if new_brands:
-                    obj.brand_names = sorted(existing_brands | set(brands))
-                    brands_added += len(new_brands)
-                # Merge strengths (deduped)
-                existing_strengths = set(obj.available_strengths or [])
-                new_strengths = [s for s in strengths
-                                 if s not in existing_strengths]
-                if new_strengths:
-                    obj.available_strengths = sorted(existing_strengths |
-                                                     set(strengths))
-                    strengths_added += len(new_strengths)
-                # Upgrade DrugClass if it was OTHER and we now have a match
-                if obj.drug_class == DrugClass.OTHER and \
-                   drug_class != DrugClass.OTHER:
-                    obj.drug_class = drug_class
-                    class_upgrades += 1
-                obj.save()
-                updated += 1
-            except DrugMaster.DoesNotExist:
-                if dry_run:
-                    created += 1
+            # --- brands: curated formulary order first, then alphabetical ---
+            existing_brands = list(obj.brand_names or [])
+            merged_brands = set(existing_brands) | data["brands"]
+            ordered = self._order_brands(canonical, merged_brands)
+            counts["brands"] = len(merged_brands) - len(existing_brands)
+            if ordered != existing_brands:
+                obj.brand_names = ordered
+
+            # --- strengths (additive) ---
+            existing_strengths = set(obj.available_strengths or [])
+            merged_strengths = existing_strengths | data["strengths"]
+            counts["strengths"] = len(merged_strengths - existing_strengths)
+            if merged_strengths != existing_strengths:
+                obj.available_strengths = sorted(merged_strengths)
+
+            # --- routes: additive, never removing curated ones ---
+            if data["routes"]:
+                routes = list(obj.available_routes or [])
+                for route in sorted(data["routes"]):
+                    if route not in routes:
+                        routes.append(route)
+                        counts["routes"] += 1
+                if routes:
+                    obj.available_routes = routes
+                    # default_route keeps pointing at a valid route
+                    if obj.default_route not in routes:
+                        obj.default_route = routes[0]
+                # Per-route strengths only for rows this import created, so
+                # curated strengths_by_route on formulary drugs is untouched.
+                if is_new and data["strengths_by_route"]:
+                    obj.strengths_by_route = {
+                        r: sorted(v) for r, v in data["strengths_by_route"].items()
+                    }
+            return counts
+
+        context = transaction.atomic() if not dry_run else _NullContext()
+        with context:
+            for idx, (generic, data) in enumerate(sorted(generics.items()), 1):
+                # Resolve canonical generic via synonym map, then normalized
+                # match against an existing row.
+                canonical = canonical_generic(generic)
+                if len(canonical) > MAX_GENERIC:
+                    too_long += 1
+                    self.stderr.write(self.style.WARNING(
+                        f"  skipping over-long generic_name ({len(canonical)} "
+                        f"chars): {canonical[:60]}..."))
                     continue
-                obj = DrugMaster.objects.create(
-                    generic_name=canonical,
-                    drug_class=drug_class,
-                    available_strengths=strengths,
-                    brand_names=brands,
-                )
-                created += 1
+                drug_class = classify_drug(canonical,
+                                           data["therapeutic_classes"])
 
-            if idx % 2000 == 0:
-                self.stdout.write(
-                    f"  ... {idx}/{len(generics)} generics processed "
-                    f"(created={created}, updated={updated}, "
-                    f"brands={brands_added}) ...")
+                obj = exact.get(canonical) or existing.get(norm(canonical))
+                if obj is not None:
+                    counts = apply(obj, canonical, data, is_new=False)
+                    brands_added += counts["brands"]
+                    strengths_added += counts["strengths"]
+                    routes_added += counts["routes"]
+                    # Upgrade DrugClass if it was OTHER and we now have a match
+                    if obj.drug_class == DrugClass.OTHER and \
+                       drug_class != DrugClass.OTHER:
+                        obj.drug_class = drug_class
+                        class_upgrades += 1
+                    # `apply` mutates the instance, so the save must be
+                    # skipped in --dry-run too, not just the create path.
+                    if not dry_run:
+                        obj.save()
+                    updated += 1
+                else:
+                    created += 1
+                    if dry_run:
+                        continue
+                    obj = DrugMaster.objects.create(
+                        generic_name=canonical,
+                        drug_class=drug_class,
+                    )
+                    counts = apply(obj, canonical, data, is_new=True)
+                    brands_added += counts["brands"]
+                    strengths_added += counts["strengths"]
+                    routes_added += counts["routes"]
+                    obj.save()
 
-            if limit and idx >= limit:
-                break
+                if idx % 2000 == 0:
+                    self.stdout.write(
+                        f"  ... {idx}/{len(generics)} generics processed "
+                        f"(created={created}, updated={updated}, "
+                        f"brands={brands_added}) ...")
+
+                if limit and idx >= limit:
+                    break
+
+        if too_long:
+            self.stdout.write(self.style.WARNING(
+                f"  Skipped {too_long} generic(s) exceeding "
+                f"generic_name max_length={MAX_GENERIC}."))
 
         if dry_run:
             self.stdout.write(self.style.WARNING("--- DRY RUN ---"))
@@ -680,21 +931,221 @@ class Command(BaseCommand):
             f"  Existing updated     : {updated}\n"
             f"  New brand names added: {brands_added}\n"
             f"  New strengths added  : {strengths_added}\n"
+            f"  Routes added         : {routes_added}\n"
             f"  DrugClass upgrades   : {class_upgrades}\n"
             f"  Total generics in DB : {total_db}"
         ))
 
+    @staticmethod
+    def _order_brands(canonical, brands):
+        """Curated formulary brands first, then the rest alphabetically.
+
+        `templates/clinic/prescription_form.html` preselects `brands[0]`
+        and POSTs it as the item's brand, which becomes the drug's name on
+        the printed prescription and in the FHIR MedicationRequest. Sorting
+        everything alphabetically would silently swap a familiar brand
+        (Cardace, Tritace) for an obscure one (Acecard) on every new
+        prescription.
+        """
+        curated = CURATED_BRANDS.get(canonical) or []
+        if not curated:
+            return sorted(brands)
+        head = [b for b in curated if b in brands]
+        # Curated list first (in curated order), then the remainder sorted.
+        return head + sorted(brands - set(head))
+
+    def _consolidate(self, dry_run: bool):
+        """Repair DrugMaster rows left over from an un-normalised import.
+
+        An earlier import stored MedEx's qualified names verbatim, so the
+        table accumulated rows that differ only by a qualifier:
+        'Chlorhexidine Gluconate [0.2%]', '[1%]', '[4%]', '[7.1%]'. Folding
+        the incoming catalogue would then create a *second*
+        'Chlorhexidine Gluconate' beside them, and a duplicate generic splits
+        a patient's treatment episode across two drug records.
+
+        For each folded base this picks a survivor, repoints every foreign
+        key at it, merges the variant rows' brands/strengths/routes into it,
+        and deletes the variants. Device rows are deleted outright: they can
+        never be prescribed.
+
+        Destructive, hence opt-in via --consolidate.
+        """
+        from prescriptions.models import PrescriptionItem
+        from safety.models import AdverseEvent
+        from treatments.models import TreatmentExposure
+
+        self.stdout.write("\n--- consolidation ---")
+        rows = list(DrugMaster.objects.all())
+
+        devices = [o for o in rows if is_device(o.generic_name)]
+        device_pks = {o.pk for o in devices}
+        variants = defaultdict(list)
+        for obj in rows:
+            # Devices are deleted outright, never merged into a survivor.
+            if obj.pk in device_pks:
+                continue
+            # A seeded formulary name is authoritative - never fold or rename
+            # it. `Insulin (soluble/regular)` and `Insulin isophane (NPH)`
+            # look foldable but are the exact keys seed_drug_knowledge looks
+            # up and that CURATED_BRANDS is keyed by; folding them to
+            # `Insulin` would orphan the formulary entry.
+            if norm(obj.generic_name) in CURATED_BRANDS_NORM:
+                continue
+            base, _route = split_generic(obj.generic_name)
+            if base != obj.generic_name:
+                variants[base].append(obj)
+
+        if not devices and not variants:
+            self.stdout.write("  nothing to consolidate.")
+            return
+
+        merged_rows = deleted_rows = repointed = 0
+        plan = []
+
+        for base, group in sorted(variants.items()):
+            # Prefer a row that already carries the clean base name. Match
+            # case-insensitively: `Zoledronic acid` (the seeded formulary row,
+            # holding the curated brands and the correct IV route) must win
+            # over the `Zoledronic Acid` variants, otherwise folding renames a
+            # variant into a second `Zoledronic Acid` and `seed_drug_knowledge`
+            #'s `generic_name__iexact` lookup starts raising
+            # MultipleObjectsReturned.
+            target = norm(base)
+            survivor = next((o for o in rows
+                             if o.pk not in device_pks
+                             and o.generic_name == base), None)
+            if survivor is None:
+                survivor = next((o for o in rows
+                                 if o.pk not in device_pks
+                                 and norm(o.generic_name) == target), None)
+            if survivor is None:
+                # No clean row yet: rename the richest variant in place rather
+                # than creating a duplicate. These rows carry no curated
+                # clinical data, so this is safe.
+                survivor = max(
+                    group, key=lambda o: (len(o.brand_names or []),
+                                          len(o.available_strengths or []),
+                                          -len(o.generic_name)))
+            losers = [o for o in group if o.pk != survivor.pk]
+            rename_only = (norm(survivor.generic_name) != norm(base)
+                           and not losers)
+            if not losers and not rename_only:
+                # Already stored under the clean base name; nothing to fold.
+                continue
+
+            brands = set(survivor.brand_names or [])
+            strengths = set(survivor.available_strengths or [])
+            routes = set(survivor.available_routes or [])
+            for obj in losers:
+                brands |= set(obj.brand_names or [])
+                strengths |= set(obj.available_strengths or [])
+                routes |= set(obj.available_routes or [])
+
+            plan.append((survivor.generic_name, base,
+                         [o.generic_name for o in losers],
+                         len(brands), len(strengths)))
+
+            if dry_run:
+                merged_rows += 1
+                deleted_rows += len(losers)
+                continue
+
+            # Each group is its own transaction. A crash midway through a
+            # scheduled (unattended) consolidation must not leave a
+            # TreatmentExposure pointing at a half-deleted row, so the
+            # repoint and the delete have to commit or roll back together.
+            with transaction.atomic():
+                if norm(survivor.generic_name) != norm(base):
+                    survivor.generic_name = base
+                survivor.brand_names = self._order_brands(
+                    base, brands) if norm(base) in CURATED_BRANDS_NORM else \
+                    sorted(brands)
+                survivor.available_strengths = sorted(strengths)
+                if routes:
+                    # Only widen the route set; a curated IV-only drug such
+                    # as zoledronic acid must not gain PO because a scraped
+                    # variant defaulted to it.
+                    survivor.available_routes = sorted(
+                        routes | set(survivor.available_routes or []))
+                    if survivor.default_route not in survivor.available_routes:
+                        survivor.default_route = survivor.available_routes[0]
+                # A variant that carried a real class keeps it over OTHER.
+                if survivor.drug_class == DrugClass.OTHER:
+                    for obj in losers:
+                        if obj.drug_class != DrugClass.OTHER:
+                            survivor.drug_class = obj.drug_class
+                            break
+                survivor.save()
+
+                for obj in losers:
+                    for model, field in ((TreatmentExposure, "drug"),
+                                         (PrescriptionItem, "drug"),
+                                         (AdverseEvent, "suspected_drug")):
+                        repointed += model.objects.filter(
+                            **{field: obj}).update(**{field: survivor})
+                    obj.delete()
+                    deleted_rows += 1
+            merged_rows += 1
+
+        if devices:
+            for obj in devices:
+                # `drug` is non-nullable on exposures and prescription items,
+                # so never force a null: report and leave the row alone for a
+                # human to resolve.
+                in_use = (TreatmentExposure.objects.filter(drug=obj).count()
+                          + PrescriptionItem.objects.filter(drug=obj).count())
+                if in_use:
+                    self.stdout.write(self.style.WARNING(
+                        f"  keeping device row {obj.generic_name!r}: "
+                        f"{in_use} clinical record(s) reference it"))
+                    continue
+                if dry_run:
+                    deleted_rows += 1
+                    continue
+                AdverseEvent.objects.filter(suspected_drug=obj).update(
+                    suspected_drug=None)
+                obj.delete()
+                deleted_rows += 1
+
+        for name, base, losers, nb, ns in plan[:20]:
+            self.stdout.write(
+                f"  {name}  +  {', '.join(losers[:3])}"
+                f"{' ...' if len(losers) > 3 else ''}"
+                f"  ->  {base!r}  ({nb} brands, {ns} strengths)")
+        if len(plan) > 20:
+            self.stdout.write(f"  ... and {len(plan) - 20} more groups")
+        if devices:
+            self.stdout.write(
+                f"  delete {len(devices)} device row(s): "
+                f"{', '.join(o.generic_name for o in devices[:5])}"
+                f"{' ...' if len(devices) > 5 else ''}")
+        self.stdout.write(self.style.WARNING(
+            f"  {'DRY RUN: would ' if dry_run else ''}merge {merged_rows} "
+            f"group(s), delete {deleted_rows} row(s), repoint {repointed} "
+            f"FK reference(s)"))
+
+
     def _accumulate(self, csv_path: Path) -> dict:
-        """Stream the CSV and accumulate per-generic data."""
+        """Stream the CSV and accumulate per-generic data.
+
+        MedEx qualifiers are folded off the generic name here (see
+        `split_generic`) so a base generic accumulates the brands and
+        strengths of every form it is sold in, plus the routes those forms
+        imply.
+        """
         generics = defaultdict(lambda: {
             "brands": set(),
             "strengths": set(),
             "therapeutic_classes": set(),
+            "routes": set(),
+            "strengths_by_route": defaultdict(set),
         })
 
         with csv_path.open(newline="", encoding="utf-8") as f:
             reader = csv.DictReader(f)
             count = 0
+            skipped_devices = skipped_long = folded = 0
             for row in reader:
                 count += 1
                 if count % 5000 == 0:
@@ -703,18 +1154,36 @@ class Command(BaseCommand):
                 generic = (row.get("generic_name") or "").strip()
                 if not generic:
                     continue
+                if is_device(generic):
+                    skipped_devices += 1
+                    continue
+                base, route = split_generic(generic)
+                if base != generic:
+                    folded += 1
                 brand = (row.get("name") or "").strip()
                 strength = (row.get("strength") or "").strip()
                 tclass = (row.get("therapeutic_class") or "").strip()
 
-                data = generics[generic]
-                # Brand name: include if it differs from the generic name
-                if brand and brand.lower() != generic.lower():
-                    data["brands"].add(brand)
+                data = generics[base]
+                # Brand name: include if it differs from the generic name.
+                # Over-long brands would overflow PrescriptionItem.brand.
+                if brand and brand.lower() != base.lower():
+                    if len(brand) > MAX_BRAND:
+                        skipped_long += 1
+                    else:
+                        data["brands"].add(brand)
                 if strength:
                     data["strengths"].add(strength)
+                    if route:
+                        data["routes"].add(route)
+                        data["strengths_by_route"][route].add(strength)
                 if tclass:
                     data["therapeutic_classes"].add(tclass)
 
+        if skipped_devices or skipped_long or folded:
+            self.stdout.write(
+                f"  Folding: {folded} qualified generics, "
+                f"skipped {skipped_devices} device rows, "
+                f"skipped {skipped_long} over-long brand names.")
         self.stdout.write(f"  Done. {count} rows, {len(generics)} unique generics.")
         return generics

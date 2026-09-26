@@ -145,6 +145,76 @@ class DrugMaster(models.Model):
         return (self.strengths_by_route or {}).get(route) or self.available_strengths
 
 
+class DrugSyncRun(models.Model):
+    """Audit trail for the automated MedEx drug-catalogue refresh.
+
+    One row per attempt. Exists for three reasons:
+
+    1. `should_sync_now()` needs to know when the catalogue last imported
+       cleanly, and `content_hash` lets a run detect "nothing changed" and
+       skip the (destructive) import entirely rather than rewriting 1.5k
+       rows for no reason.
+    2. An unattended job that deletes DrugMaster rows must leave a reviewable
+       record of exactly what it merged, added and deleted.
+    3. Clinicians need to answer "which brands are actually available?" -
+       a stale catalogue is a clinical-safety issue, so `state` and
+       `finished_at` are surfaced in the admin.
+    """
+
+    class State(models.TextChoices):
+        RUNNING = "running", "Running"
+        SUCCESS = "success", "Succeeded"
+        UNCHANGED = "unchanged", "Succeeded (catalogue unchanged)"
+        SKIPPED = "skipped", "Skipped"
+        FAILED = "failed", "Failed"
+
+    class Trigger(models.TextChoices):
+        MANUAL = "manual", "Manual"
+        SCHEDULED = "scheduled", "Scheduled"
+
+    state = models.CharField(
+        max_length=12, choices=State.choices, default=State.RUNNING,
+        db_index=True,
+    )
+    trigger = models.CharField(
+        max_length=12, choices=Trigger.choices, default=Trigger.SCHEDULED,
+    )
+    started_at = models.DateTimeField(auto_now_add=True, db_index=True)
+    finished_at = models.DateTimeField(null=True, blank=True)
+
+    # Scrape
+    pages_fetched = models.PositiveIntegerField(default=0)
+    total_pages = models.PositiveIntegerField(default=0)
+    rows_scraped = models.PositiveIntegerField(default=0)
+    content_hash = models.CharField(max_length=64, blank=True, db_index=True)
+
+    # Import outcome
+    generics_created = models.PositiveIntegerField(default=0)
+    generics_updated = models.PositiveIntegerField(default=0)
+    brands_added = models.PositiveIntegerField(default=0)
+    strengths_added = models.PositiveIntegerField(default=0)
+    routes_added = models.PositiveIntegerField(default=0)
+    rows_merged = models.PositiveIntegerField(default=0)
+    rows_deleted = models.PositiveIntegerField(default=0)
+    fks_repointed = models.PositiveIntegerField(default=0)
+
+    error = models.TextField(blank=True)
+    detail = models.JSONField(default=dict, blank=True)
+
+    class Meta:
+        ordering = ["-started_at"]
+        verbose_name = "drug sync run"
+
+    def __str__(self):
+        return f"MedEx sync {self.started_at:%Y-%m-%d %H:%M} ({self.state})"
+
+    @property
+    def duration_seconds(self):
+        if not self.finished_at:
+            return None
+        return (self.finished_at - self.started_at).total_seconds()
+
+
 class StopReason(models.TextChoices):
     REMISSION = "remission", "Remission / goal achieved"
     NON_RESPONSE = "non_response", "Non-response"

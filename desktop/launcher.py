@@ -1092,6 +1092,16 @@ def main() -> None:
             log("Error reporting system initialised.")
         except Exception as exc:
             log(f"Error reporting init warning: {exc}")
+        # Drug-catalogue refresh (medex.com.bd/brands). Separate try block:
+        # a failure here must not affect error reporting above.
+        try:
+            from prescriptions.services.scheduler import (
+                start_scheduler as start_drug_sync,
+            )
+            start_drug_sync()
+            log("Drug sync scheduler initialised.")
+        except Exception as exc:
+            log(f"Drug sync init warning: {exc}")
     run(server, data_dir)
 
 
