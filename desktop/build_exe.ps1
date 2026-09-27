@@ -65,6 +65,12 @@ try {
     # process and captures its real exit code.
     $proc = Start-Process -FilePath $exe -ArgumentList "--check" -Wait -PassThru
     $selfCheckExit = $proc.ExitCode
+    # Capture the REAL knowledge-base counts the self-check wrote from its
+    # freshly-seeded DB. Must be read here, before `finally` deletes $checkData.
+    $statsFile = Join-Path $checkData "selfcheck_stats.json"
+    if (Test-Path $statsFile) {
+        try { $kbStats = Get-Content $statsFile -Raw | ConvertFrom-Json } catch { $kbStats = $null }
+    }
     # P1-4: launcher/boot narrative now goes to startup.log (was bgddr.log).
     foreach ($lf in @("startup.log", "application.log", "bgddr.log")) {
         $scLog = Join-Path $checkData "Logs\$lf"
@@ -104,36 +110,56 @@ $versionObj = [ordered]@{
     build_date     = (Get-Date -Format "yyyy-MM-dd")
     knowledge_version = $appVersion
     active_rules   = 0
+    rules_total    = 0
     diseases       = 0
+    pathways       = 0
+    cases          = 0
+    guidelines     = 0
     tests          = 0
+    counts_source  = "unavailable"
 }
 
-# Try to count knowledge base stats from the seed source files
-$seedFile = "$root\knowledge\management\commands\seed_knowledge_base.py"
-if (Test-Path $seedFile) {
-    $seedContent = Get-Content $seedFile -Raw
-    # Count disease keys
-    $diseaseMatches = [regex]::Matches($seedContent, '^\s+"(\w+)":\s*\{', 'Multiline')
-    $versionObj.diseases = $diseaseMatches.Count
-    # Count rules (tuples inside "rules": [...] lists)
-    $ruleMatches = [regex]::Matches($seedContent, '\(\["[^"]+",\s*"[^"]+"\],\s*-?\d+,')
-    $versionObj.active_rules = $ruleMatches.Count
+# Knowledge-base counts come from the SELF-CHECK's freshly-seeded database
+# (selfcheck_stats.json), i.e. what the shipped app actually contains. The old
+# approach regex-scraped the seed source and over-reported diseases (43 vs the
+# real 22), so the release report claimed numbers the product did not have.
+if ($kbStats) {
+    $versionObj.knowledge_version = [string]$kbStats.kb_version
+    $versionObj.active_rules = [int]$kbStats.rules_active
+    $versionObj.rules_total  = [int]$kbStats.rules_total
+    $versionObj.diseases     = [int]$kbStats.diseases
+    $versionObj.pathways     = [int]$kbStats.pathways
+    $versionObj.cases        = [int]$kbStats.cases
+    $versionObj.guidelines   = [int]$kbStats.guidelines
+    $versionObj.counts_source = "seeded-database (self-check)"
+} else {
+    Write-Warning "No selfcheck_stats.json - knowledge-base counts left at 0 rather than guessed."
 }
 
-# Count test functions (all test_*.py files, excluding migrations/cache)
+# Count test functions (all test_*.py files, excluding migrations/cache).
+# Note: Get-Content -Raw returns $null for an EMPTY file and [regex]::Matches
+# throws ArgumentNullException on null — that aborted the build after a
+# successful self-check. Guard for null/empty, and skip venv/site-packages.
 $testCount = 0
-Get-ChildItem -Path "$root" -Recurse -Filter "test*.py" -Exclude "*.pyc" | ForEach-Object {
-    if ($_.FullName -notmatch "\\(dist|build|\.venv|node_modules|migrations)\\") {
-        $content = Get-Content $_.FullName -Raw
-        $defMatches = [regex]::Matches($content, 'def\s+test_\w+')
-        $testCount += $defMatches.Count
+Get-ChildItem -Path "$root" -Recurse -Filter "test*.py" -Exclude "*.pyc" -ErrorAction SilentlyContinue | ForEach-Object {
+    if ($_.FullName -notmatch "\\(dist|build|\.venv|venv|site-packages|node_modules|migrations)\\") {
+        $content = Get-Content $_.FullName -Raw -ErrorAction SilentlyContinue
+        if (-not [string]::IsNullOrEmpty($content)) {
+            $defMatches = [regex]::Matches($content, 'def\s+test_\w+')
+            $testCount += $defMatches.Count
+        }
     }
 }
 $versionObj.tests = $testCount
 
 $versionJson = $versionObj | ConvertTo-Json -Depth 4
-$versionJson | Out-File -FilePath (Join-Path $pkg "version.json") -Encoding utf8
-Write-Host "  version.json: v$($appVersion), $($versionObj.diseases) diseases, $($versionObj.active_rules) rules, $($versionObj.tests) tests"
+# Write UTF-8 WITHOUT a BOM. PowerShell 5.1's `Out-File -Encoding utf8` emits a
+# BOM, which makes strict JSON parsers fail (Python's json.load raises
+# "Unexpected UTF-8 BOM"). version.json is a machine-readable manifest, so it
+# must be clean UTF-8.
+$utf8NoBom = New-Object System.Text.UTF8Encoding $false
+[System.IO.File]::WriteAllText((Join-Path $pkg "version.json"), $versionJson, $utf8NoBom)
+Write-Host "  version.json: v$($appVersion), kb=$($versionObj.knowledge_version), $($versionObj.diseases) diseases, $($versionObj.active_rules)/$($versionObj.rules_total) rules active/total, $($versionObj.tests) test fns  [source: $($versionObj.counts_source)]"
 
 # ------------------------------------------------------------------ #
 #  Generate RELEASE_REPORT.md                                         #
@@ -172,11 +198,19 @@ $report = @"
 
 ## Knowledge Base
 
+Counts below are measured from the self-check's freshly-seeded database
+(``$($versionObj.counts_source)``) - i.e. what this build actually ships.
+
 | Metric | Value |
 |--------|-------|
+| Knowledge base version | $($versionObj.knowledge_version) |
 | Diseases | $($versionObj.diseases) |
-| Clinical rules | $($versionObj.active_rules) |
-| Test cases | $($versionObj.tests) |
+| Clinical rules (active) | $($versionObj.active_rules) |
+| Clinical rules (total) | $($versionObj.rules_total) |
+| Clinical pathways | $($versionObj.pathways) |
+| Clinical cases | $($versionObj.cases) |
+| Guideline sources | $($versionObj.guidelines) |
+| Test functions in source | $($versionObj.tests) |
 | Seeding | First-run auto-seed via launcher.py |
 
 ## Seed Commands (first run)
@@ -210,7 +244,7 @@ $report = @"
 - Backup and media directories default to the application folder.
 "@
 
-$report | Out-File -FilePath (Join-Path $pkg "RELEASE_REPORT.md") -Encoding utf8
+[System.IO.File]::WriteAllText((Join-Path $pkg "RELEASE_REPORT.md"), $report, $utf8NoBom)
 
 # ------------------------------------------------------------------ #
 #  Generate README-FIRST.txt (plain run instructions for the clinic)  #
@@ -267,7 +301,7 @@ $readme = @"
    - Full details: DESKTOP_DEPLOYMENT.md (in this folder / docs).
 ==============================================================
 "@
-$readme | Out-File -FilePath (Join-Path $pkg "README-FIRST.txt") -Encoding utf8
+[System.IO.File]::WriteAllText((Join-Path $pkg "README-FIRST.txt"), $readme, $utf8NoBom)
 
 # ------------------------------------------------------------------ #
 #  Runtime validation                                                 #

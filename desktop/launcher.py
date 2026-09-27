@@ -750,6 +750,7 @@ def _admin_dialog():
             messagebox.showerror("BGDDR", "Username is required."); return
         if len(p.get()) < 10:
             messagebox.showerror("BGDDR", "Password must be at least 10 characters."); return
+
         if p.get() != p2.get():
             messagebox.showerror("BGDDR", "Passwords do not match."); return
         result["u"], result["p"] = u.get().strip(), p.get()
@@ -1093,6 +1094,30 @@ def main() -> None:
     if check:
         server = make_server()           # binds the port to prove it works
         server.close()
+
+        # Serve a real request through the full WSGI stack. Binding the port is
+        # NOT enough: a URLconf that fails to import (e.g. an app missing from
+        # LOCAL_APPS in BGDDR.spec) starts fine and then 500s on EVERY request.
+        # That shipped in 7.3.12 as "No module named 'auth'". This must FAIL the
+        # self-check, so the build script refuses to certify a broken package.
+        try:
+            from django.test import Client
+
+            client = Client()
+            resp = client.get("/", HTTP_HOST="127.0.0.1", follow=True)
+            if resp.status_code >= 500:
+                log(f"Self-check FAILED: GET / returned {resp.status_code} "
+                    "(the app starts but cannot serve requests).")
+                sys.exit(1)
+            log(f"Self-check: HTTP GET / -> {resp.status_code} OK.")
+        except SystemExit:
+            raise
+        except Exception as exc:
+            import traceback
+            log(f"Self-check FAILED: could not serve a request: {exc}")
+            log(traceback.format_exc())
+            sys.exit(1)
+
         # Prove the compiled SPSS writer (pyreadstat) is bundled & working.
         try:
             from exports.services.writers import to_sav
@@ -1101,7 +1126,31 @@ def main() -> None:
             log("Self-check: SPSS .sav export OK.")
         except Exception as exc:
             log(f"Self-check WARNING: SPSS export failed: {exc}")
-        log("Self-check OK: migrate, seed, static, admin, and server all wired.")
+
+        # Emit real knowledge-base counts from the freshly-seeded DB so the build
+        # script can put TRUE numbers in version.json / RELEASE_REPORT.md instead
+        # of regex-scraping the seed source (which over-counted diseases 43 vs 22).
+        try:
+            import json as _json
+            from knowledge.kb_version import kb_health_summary
+
+            health = kb_health_summary()
+            stats_path = data_dir / "selfcheck_stats.json"
+            stats_path.write_text(_json.dumps({
+                "kb_version": health.get("kb_version", ""),
+                "diseases": health.get("diseases", 0),
+                "rules_active": health.get("rules_active", 0),
+                "rules_total": health.get("rules_total", 0),
+                "pathways": health.get("pathways", 0),
+                "cases": health.get("cases", 0),
+                "guidelines": health.get("guidelines", 0),
+            }, indent=2), encoding="utf-8")
+            log(f"Self-check: wrote KB stats to {stats_path.name} "
+                f"(diseases={health.get('diseases')}, rules_active={health.get('rules_active')}).")
+        except Exception as exc:
+            log(f"Self-check WARNING: could not write KB stats: {exc}")
+
+        log("Self-check OK: migrate, seed, static, admin, HTTP request, and server all wired.")
         return
     create_desktop_shortcut(data_dir)
     start_backups()

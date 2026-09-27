@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% load static %}
 {% block title %}Prescription — {{ patient.patient_id }}{% endblock %}
 {% block heading %}New prescription · {{ patient.patient_id }}{% endblock %}
 {% block content %}
@@ -108,7 +109,7 @@
                 <option value="">— select —</option>
                 {% for label, items in drug_groups %}
                 <optgroup label="{{ label }}">
-                  {% for d in items %}<option value="{{ d.pk }}"{% if d.pk == r.drug_id %} selected{% endif %}>{{ d.generic_name }}</option>{% endfor %}
+                  {% for d in items %}<option value="{{ d.pk }}" data-search="{{ d.search_text }}"{% if d.pk == r.drug_id %} selected{% endif %}>{{ d.generic_name }}</option>{% endfor %}
                 </optgroup>
                 {% endfor %}
               </select>
@@ -444,6 +445,7 @@
       stopNotes.push(name + ' — ' + reason);
       syncStopNotes();
       drugSel.value = '';                          // dropped from the Rx
+      if (window.SearchableSelect) SearchableSelect.refresh(drugSel);
       populateRow(row, false);
       ['brand','strength','frequency','duration','instruction'].forEach(function(f){
         var i = el(f, row); if (i) i.value = '';
@@ -548,4 +550,9 @@
 })();
 </script>
 
+{% endblock %}
+
+{% block scripts %}
+<link rel="stylesheet" href="{% static 'css/searchable-select.css' %}">
+<script src="{% static 'js/searchable-select.js' %}"></script>
 {% endblock %}

@@ -234,8 +234,9 @@ def health_check(request):
         "version": 3,
     }
     status_code = 200
-    privileged = request.user.is_authenticated and (
-        request.user.is_staff or request.user.is_superuser
+    user = getattr(request, "user", None)
+    privileged = getattr(user, "is_authenticated", False) and (
+        getattr(user, "is_staff", False) or getattr(user, "is_superuser", False)
     )
 
     # Database check

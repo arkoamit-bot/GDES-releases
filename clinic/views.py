@@ -1020,6 +1020,19 @@ def prescription_create(request, pk):
         ("Other", [d for d in drugs if d.drug_class not in _grouped]),
     ]
     drug_groups = [(label, items) for label, items in drug_groups if items]
+
+    # Type-to-filter key for the drug picker. The visible option label is only
+    # the generic name, but a prescriber recalls a drug by whatever is on the
+    # box or the strip: "Losec", "Seclo", "40mg". The searchable <select>
+    # matches against this wider string, so brand and strength hits are found
+    # too. It is attached to the in-memory instance (drugs is a list) rather
+    # than the model, so nothing is persisted and no migration is needed.
+    for d in drugs:
+        _brands = [str(b) for b in (d.brand_names or []) if b]
+        _strengths = [str(s) for s in (d.available_strengths or []) if s]
+        d.search_text = " ".join(
+            [d.generic_name or ""] + _brands + _strengths).strip()
+
     # Default next visit = 4 weeks from today (clinic schedule)
     default_next = (dt.date.today() + dt.timedelta(weeks=4)).isoformat()
     from patients import choices
