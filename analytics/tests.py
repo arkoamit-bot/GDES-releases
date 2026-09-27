@@ -345,3 +345,87 @@ class CohortTests(TestCase):
         with self.assertRaises(ValueError):
             cox_regression(Patient.objects.all(), ["baseline_egfr"],
                            "composite_kidney_event")
+
+
+class OutcomeBaselineTests(TestCase):
+    """Baseline is the first value ON/AFTER the index date, not the earliest
+    value the patient ever had. A pre-enrollment referral measurement used to
+    seed the baseline, which invented sustained-decline and remission events."""
+
+    def setUp(self):
+        from django.core.management import call_command
+        call_command("seed_labs", verbosity=0)
+        self.p = Patient.objects.create(
+            patient_id="BGD-BASE", name="Baseline P", sex="M",
+            dob=dt.date(1970, 1, 1), enrollment_date=dt.date(2025, 1, 1))
+
+    def test_pre_enrollment_egfr_is_not_the_baseline(self):
+        # Referral value 2024-11-15 is far above the post-enrollment values.
+        record_result(self.p, "creatinine", result_date=dt.date(2024, 11, 15), value_numeric=0.5)
+        record_result(self.p, "creatinine", result_date=dt.date(2025, 1, 10), value_numeric=1.0)
+        record_result(self.p, "creatinine", result_date=dt.date(2025, 7, 1), value_numeric=1.05)
+        record_result(self.p, "creatinine", result_date=dt.date(2026, 1, 1), value_numeric=1.1)
+        o = compute_patient_outcome(self.p)
+        self.assertEqual(o.index_date, dt.date(2025, 1, 1))
+        # eGFR falls from the 2025-01-10 baseline, never 40% below it.
+        self.assertFalse(o.sustained_40_decline)
+        self.assertFalse(o.sustained_50_decline)
+        self.assertFalse(o.composite_kidney_event)
+
+    def test_post_enrollment_series_still_yields_decline(self):
+        # Same trajectory with no pre-enrollment lab: the 40% drop is real.
+        record_result(self.p, "creatinine", result_date=dt.date(2025, 1, 10), value_numeric=1.0)
+        record_result(self.p, "creatinine", result_date=dt.date(2025, 7, 1), value_numeric=2.2)
+        record_result(self.p, "creatinine", result_date=dt.date(2026, 1, 1), value_numeric=2.6)
+        o = compute_patient_outcome(self.p)
+        self.assertTrue(o.sustained_40_decline)
+        self.assertEqual(o.sustained_40_date, dt.date(2025, 7, 1))
+
+    def test_pre_enrollment_proteinuria_does_not_deflate_reduction(self):
+        record_result(self.p, "utp_24h", result_date=dt.date(2024, 11, 15), value_numeric=1.0)
+        record_result(self.p, "utp_24h", result_date=dt.date(2025, 1, 10), value_numeric=4.0)
+        record_result(self.p, "utp_24h", result_date=dt.date(2025, 7, 1), value_numeric=3.5)
+        o = compute_patient_outcome(self.p)
+        self.assertEqual(float(o.baseline_upcr), 4.0)
+        # Nadir is the post-enrollment minimum (3.5), not the pre-enrollment 1.0,
+        # which used to report a 75% reduction the patient never achieved.
+        self.assertEqual(float(o.nadir_upcr), 3.5)
+        self.assertAlmostEqual(float(o.best_proteinuria_reduction_pct), 12.5, places=1)
+
+
+class OutcomesDashboardKpiTests(TestCase):
+    """`outcomes_summary` counted rows with `__isnull=False` on non-null
+    BooleanFields, so every outcome tile reported the whole cohort."""
+
+    def setUp(self):
+        from analytics.models import PatientOutcome
+        self._model = PatientOutcome
+        for i in range(10):
+            p = Patient.objects.create(
+                patient_id=f"BGD-KPI{i}", name=f"KPI {i}", sex="M",
+                dob=dt.date(1970, 1, 1), enrollment_date=dt.date(2024, 1, 1))
+            PatientOutcome.objects.create(
+                patient=p,
+                complete_remission=(i < 2),
+                partial_remission=(i < 4),
+                sustained_40_decline=(i == 7),
+                eskd=(i == 8),
+                death=(i == 9),
+                composite_kidney_event=(i >= 7),
+            )
+
+    def test_boolean_tiles_count_only_true_rows(self):
+        from analytics.dashboard_data import outcomes_summary
+        s = outcomes_summary()
+        self.assertEqual(s["total"], 10)
+        self.assertEqual(s["complete_remission"], 2)
+        self.assertEqual(s["partial_remission"], 4)
+        self.assertEqual(s["decline_40"], 1)
+        self.assertEqual(s["eskd"], 1)
+        self.assertEqual(s["death"], 1)
+        self.assertEqual(s["composite"], 3)   # i >= 7
+
+    def test_relapse_tile_counts_only_flagged_rows(self):
+        from analytics.dashboard_data import outcomes_summary
+        s = outcomes_summary()
+        self.assertEqual(s["relapse"], 0)

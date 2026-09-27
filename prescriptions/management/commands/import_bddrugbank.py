@@ -62,9 +62,13 @@ try:
 except Exception:  # pragma: no cover - seed module is optional at runtime
     CURATED_BRANDS = {}
 
-# Model field limits. PrescriptionItem.brand is max_length=120.
+# Model field limits. PrescriptionItem.brand is max_length=120, and
+# PrescriptionItem.strength/dose are max_length=120 too (widened from 40 because
+# combination products carry multi-ingredient strings like
+# "1000 mg+327 mg (Conventional calcium)+500 mg+400 IU").
 MAX_GENERIC = 120
 MAX_BRAND = 120
+MAX_STRENGTH = 120
 
 # MedEx dosage-form / generic-suffix qualifiers that name a route
 # unambiguously, mapped to the app's Route vocabulary. Anything NOT listed
@@ -1173,10 +1177,16 @@ class Command(BaseCommand):
                     else:
                         data["brands"].add(brand)
                 if strength:
-                    data["strengths"].add(strength)
-                    if route:
-                        data["routes"].add(route)
-                        data["strengths_by_route"][route].add(strength)
+                    # An over-long strength would be offered in the prescription
+                    # form's strength picker and then overflow
+                    # PrescriptionItem.strength/dose on PostgreSQL.
+                    if len(strength) > MAX_STRENGTH:
+                        skipped_long += 1
+                    else:
+                        data["strengths"].add(strength)
+                        if route:
+                            data["routes"].add(route)
+                            data["strengths_by_route"][route].add(strength)
                 if tclass:
                     data["therapeutic_classes"].add(tclass)
 

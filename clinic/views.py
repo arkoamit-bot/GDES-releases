@@ -22,6 +22,7 @@ logger = logging.getLogger(__name__)
 from patients.models import Patient
 from encounters.models import ClinicalEncounter
 from prescriptions.models import AdviceTemplate, Prescription, PrescriptionItem
+from prescriptions.services.tapers import TAPER_PRESETS, is_systemic_steroid
 from treatments.models import DrugMaster
 
 from .forms import (AdmissionForm, AdverseEventForm, BaselineForm, BiopsyForm,
@@ -53,6 +54,22 @@ _PATIENT_LEVEL2_FIELDS = [
     "biopsy_diagnosis", "gn_broad_group",
     "gn_primary_secondary", "oxford_mestc", "isn_rps_class",
     "ckd_etiology", "transplant_status"]
+
+
+def _clip(value, field):
+    """Trim a POSTed value to the model field's max_length.
+
+    SQLite silently accepts an over-long CharField; PostgreSQL raises
+    DataError, so the same form submission would 500 only after the SQLite ->
+    PostgreSQL migration. Clipping from the model's own limit keeps the two
+    backends behaving identically and means a hand-crafted POST cannot take the
+    prescription endpoint down.
+    """
+    text = (value or "").strip()
+    limit = getattr(field, "max_length", None)
+    if limit and len(text) > limit:
+        text = text[:limit].rstrip()
+    return text
 
 
 def _save_labs(patient, form, result_date):
@@ -948,19 +965,30 @@ def prescription_create(request, pk):
             # Skip empty rows and reject anything that isn't a known drug id.
             if not drug_id or not drug_id.isdigit() or int(drug_id) not in valid_drug_ids:
                 continue
-            strength_val = (request.POST.get(f"strength_{i}") or "").strip()
+            strength_val = _clip(
+                request.POST.get(f"strength_{i}"), PrescriptionItem._meta.get_field("strength"))
             PrescriptionItem.objects.create(
                 prescription=rx, drug_id=int(drug_id),
-                brand=(request.POST.get(f"brand_{i}") or "").strip(),
+                brand=_clip(
+                    request.POST.get(f"brand_{i}"), PrescriptionItem._meta.get_field("brand")),
                 strength=strength_val,
                 # No separate "dose" column — strength is the regimen amount and
                 # drives reconciliation's dose-change detection (signature).
                 dose=strength_val,
-                route=(request.POST.get(f"route_{i}") or "").strip().upper(),
-                frequency=(request.POST.get(f"frequency_{i}") or "").strip(),
-                timing=(request.POST.get(f"timing_{i}") or "after"),
-                duration=(request.POST.get(f"duration_{i}") or "").strip(),
-                instruction_bn=(request.POST.get(f"instruction_{i}") or "").strip(),
+                route=_clip(
+                    (request.POST.get(f"route_{i}") or "").strip().upper(),
+                    PrescriptionItem._meta.get_field("route")),
+                frequency=_clip(
+                    request.POST.get(f"frequency_{i}"), PrescriptionItem._meta.get_field("frequency")),
+                timing=_clip(
+                    request.POST.get(f"timing_{i}") or "after",
+                    PrescriptionItem._meta.get_field("timing")),
+                duration=_clip(
+                    request.POST.get(f"duration_{i}"), PrescriptionItem._meta.get_field("duration")),
+                instruction_bn=_clip(
+                    request.POST.get(f"instruction_{i}"),
+                    PrescriptionItem._meta.get_field("instruction_bn")),
+                taper_notes=(request.POST.get(f"taper_{i}") or "").strip(),
                 sort_order=i,
             )
             n += 1
@@ -1020,7 +1048,8 @@ def prescription_create(request, pk):
             dose=exp.dose, route=(it.route_value if it else exp.route),
             frequency=exp.frequency or (it.frequency if it else ""),
             timing=(it.timing if it else ""), duration=(it.duration if it else ""),
-            instruction=(it.instruction_bn if it else "")))
+            instruction=(it.instruction_bn if it else ""),
+            taper=(it.taper_notes if it else "")))
         seen.add(exp.drug_id)
     # Include any last-prescription drug not yet an ongoing episode (e.g. a draft
     # not finalized) so nothing from the previous script is silently dropped.
@@ -1029,7 +1058,8 @@ def prescription_create(request, pk):
             carried.append(dict(
                 drug_id=it.drug_id, brand=it.brand, strength=it.strength,
                 dose=it.dose, route=it.route_value, frequency=it.frequency,
-                timing=it.timing, duration=it.duration, instruction=it.instruction_bn))
+                timing=it.timing, duration=it.duration, instruction=it.instruction_bn,
+                taper=it.taper_notes))
             seen.add(it.drug_id)
 
     rows_data = []
@@ -1057,6 +1087,9 @@ def prescription_create(request, pk):
             # drug needs review / dose adjustment (None -> no threshold).
             "egfr_caution": (int(d.egfr_caution_below)
                              if d.egfr_caution_below is not None else None),
+            # For the per-row taper plan: only systemic single-agent steroids
+            # get one (topical/ophthalmic combination drops never do).
+            "systemic_steroid": is_systemic_steroid(d),
         }
         for d in drugs
     }
@@ -1104,6 +1137,8 @@ def prescription_create(request, pk):
         "advice_templates": list(
             AdviceTemplate.objects.filter(is_active=True)
             .values("title", "body")),
+        "taper_presets": [{"label": p.label, "text": p.text}
+                          for p in TAPER_PRESETS],
         "comorbidity_options": comorbidity_options,
         "prefill_comorbid": prefill_comorbid, "comorbid_extra": comorbid_extra,
     })

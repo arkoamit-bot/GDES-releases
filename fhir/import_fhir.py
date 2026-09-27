@@ -54,6 +54,7 @@ def import_patient_from_fhir(fhir_patient: dict) -> dict:
             if has_updates:
                 patient.save()
     else:
+        created = True
         patient = Patient.objects.create(
             name=name or "FHIR Import",
             sex=sex,

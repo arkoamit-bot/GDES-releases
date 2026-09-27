@@ -6,9 +6,10 @@ user's role (Group permissions) through DjangoModelPermissions (configured
 globally). Computed/derived resources are read-only.
 """
 from rest_framework import viewsets
+from rest_framework.permissions import DjangoModelPermissions
 
 from .base import AuditedModelViewSet
-from .permissions import site_filter_kwargs
+from .permissions import IsSiteScoped, site_filter_kwargs
 
 from analytics.models import PatientOutcome
 from biomarkers.models import BiomarkerKinetics
@@ -40,6 +41,9 @@ class PatientViewSet(AuditedModelViewSet):
     queryset = Patient.objects.all()
     serializer_class = s.PatientSerializer
     search_fields = ["patient_id", "name", "hospital_id"]
+    # An account with no site assignment is rejected rather than silently served
+    # an empty list. No-op for superuser/data_manager and single-site registries.
+    permission_classes = [IsSiteScoped, DjangoModelPermissions]
 
     def get_queryset(self):
         qs = super().get_queryset()

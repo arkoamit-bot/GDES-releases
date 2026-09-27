@@ -46,7 +46,7 @@ def mark_async(event_type: str) -> None:
 def _persist_event(event_type, source_model, source_pk, payload):
     try:
         from .models import Event
-        Event.objects.create(
+        return Event.objects.create(
             event_type=event_type,
             source_model=source_model,
             source_pk=source_pk,
@@ -54,9 +54,17 @@ def _persist_event(event_type, source_model, source_pk, payload):
         )
     except Exception:
         logger.exception("Failed to persist event %s", event_type)
+        return None
 
 
 def _run_handlers(event_type, source_model, source_pk, payload):
+    """Run every handler for ``event_type``.
+
+    Returns the list of ``(handler_name, exception)`` failures instead of
+    swallowing them: callers need to know that a recompute was lost so the event
+    stays unprocessed and can be retried.
+    """
+    failures = []
     for handler in _handlers.get(event_type, []):
         try:
             handler(
@@ -65,10 +73,33 @@ def _run_handlers(event_type, source_model, source_pk, payload):
                 source_pk=source_pk,
                 payload=payload,
             )
-        except Exception:
+        except Exception as exc:
+            failures.append((getattr(handler, "__name__", repr(handler)), exc))
             logger.exception(
                 "Handler %s failed for event %s", handler.__name__, event_type
             )
+    return failures
+
+
+def mark_event_processed(event_type, source_model="", source_pk="", processed=True):
+    """Set ``Event.processed`` on the newest matching event row.
+
+    Separate from ``dispatch`` because an async event is persisted by the
+    publishing process but only marked by the Celery worker that runs it.
+    """
+    try:
+        from .models import Event
+        qs = Event.objects.filter(event_type=event_type)
+        if source_model:
+            qs = qs.filter(source_model=source_model)
+        if source_pk:
+            qs = qs.filter(source_pk=str(source_pk))
+        event = qs.order_by("-occurred_at", "-id").first()
+        if event is not None and event.processed != processed:
+            event.processed = processed
+            event.save(update_fields=["processed"])
+    except Exception:
+        logger.exception("Failed to mark event %s processed=%s", event_type, processed)
 
 
 def _celery_available() -> bool:
@@ -87,9 +118,13 @@ def dispatch(
 
     If the event type is marked async and Celery is configured, the dispatch
     happens in a background worker. Otherwise it runs in-process.
+
+    Either way the persisted :class:`~events.models.Event` row is marked
+    ``processed`` only when every handler succeeded, so a transient failure
+    leaves a visible unprocessed event instead of a silently stale profile.
     """
     payload = payload or {}
-    _persist_event(event_type, source_model, source_pk, payload)
+    event = _persist_event(event_type, source_model, source_pk, payload)
 
     if event_type in _async_event_types and _celery_available():
         try:
@@ -99,4 +134,10 @@ def dispatch(
         except Exception:
             logger.warning("Celery dispatch failed, falling back to in-process for %s", event_type)
 
-    _run_handlers(event_type, source_model, source_pk, payload)
+    failures = _run_handlers(event_type, source_model, source_pk, payload)
+    if event is not None:
+        try:
+            event.processed = not failures
+            event.save(update_fields=["processed"])
+        except Exception:
+            logger.exception("Failed to mark event %s processed", event_type)

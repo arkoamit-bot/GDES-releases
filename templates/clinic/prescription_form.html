@@ -83,7 +83,7 @@
       <div id="dup-warning" class="msg warning" style="display:none;margin-bottom:10px"><i class="fas fa-triangle-exclamation"></i> <span id="dup-warning-text"></span></div>
       <div id="renal-warning" class="msg warning" style="display:none;margin-bottom:10px"><i class="fas fa-kidneys"></i> <span id="renal-warning-text"></span></div>
 
-      <div class="help" style="margin-bottom:10px">Pick a drug per row; leave rows blank if unused. <b>Brand</b>, <b>Route</b>, <b>Strength</b> and <b>Frequency</b> auto-fill from the formulary — strengths follow the chosen route (e.g. cyclophosphamide PO tablets vs IV vials). Choose "Other" to type freely.</div>
+      <div class="help" style="margin-bottom:10px">Pick a drug per row; leave rows blank if unused. <b>Brand</b>, <b>Route</b>, <b>Strength</b> and <b>Frequency</b> auto-fill from the formulary — strengths follow the chosen route (e.g. cyclophosphamide PO tablets vs IV vials). Choose "Other" to type freely. A <b>systemic steroid</b> (prednisolone, methylprednisolone) opens a <b>taper plan</b> panel under its row — a course that ends abruptly can suppress the adrenals, so record the step-down.</div>
       <div style="overflow-x:auto">
       <table class="grid" style="min-width:1080px;table-layout:fixed;width:100%">
         <colgroup>
@@ -118,7 +118,7 @@
                 <option value="">— generic —</option>
                 <option value="__other__">Other → type</option>
               </select>
-              <input type="text" name="brand_{{ r.i }}" class="brand-inp" placeholder="brand name" style="width:100%;{% if not r.brand %}display:none{% endif %}" value="{{ r.brand|default:'' }}">
+              <input type="text" name="brand_{{ r.i }}" class="brand-inp" maxlength="120" placeholder="brand name" style="width:100%;{% if not r.brand %}display:none{% endif %}" value="{{ r.brand|default:'' }}">
             </td>
             <td>
               <select name="route_{{ r.i }}" class="route-sel" data-row="{{ r.i }}" style="width:100%">
@@ -130,14 +130,14 @@
                 <option value="">— select —</option>
                 <option value="__other__">Other → type</option>
               </select>
-              <input type="text" name="strength_{{ r.i }}" class="strength-inp" placeholder="e.g. 10mg" style="width:100%;{% if not r.strength %}display:none{% endif %}" value="{{ r.strength|default:'' }}">
+              <input type="text" name="strength_{{ r.i }}" class="strength-inp" maxlength="120" placeholder="e.g. 10mg" style="width:100%;{% if not r.strength %}display:none{% endif %}" value="{{ r.strength|default:'' }}">
             </td>
             <td>
               <select name="frequency_sel_{{ r.i }}" class="freq-sel" data-row="{{ r.i }}" style="width:100%;margin-bottom:4px">
                 <option value="">— select —</option>
                 <option value="__other__">Other → type</option>
               </select>
-              <input type="text" name="frequency_{{ r.i }}" class="freq-inp" placeholder="1+0+1" style="width:100%;{% if not r.frequency %}display:none{% endif %}" value="{{ r.frequency|default:'' }}">
+              <input type="text" name="frequency_{{ r.i }}" class="freq-inp" maxlength="40" placeholder="1+0+1" style="width:100%;{% if not r.frequency %}display:none{% endif %}" value="{{ r.frequency|default:'' }}">
             </td>
             <td>
               <select name="timing_{{ r.i }}" style="width:100%">
@@ -158,7 +158,32 @@
                 <option value="6 months">6 months</option>
                 <option value="__other__">Other → type</option>
               </select>
-              <input type="text" name="duration_{{ r.i }}" class="dur-inp" placeholder="e.g. 6 weeks" style="width:100%;{% if not r.duration %}display:none{% endif %}" value="{{ r.duration|default:'' }}">
+              <input type="text" name="duration_{{ r.i }}" class="dur-inp" maxlength="40" placeholder="e.g. 6 weeks" style="width:100%;{% if not r.duration %}display:none{% endif %}" value="{{ r.duration|default:'' }}">
+            </td>
+          </tr>
+          <tr class="rx-taper-row" data-row="{{ r.i }}"{% if not r.taper %} style="display:none"{% endif %}>
+            <td colspan="8" style="padding:0 8px 8px 8px">
+              <div style="border-left:3px solid #b45309;background:#fffbeb;border-radius:0 6px 6px 0;padding:8px 10px">
+                <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:6px">
+                  <label style="display:flex;align-items:center;gap:6px;font-size:13px;font-weight:600;color:#92400e;cursor:pointer">
+                    <input type="checkbox" class="taper-on" data-row="{{ r.i }}" style="cursor:pointer"{% if r.taper %} checked{% endif %}>
+                    Taper this course before stopping
+                  </label>
+                  <span class="help" style="margin:0;font-size:12px;color:#92400e">Do not stop a systemic steroid suddenly — write the step-down the patient follows.</span>
+                </div>
+                <div class="rx-taper-fields"{% if not r.taper %} style="display:none"{% endif %}>
+                  <div style="display:flex;align-items:center;gap:6px;margin-bottom:6px">
+                    <label for="taper-preset-{{ r.i }}" style="font-size:12px;color:#92400e;margin:0">Start from:</label>
+                    <select id="taper-preset-{{ r.i }}" class="taper-preset" data-row="{{ r.i }}" style="min-width:280px">
+                      <option value="">— choose a taper template —</option>
+                    </select>
+                  </div>
+                  <textarea name="taper_{{ r.i }}" class="taper-inp" data-row="{{ r.i }}" rows="2"
+                            style="width:100%;font-size:13px"
+                            placeholder="e.g. 40 mg 1+0+0 × 1 wk → 20 mg 1+0+0 × 1 wk → 10 mg 1+0+0 × 1 wk → 5 mg 1+0+0 × 5 days → stop. Do not stop suddenly.">{{ r.taper|default:'' }}</textarea>
+                  <div class="help" style="margin-top:4px">Templates are starting points — edit them to the actual dose and duration for this patient. This text prints on the slip.</div>
+                </div>
+              </div>
             </td>
           </tr>
           {% endfor %}
@@ -169,6 +194,7 @@
         <i class="fas fa-plus"></i> Add medication
       </button>
       {{ drug_data|json_script:"drug-data" }}
+      {{ taper_presets|json_script:"taper-presets" }}
     </fieldset>
 
     <fieldset class="fieldset">
@@ -423,8 +449,74 @@
         var i = el(f, row); if (i) i.value = '';
       });
       drugSel.closest('tr').style.display = 'none';
+      var taper = taperParts(row);
+      if (taper){
+        taper.text.value = '';
+        taper.box.checked = false;
+        taper.fields.style.display = 'none';
+        taper.tr.style.display = 'none';
+      }
       checkDuplicates(); checkRenal(); showRemoveButtons();
     });
+  });
+
+  // ---- Steroid taper plan (one collapsible sub-row per medication line) -----
+  // Only a systemic single-agent steroid offers the taper plan; topical and
+  // ophthalmic combination drops never do. A row that already carries taper
+  // text stays visible even if the drug is re-picked, so work is never hidden.
+  var TAPERS = JSON.parse(document.getElementById('taper-presets').textContent);
+
+  function taperParts(row){
+    var tr = document.querySelector('tr.rx-taper-row[data-row="' + row + '"]');
+    if (!tr) return null;
+    return {
+      tr: tr,
+      box: tr.querySelector('.taper-on'),
+      fields: tr.querySelector('.rx-taper-fields'),
+      text: tr.querySelector('.taper-inp'),
+      preset: tr.querySelector('.taper-preset')
+    };
+  }
+
+  function syncTaperRow(row){
+    var t = taperParts(row);
+    if (!t) return;
+    var d = DRUGS[el('drug', row).value];
+    var eligible = !!(d && d.systemic_steroid) || !!t.text.value.trim();
+    t.tr.style.display = eligible ? '' : 'none';
+    if (!eligible){ t.box.checked = false; t.fields.style.display = 'none'; }
+    else { t.fields.style.display = t.box.checked ? '' : 'none'; }
+  }
+
+  document.querySelectorAll('.taper-on').forEach(function(box){
+    box.addEventListener('change', function(){
+      var t = taperParts(this.getAttribute('data-row'));
+      if (t) t.fields.style.display = this.checked ? '' : 'none';
+    });
+  });
+
+  document.querySelectorAll('.taper-preset').forEach(function(sel){
+    sel.appendChild(opt('', '— choose a taper template —'));
+    TAPERS.forEach(function(p, i){ sel.appendChild(opt(String(i), p.label)); });
+    sel.addEventListener('change', function(){
+      if (this.value === '') return;
+      var t = taperParts(this.getAttribute('data-row'));
+      if (!t) return;
+      t.text.value = TAPERS[+this.value].text;
+      t.box.checked = true;
+      t.fields.style.display = '';
+      this.value = '';
+      t.text.focus();
+    });
+  });
+
+  document.querySelectorAll('.drug-select').forEach(function(sel){
+    sel.addEventListener('change', function(){
+      syncTaperRow(this.getAttribute('data-row'));
+    });
+  });
+  document.querySelectorAll('.drug-select').forEach(function(sel){
+    if (sel.value) syncTaperRow(sel.getAttribute('data-row'));
   });
 
   // ---- Advice templates: paste a pre-written snippet into the advice field -

@@ -235,9 +235,11 @@ $readme = @"
      this PC automatically. (Leave "Update folder" blank if you do
      not use in-app updates.)
    - You will be asked to create an ADMINISTRATOR username and
-     password. Please set a real password and keep it safe.
-     (If you skip it, a default  admin / bgddr-admin  is created -
-     change it immediately from inside the program.)
+     password (at least 10 characters). Please set a real password
+     and keep it safe.
+     (If you skip it, a random password is generated and printed ONCE
+     in the launcher log - there is NO default password. Copy it from
+     the log, then change it immediately from inside the program.)
 
 3) EVERY DAY USE
    - Log in in the browser and use the left-hand menu.

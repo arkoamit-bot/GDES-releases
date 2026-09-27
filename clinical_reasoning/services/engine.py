@@ -42,12 +42,22 @@ def reason_about_patient(patient: Patient) -> ClinicalProfile:
     features = extract_patient_features(patient)
     rule_results = evaluate_patient_rules(patient)
 
-    # Safety check: detect empty rule results (no ACTIVE rules in KB)
+    # Safety check: distinguish "no ACTIVE rules at all" from "rules exist but
+    # none matched this patient". The second case is common and must not be
+    # reported as a knowledge-base configuration fault.
     if not rule_results:
         logger.warning(
             "No ACTIVE rules matched for patient %s — differential will be empty. "
             "Ensure KnowledgeBase entries have ACTIVE status.",
             patient.patient_id,
+        )
+    elif not _fired(rule_results):
+        logger.info(
+            "No rule criteria matched for patient %s across %d disease(s) with "
+            "ACTIVE rules — differential empty; this is a data-completeness "
+            "signal, not a knowledge-base fault.",
+            patient.patient_id,
+            len(rule_results),
         )
 
     # V4.2: augment differential with knowledge graph traversal
@@ -133,6 +143,18 @@ def reason_about_patient(patient: Patient) -> ClinicalProfile:
     return profile
 
 
+def _fired(rule_results: list) -> list:
+    """Rule results whose rules actually matched (score > 0), highest first.
+
+    ``evaluate_patient_rules`` returns an entry for *every* disease that has at
+    least one ACTIVE rule, scoring 0 when nothing matched. Callers that pick a
+    "leading differential" must use this instead of ``rule_results[0]``, or a
+    patient with no matching rule gets an arbitrary zero-score disease presented
+    as the leading diagnosis.
+    """
+    return [r for r in rule_results if r.total_score > 0]
+
+
 def _build_differential(rule_results: list) -> list[dict]:
     """Build a ranked differential from rule evaluation results.
 
@@ -142,7 +164,7 @@ def _build_differential(rule_results: list) -> list[dict]:
     instead of an arbitrary magnitude. Graph-derived suggestions are appended
     later by augment_differential with source="knowledge_graph".
     """
-    fired = [r for r in rule_results if r.total_score > 0]
+    fired = _fired(rule_results)
     total = sum(r.total_score for r in fired) or 1
     return [
         {
@@ -214,8 +236,9 @@ def _identify_information_gaps(features: dict) -> list[dict]:
 def _build_reasoning_chain(patient, rule_results, trajectory, care_gaps) -> list[dict]:
     """Build a structured reasoning chain explaining the clinical assessment."""
     chain = []
-    if rule_results:
-        top = rule_results[0]
+    fired = _fired(rule_results)
+    if fired:
+        top = fired[0]
         chain.append({
             "step": "rule_evaluation",
             "finding": f"Top differential: {top.disease_name} (score {top.total_score})",
@@ -289,8 +312,9 @@ def _generate_recommendations(care_gaps, rule_results) -> list[dict]:
             "priority": gap.get("importance", "medium"),
             "message": gap["message"],
         })
-    if rule_results:
-        top = rule_results[0]
+    fired = _fired(rule_results)
+    if fired:
+        top = fired[0]
         recommendations.append({
             "type": "diagnostic_impression",
             "priority": "high",
@@ -331,8 +355,9 @@ def _generate_insights(profile: ClinicalProfile, care_gaps: list, rule_results: 
             reasoning="Care gap detected by clinical reasoning engine",
         )
 
-    if rule_results:
-        top = rule_results[0]
+    fired = _fired(rule_results)
+    if fired:
+        top = fired[0]
         ClinicalInsight.objects.create(
             patient=patient,
             category=ClinicalInsight.InsightCategory.DIAGNOSTIC,

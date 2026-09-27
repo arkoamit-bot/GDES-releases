@@ -1,11 +1,15 @@
 from django.contrib.auth.decorators import login_required
+from django.core.exceptions import PermissionDenied
 from django.shortcuts import get_object_or_404, redirect, render
 from django.utils import timezone
-from rest_framework import status, viewsets
+from rest_framework import permissions, status
 from rest_framework.decorators import action, api_view, permission_classes
-from rest_framework.permissions import IsAuthenticated
+from rest_framework.permissions import (
+    BasePermission, DjangoModelPermissions, IsAuthenticated,
+)
 from rest_framework.response import Response
 
+from api.base import AuditedModelViewSet
 from patients.models import Patient
 
 from .models import (
@@ -26,10 +30,47 @@ from .tasks import (
 LOGIN = "/login/"
 
 
+class ReminderWritePermission(BasePermission):
+    """Gate the reminder write paths on the reminders model permission.
+
+    ``DjangoModelPermissions`` derives its queryset from the view, so it cannot
+    be attached to an ``@api_view`` function or a plain Django view; the check
+    is spelled out instead. Authentication alone let any logged-in account
+    complete, cancel, or send reminders belonging to other clinicians' patients.
+    """
+
+    message = "You do not have permission to manage patient reminders."
+
+    def has_permission(self, request, view):
+        user = getattr(request, "user", None)
+        if not (user and user.is_authenticated):
+            return False
+        if request.method in permissions.SAFE_METHODS:
+            return True
+        return user.has_perm("reminders.change_reminderschedule")
+
+
+def _require_reminder_write(request):
+    """Enforce the reminders change permission on the plain-Django write views.
+
+    Deliberately does not reuse ``ReminderWritePermission.has_permission``:
+    every call site below *mutates* state, and two of them (``reminder_done`` /
+    ``reminder_cancel``) do it on a GET link. The permission class short-circuits
+    safe methods, so reusing it would let any authenticated account close out
+    another clinician's reminder by following the URL.
+    """
+    user = getattr(request, "user", None)
+    if not (user and user.is_authenticated) or not user.has_perm(
+        "reminders.change_reminderschedule"
+    ):
+        raise PermissionDenied(ReminderWritePermission.message)
+
+
 @login_required(login_url=LOGIN)
 def reminder_log(request):
     """In-app reminder log — manually log reminders during consults."""
     if request.method == "POST":
+        _require_reminder_write(request)
         patient = get_object_or_404(Patient, pk=request.POST.get("patient"))
         reminder_type = request.POST.get("reminder_type", "general")
         title = request.POST.get("title", "").strip()
@@ -62,6 +103,7 @@ def reminder_log(request):
 @login_required(login_url=LOGIN)
 def reminder_done(request, pk):
     """Mark an in-app reminder as completed/sent."""
+    _require_reminder_write(request)
     r = get_object_or_404(ReminderSchedule, pk=pk, channel="app")
     r.status = "sent"
     r.sent_at = timezone.now()
@@ -72,16 +114,21 @@ def reminder_done(request, pk):
 @login_required(login_url=LOGIN)
 def reminder_cancel(request, pk):
     """Cancel an in-app reminder."""
+    _require_reminder_write(request)
     r = get_object_or_404(ReminderSchedule, pk=pk, channel="app")
     r.status = "cancelled"
     r.save()
     return redirect("reminders:log")
 
 
-class ReminderScheduleViewSet(viewsets.ModelViewSet):
+class ReminderScheduleViewSet(AuditedModelViewSet):
     queryset = ReminderSchedule.objects.select_related("patient", "scheduled_visit")
     serializer_class = ReminderScheduleSerializer
-    permission_classes = [IsAuthenticated]
+    # Reminder bodies and contact history are clinical data: keep the project
+    # default (IsAuthenticated + DjangoModelPermissions) instead of downgrading
+    # to authentication alone, which let any logged-in account read every
+    # patient's reminders and fire an SMS/WhatsApp/email with an arbitrary body.
+    permission_classes = [IsAuthenticated, DjangoModelPermissions]
     filterset_fields = ["patient", "status", "reminder_type", "channel"]
 
     @action(detail=True, methods=["post"])
@@ -105,20 +152,20 @@ class ReminderScheduleViewSet(viewsets.ModelViewSet):
         )
 
 
-class ReminderTemplateViewSet(viewsets.ModelViewSet):
+class ReminderTemplateViewSet(AuditedModelViewSet):
     queryset = ReminderTemplate.objects.all()
     serializer_class = ReminderTemplateSerializer
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsAuthenticated, DjangoModelPermissions]
 
 
-class PatientCommunicationPreferenceViewSet(viewsets.ModelViewSet):
+class PatientCommunicationPreferenceViewSet(AuditedModelViewSet):
     queryset = PatientCommunicationPreference.objects.all()
     serializer_class = PatientCommunicationPreferenceSerializer
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsAuthenticated, DjangoModelPermissions]
 
 
 @api_view(["GET", "POST"])
-@permission_classes([IsAuthenticated])
+@permission_classes([IsAuthenticated, ReminderWritePermission])
 def send_custom_reminder(request):
     """Send a custom reminder to a patient."""
     if request.method == "GET":
@@ -167,7 +214,7 @@ def send_custom_reminder(request):
 
 
 @api_view(["POST"])
-@permission_classes([IsAuthenticated])
+@permission_classes([IsAuthenticated, ReminderWritePermission])
 def schedule_reminders(request):
     """Manually trigger scheduling of visit reminders."""
     serializer = ScheduleVisitRemindersSerializer(data=request.data)

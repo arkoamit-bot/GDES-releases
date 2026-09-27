@@ -89,7 +89,7 @@ class Prescription(models.Model):
         for it in self.items.all().order_by("id"):
             parts.append(
                 f"{it.drug_id}|{it.brand}|{it.strength}|{it.dose}|{it.route}|"
-                f"{it.frequency}|{it.timing}|{it.duration}"
+                f"{it.frequency}|{it.timing}|{it.duration}|{it.taper_notes}"
             )
         return hashlib.sha256("".join(parts).encode("utf-8")).hexdigest()
 
@@ -106,10 +106,15 @@ class PrescriptionItem(models.Model):
     )
     drug = models.ForeignKey(DrugMaster, on_delete=models.PROTECT)
     brand = models.CharField(max_length=120, blank=True)
-    strength = models.CharField(max_length=40, blank=True)
+    # 120, not 40: combination products legitimately carry multi-ingredient
+    # strength strings, e.g. "1000 mg+327 mg (Conventional calcium)+500 mg+400 IU"
+    # (51 chars) in the BD DrugBank formulary. At 40 these overflowed
+    # PrescriptionItem.strength on PostgreSQL while SQLite accepted them.
+    strength = models.CharField(max_length=120, blank=True)
 
-    # Dosing as the clinician writes it.
-    dose = models.CharField(max_length=40, blank=True, help_text='e.g. "10 mg"')
+    # Dosing as the clinician writes it. Kept in lockstep with `strength`:
+    # clinic.views assigns dose = strength, so the two limits must match.
+    dose = models.CharField(max_length=120, blank=True, help_text='e.g. "10 mg"')
     dose_unit = models.CharField(max_length=20, blank=True)
     # Route of administration for THIS line — a drug like cyclophosphamide can
     # be PO on one prescription and IV on another. Blank -> drug default route.
@@ -122,6 +127,17 @@ class PrescriptionItem(models.Model):
 
     # Bilingual patient instruction (Bangla shown on the printout).
     instruction_bn = models.CharField(max_length=240, blank=True)
+
+    # Taper plan for a finite drug course (steroids above all). Clinician-authored
+    # free text so the prescriber stays in control of the schedule; it prints
+    # under the drug line and is part of the immutable hash. Blank -> no taper
+    # (e.g. a short course that can stop abruptly, or a maintenance drug).
+    taper_notes = models.TextField(
+        blank=True,
+        help_text="How to step this drug down before stopping — e.g. "
+                  "'40 mg 1 wk → 20 mg 1 wk → 10 mg 1 wk → stop'. Prints under "
+                  "the drug line. Required for a systemic steroid course.",
+    )
 
     sort_order = models.PositiveSmallIntegerField(default=0)
 

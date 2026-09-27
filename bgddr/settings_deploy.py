@@ -36,14 +36,37 @@ ALLOWED_HOSTS = ["localhost", "127.0.0.1"]
 # For single-user desktop deployment on localhost, setting these to False is
 # acceptable since traffic never leaves the machine. Set to True if the app
 # is served behind a reverse proxy (see .env.example).
-CSRF_COOKIE_SECURE = os.environ.get("CSRF_COOKIE_SECURE", "False").lower() in ("true", "1")
-SESSION_COOKIE_SECURE = os.environ.get("SESSION_COOKIE_SECURE", "False").lower() in ("true", "1")
+#
+# The transport-level settings below follow the same env-driven pattern. They
+# default to off so the desktop launcher can serve plain HTTP on 127.0.0.1, but a
+# LAN/TLS deployment MUST set DJANGO_SECURE_SSL=true (plus a reverse proxy
+# terminating TLS) — otherwise session/CSRF cookies and BGDDR patient data cross
+# the network in cleartext. `manage.py check --deploy` reports security.W004,
+# W008, W012 and W016 for as long as these are off.
+def _env_flag(name, default="False"):
+    return os.environ.get(name, default).strip().lower() in ("true", "1", "yes", "on")
+
+
+CSRF_COOKIE_SECURE = _env_flag("CSRF_COOKIE_SECURE")
+SESSION_COOKIE_SECURE = _env_flag("SESSION_COOKIE_SECURE")
 CSRF_COOKIE_HTTPONLY = True
 SESSION_COOKIE_HTTPONLY = True
 SECURE_BROWSER_XSS_FILTER = True
 SECURE_CONTENT_TYPE_NOSNIFF = True
-SECURE_HSTS_SECONDS = 0
-SECURE_SSL_REDIRECT = False
+
+# Enable only once HTTPS is confirmed working end-to-end: HSTS is sticky and a
+# misconfiguration here can lock every browser out of the app for a year.
+SECURE_SSL_REDIRECT = _env_flag("DJANGO_SECURE_SSL")
+SECURE_HSTS_SECONDS = int(os.environ.get("DJANGO_HSTS_SECONDS", "0") or 0)
+SECURE_HSTS_INCLUDE_SUBDOMAINS = bool(SECURE_HSTS_SECONDS)
+SECURE_HSTS_PRELOAD = bool(SECURE_HSTS_SECONDS)
+
+if SECURE_HSTS_SECONDS and not SECURE_SSL_REDIRECT:
+    raise RuntimeError(
+        "DJANGO_HSTS_SECONDS is set but DJANGO_SECURE_SSL is not. HSTS is only "
+        "delivered over HTTPS, so this combination can never take effect. Enable "
+        "DJANGO_SECURE_SSL=true once TLS terminates in front of the app."
+    )
 
 # ---------------------------------------------------------------------------
 # Database — SQLite (single-user deployment)

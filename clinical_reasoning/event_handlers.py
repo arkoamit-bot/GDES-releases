@@ -20,7 +20,11 @@ def _resolve_patient(patient_id):
 
 
 def _on_patient_event(event_type, source_model, source_pk, payload, **kwargs):
-    """Recompute clinical profile when patient data changes."""
+    """Recompute clinical profile when patient data changes.
+
+    Failures propagate: the dispatcher records them and leaves the Event
+    unprocessed so the recompute is retried instead of being lost.
+    """
     from .services.engine import reason_about_patient
 
     patient_id = payload.get("patient_id") or source_pk
@@ -30,11 +34,8 @@ def _on_patient_event(event_type, source_model, source_pk, payload, **kwargs):
     if patient is None:
         logger.warning("Patient %s not found for event %s", patient_id, event_type)
         return
-    try:
-        reason_about_patient(patient)
-        logger.info("Recomputed profile for patient %s after %s", patient.patient_id, event_type)
-    except Exception:
-        logger.exception("Failed to recompute profile for patient %s", patient_id)
+    reason_about_patient(patient)
+    logger.info("Recomputed profile for patient %s after %s", patient.patient_id, event_type)
 
 
 def _on_lab_event(event_type, source_model, source_pk, payload, **kwargs):
@@ -46,11 +47,8 @@ def _on_lab_event(event_type, source_model, source_pk, payload, **kwargs):
         return
     patient = _resolve_patient(patient_id)
     if patient is not None:
-        try:
-            compute_patient_outcome(patient)
-            logger.info("Recomputed outcome for patient %s after lab event", patient.patient_id)
-        except Exception:
-            logger.exception("Failed to recompute outcome for patient %s", patient_id)
+        compute_patient_outcome(patient)
+        logger.info("Recomputed outcome for patient %s after lab event", patient.patient_id)
     _on_patient_event(event_type, source_model, source_pk, payload)
 
 
@@ -63,11 +61,8 @@ def _on_clinical_event(event_type, source_model, source_pk, payload, **kwargs):
         return
     patient = _resolve_patient(patient_id)
     if patient is not None:
-        try:
-            compute_patient_outcome(patient)
-            logger.info("Recomputed outcome for patient %s after clinical event", patient.patient_id)
-        except Exception:
-            logger.exception("Failed to recompute outcome for patient %s", patient_id)
+        compute_patient_outcome(patient)
+        logger.info("Recomputed outcome for patient %s after clinical event", patient.patient_id)
     _on_patient_event(event_type, source_model, source_pk, payload)
 
 

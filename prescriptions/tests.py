@@ -4,22 +4,30 @@ close, plus idempotency and the cross-visit episode history.
 """
 import datetime as dt
 
+from django.contrib.auth import get_user_model
 from django.test import TestCase
+from django.urls import reverse
 
 from encounters.models import ClinicalEncounter
 from patients.models import Patient
 from treatments.models import DrugClass, DrugMaster, StopReason, TreatmentExposure
 
 from .models import Prescription, PrescriptionItem
+from .pdf import render_prescription_html
 from .services.finalize import finalize_prescription
 from .services.reconciliation import (AlreadyReconciled, apply_reconciliation,
                                       plan_reconciliation)
+from .services.safety import check_prescription
+from .services.tapers import (TAPER_PRESETS, course_length_days, is_systemic_steroid,
+                              needs_taper)
 
 # Column order `import_bddrugbank`'s DictReader expects. Without this header
 # row DictReader consumes the first data row as field names and imports
 # nothing -- silently.
 CSV_HEADER = ["name", "generic_name", "strength", "therapeutic_class",
               "company", "dosage_form", "medex_url"]
+
+User = get_user_model()
 
 
 class ReconciliationTests(TestCase):
@@ -323,6 +331,21 @@ class MedexAutoSyncTests(TestCase):
     is watching must never leave the drug database worse than it found it.
     """
 
+    def setUp(self):
+        # Every test gets a private lock path. They used to share one file in
+        # the OS temp directory, so an interrupted run left the lock behind and
+        # every later run failed with "a sync is already running".
+        import tempfile
+        self._tmp = tempfile.mkdtemp(prefix="bgddr_drugsync_")
+
+    def tearDown(self):
+        import shutil
+        shutil.rmtree(self._tmp, ignore_errors=True)
+
+    def _lock(self, name="t"):
+        from pathlib import Path
+        return Path(self._tmp) / f"{name}.lock"
+
     def _write_csv(self, rows, header=True, name="medex.csv"):
         import csv as _csv
         import os
@@ -497,7 +520,7 @@ class MedexAutoSyncTests(TestCase):
         with patch("prescriptions.services.medex_sync.call_command",
                    side_effect=fake_call), \
             patch("prescriptions.services.medex_sync._lock_path",
-                  return_value=_data_dir() / "t.lock"):
+                  return_value=self._lock()):
             with self.settings(DRUG_SYNC_CONFIG=cfg):
                 first = run_sync(trigger="manual", force=True)
                 self.assertIn("import_bddrugbank", calls)
@@ -532,7 +555,7 @@ class MedexAutoSyncTests(TestCase):
                    side_effect=lambda n, *a, **k: (calls.append(n),
                                                    fake_call(n, *a, **k))[1]), \
             patch("prescriptions.services.medex_sync._lock_path",
-                  return_value=_data_dir() / "t.lock"):
+                  return_value=self._lock()):
             with self.settings(DRUG_SYNC_CONFIG=cfg):
                 run_sync(trigger="manual", force=True)
                 run_sync(trigger="manual", force=True)
@@ -571,7 +594,7 @@ class MedexAutoSyncTests(TestCase):
         with patch("prescriptions.services.medex_sync.call_command",
                    side_effect=fake_call), \
             patch("prescriptions.services.medex_sync._lock_path",
-                  return_value=_data_dir() / "t.lock"):
+                  return_value=self._lock()):
             with self.settings(DRUG_SYNC_CONFIG=cfg):
                 run_sync(trigger="manual", force=True)
 
@@ -598,7 +621,7 @@ class MedexAutoSyncTests(TestCase):
         with patch("prescriptions.services.medex_sync.call_command",
                    side_effect=boom), \
             patch("prescriptions.services.medex_sync._lock_path",
-                  return_value=_data_dir() / "t.lock"):
+                  return_value=self._lock()):
             with self.settings(DRUG_SYNC_CONFIG=cfg):
                 with self.assertRaises(RuntimeError):
                     run_sync(trigger="scheduled")
@@ -610,7 +633,7 @@ class MedexAutoSyncTests(TestCase):
     def test_concurrent_run_is_refused(self):
         from unittest.mock import patch
         from .services.medex_sync import SyncLockError, run_sync
-        lock = _data_dir() / "busy.lock"
+        lock = self._lock("busy")
         lock.write_text('{"pid": 999}', encoding="utf-8")
         cfg = {**self._cfg()}
         with patch("prescriptions.services.medex_sync._lock_path",
@@ -625,7 +648,7 @@ class MedexAutoSyncTests(TestCase):
         import time
         from unittest.mock import patch
         from .services.medex_sync import ScrapeRejected, run_sync
-        lock = _data_dir() / "stale.lock"
+        lock = self._lock("stale")
         lock.write_text('{"pid": 999}', encoding="utf-8")
         old = time.time() - 9999
         os.utime(lock, (old, old))
@@ -649,12 +672,373 @@ class MedexAutoSyncTests(TestCase):
         self.assertFalse(lock.exists())
 
 
-def _data_dir():
-    import tempfile
-    from pathlib import Path
-    d = Path(tempfile.gettempdir()) / "bgddr_drugsync_tests"
-    d.mkdir(parents=True, exist_ok=True)
-    return d
+class SteroidTaperTests(TestCase):
+    """A systemic steroid course that ends abruptly can suppress the adrenals,
+    so the slip has to carry the step-down â€” and the safety check has to notice
+    when it is missing.
+
+    The trap these tests guard: much of the formulary is `drug_class ==
+    "steroid"` but is really a topical/ophthalmic combination drop, where a
+    taper is meaningless. Eligibility must be narrow.
+    """
+
+    def setUp(self):
+        self.p = Patient.objects.create(
+            patient_id="BGD-0900", name="Taper Patient", sex="F")
+        self.enc = ClinicalEncounter.objects.create(
+            patient=self.p, encounter_date=dt.date(2026, 3, 1),
+            encounter_type=ClinicalEncounter.Type.FOLLOWUP)
+        self.pred = DrugMaster.objects.create(
+            generic_name="Prednisolone", drug_class=DrugClass.STEROID,
+            default_route="PO")
+        self.eye_drop = DrugMaster.objects.create(
+            generic_name="Dexamethasone + Neomycin Sulphate",
+            drug_class=DrugClass.STEROID, default_route="PO")
+        self.topical = DrugMaster.objects.create(
+            generic_name="Betamethasone", drug_class=DrugClass.STEROID,
+            default_route="TOP")
+
+    def _item(self, drug, **kwargs):
+        rx = Prescription.objects.create(encounter=self.enc)
+        return PrescriptionItem.objects.create(
+            prescription=rx, drug=drug, sort_order=1, **kwargs)
+
+    # --- eligibility -------------------------------------------------------
+
+    def test_oral_single_agent_steroid_is_eligible(self):
+        self.assertTrue(is_systemic_steroid(self.pred))
+
+    def test_combination_product_is_not_eligible(self):
+        # "Dexamethasone + Neomycin" is a fixed-ratio drop, not a titratable
+        # steroid course â€” despite carrying drug_class == "steroid".
+        self.assertFalse(is_systemic_steroid(self.eye_drop))
+
+    def test_non_systemic_route_is_not_eligible(self):
+        self.assertFalse(is_systemic_steroid(self.topical))
+
+    def test_non_steroid_is_not_eligible(self):
+        self.assertFalse(is_systemic_steroid(DrugMaster.objects.create(
+            generic_name="Ramipril", drug_class=DrugClass.RAASI,
+            default_route="PO")))
+
+    def test_a_missing_default_route_does_not_hide_the_panel(self):
+        self.assertTrue(is_systemic_steroid(DrugMaster.objects.create(
+            generic_name="Methylprednisolone", drug_class=DrugClass.STEROID)))
+
+    def test_line_route_overrides_the_drug_default(self):
+        item = self._item(self.pred, route="TOP", duration="6 weeks")
+        self.assertFalse(needs_taper(item))
+
+    # --- course-length parsing --------------------------------------------
+
+    def test_course_length_converts_weeks_days_and_months(self):
+        self.assertEqual(course_length_days("6 weeks"), 42)
+        self.assertEqual(course_length_days("14 days"), 14)
+        self.assertEqual(course_length_days("2 months"), 60)
+
+    def test_open_ended_courses_have_no_course_length(self):
+        for text in ("", "continue", "long term", "ongoing", "SOS"):
+            self.assertIsNone(course_length_days(text), text)
+
+    def test_unparseable_duration_never_raises(self):
+        self.assertIsNone(course_length_days("until review"))
+
+    # --- safety check ------------------------------------------------------
+
+    def test_long_course_without_taper_warns(self):
+        item = self._item(self.pred, duration="6 weeks", dose="40 mg")
+        codes = [w.code for w in check_prescription(item.prescription)]
+        self.assertIn("steroid_taper_missing", codes)
+
+    def test_taper_plan_silences_the_warning(self):
+        item = self._item(self.pred, duration="6 weeks", dose="40 mg",
+                          taper_notes="40 mg 1 wk -> 20 mg 1 wk -> stop")
+        codes = [w.code for w in check_prescription(item.prescription)]
+        self.assertNotIn("steroid_taper_missing", codes)
+
+    def test_short_course_does_not_warn(self):
+        item = self._item(self.pred, duration="10 days", dose="40 mg")
+        codes = [w.code for w in check_prescription(item.prescription)]
+        self.assertNotIn("steroid_taper_missing", codes)
+
+    def test_maintenance_steroid_does_not_warn(self):
+        item = self._item(self.pred, duration="continue", dose="5 mg")
+        codes = [w.code for w in check_prescription(item.prescription)]
+        self.assertNotIn("steroid_taper_missing", codes)
+
+    def test_combination_drop_never_warns(self):
+        item = self._item(self.eye_drop, duration="6 weeks")
+        codes = [w.code for w in check_prescription(item.prescription)]
+        self.assertNotIn("steroid_taper_missing", codes)
+
+    def test_the_warning_never_blocks_finalization(self):
+        item = self._item(self.pred, duration="6 weeks")
+        warn = [w for w in check_prescription(item.prescription)
+                if w.code == "steroid_taper_missing"]
+        self.assertEqual([w.level for w in warn], ["warning"])
+
+    # --- print + immutability --------------------------------------------
+
+    def test_taper_prints_on_the_slip(self):
+        item = self._item(self.pred, duration="6 weeks", dose="40 mg",
+                          taper_notes="40 mg 1 wk -> 20 mg 1 wk -> stop")
+        html = render_prescription_html(item.prescription)
+        self.assertIn("Taper before stopping", html)
+        self.assertIn("40 mg 1 wk -&gt; 20 mg 1 wk -&gt; stop", html)
+
+    def test_slip_has_no_taper_block_without_a_plan(self):
+        item = self._item(self.pred, duration="6 weeks")
+        self.assertNotIn("Taper before stopping",
+                         render_prescription_html(item.prescription))
+
+    def test_print_typography_is_large_enough_to_read(self):
+        # Guards the "make the printed slip bigger" request: a silent CSS
+        # regression back to ~9pt body text is the failure mode.
+        item = self._item(self.pred, duration="6 weeks")
+        html = render_prescription_html(item.prescription)
+        self.assertIn("font-size: 14.5px", html)
+        self.assertNotIn("font-size: 12.5px;\n         line-height: 1.4;", html)
+
+    def test_taper_notes_are_covered_by_the_content_hash(self):
+        item = self._item(self.pred, duration="6 weeks", taper_notes="stop slowly")
+        before = item.prescription.compute_hash()
+        item.taper_notes = "stop faster"
+        item.save(update_fields=["taper_notes"])
+        self.assertNotEqual(before, item.prescription.compute_hash())
+
+
+class PrintTypographyTests(TestCase):
+    """Every print size is bumped together, so a normal regimen still fits one
+    A4 page. The table grows a full-width row per taper plan."""
+
+    def setUp(self):
+        self.p = Patient.objects.create(
+            patient_id="BGD-0901", name="Print Patient", sex="M")
+        self.enc = ClinicalEncounter.objects.create(
+            patient=self.p, encounter_date=dt.date(2026, 4, 1),
+            encounter_type=ClinicalEncounter.Type.FOLLOWUP)
+
+    def test_each_drug_gets_its_own_tbody_so_striping_cannot_shift(self):
+        rx = Prescription.objects.create(encounter=self.enc)
+        pred = DrugMaster.objects.create(
+            generic_name="Prednisolone", drug_class=DrugClass.STEROID,
+            default_route="PO")
+        PrescriptionItem.objects.create(
+            prescription=rx, drug=pred, duration="6 weeks", sort_order=1,
+            taper_notes="reduce slowly")
+        PrescriptionItem.objects.create(
+            prescription=rx, drug=DrugMaster.objects.create(
+                generic_name="Ramipril", drug_class=DrugClass.RAASI),
+            sort_order=2)
+        html = render_prescription_html(rx)
+        # Two medications -> two <tbody> blocks; no nested tbody, so browsers
+        # and WeasyPrint agree on the structure.
+        self.assertEqual(html.count("<tbody>"), 2)
+        self.assertEqual(html.count("</tbody>"), 2)
+        self.assertIn("taper-row", html)
+
+    def test_a_normal_regimen_still_fits_one_a4_page(self):
+        """The type scale went up ~15%, so the page-fit budget has to be
+        defended explicitly — a two-page slip gets separated from the patient
+        and read as two scripts. Measured with xhtml2pdf, the pure-Python
+        fallback engine: if it fits here, the WeasyPrint output fits too.
+        """
+        try:
+            from io import BytesIO
+            from xhtml2pdf import pisa
+        except ImportError:  # pragma: no cover - optional engine
+            self.skipTest("xhtml2pdf not installed")
+        rx = Prescription.objects.create(
+            encounter=self.enc, diagnosis_text="FSGS",
+            comorbidities="Hypertension, Diabetes mellitus",
+            investigations_advised="Serum creatinine, UPCR",
+            advice="Low-salt diet. Paracetamol 500 mg up to 3x/day if fever.")
+        pred = DrugMaster.objects.create(
+            generic_name="Prednisolone", drug_class=DrugClass.STEROID,
+            default_route="PO")
+        regimen = [(pred, "40 mg", "8 weeks",
+                    "TAPER BEFORE STOPPING. 40 mg 1+0+0 x 1 wk, then 20 mg 1+0+0 "
+                    "x 1 wk, then 10 mg 1+0+0 x 1 wk, then 5 mg 1+0+0 x 5 days, "
+                    "then stop. Do not stop this steroid suddenly.")]
+        regimen += [
+            (DrugMaster.objects.create(
+                generic_name=name, drug_class=cls, default_route="PO"),
+             strength, "continue", "")
+            for name, cls, strength in [
+                ("Ramipril", DrugClass.RAASI, "5 mg"),
+                ("Dapagliflozin", DrugClass.SGLT2I, "10 mg"),
+            ]
+        ]
+        for i, (drug, strength, duration, taper) in enumerate(regimen, start=1):
+            PrescriptionItem.objects.create(
+                prescription=rx, drug=drug, strength=strength, dose=strength,
+                route="PO", frequency="1+0+0", duration=duration,
+                taper_notes=taper, sort_order=i)
+
+        out = BytesIO()
+        pdf = pisa.pisaDocument(
+            BytesIO(render_prescription_html(rx).encode("utf-8")), out,
+            encoding="utf-8")
+        data = out.getvalue()
+        pages = data.count(b"/Type /Page") - data.count(b"/Type /Pages")
+        self.assertFalse(pdf.err)
+        self.assertEqual(pages, 1)
+
+
+class PrescriptionFormTaperTests(TestCase):
+    """The guided entry form is where the taper is actually captured, so both
+    the GET render and the POST round-trip are covered â€” a template typo would
+    otherwise only surface in the browser."""
+
+    def setUp(self):
+        self.user = User.objects.create_user("prescriber", password="pw")
+        self.client.force_login(self.user)
+        self.p = Patient.objects.create(
+            patient_id="BGD-0902", name="Form Patient", sex="M")
+        ClinicalEncounter.objects.create(
+            patient=self.p, encounter_date=dt.date(2026, 5, 4),
+            encounter_type=ClinicalEncounter.Type.FOLLOWUP)
+        self.pred = DrugMaster.objects.create(
+            generic_name="Prednisolone", drug_class=DrugClass.STEROID,
+            default_route="PO", available_strengths=["5 mg", "40 mg"],
+            default_frequency="1+0+0")
+        self.ramipril = DrugMaster.objects.create(
+            generic_name="Ramipril", drug_class=DrugClass.RAASI,
+            default_route="PO", available_strengths=["5 mg"])
+
+    def test_form_renders_the_taper_panel_and_presets(self):
+        resp = self.client.get(reverse("clinic:prescription", args=[self.p.pk]))
+        self.assertEqual(resp.status_code, 200)
+        self.assertContains(resp, "taper-presets")
+        self.assertContains(resp, "Taper this course before stopping")
+        # Presets reach the browser as JSON for the row's dropdown.
+        self.assertEqual(len(resp.context["taper_presets"]), len(TAPER_PRESETS))
+
+    def test_only_systemic_steroids_are_marked_taperable(self):
+        DrugMaster.objects.create(
+            generic_name="Dexamethasone + Neomycin Sulphate",
+            drug_class=DrugClass.STEROID, default_route="PO")
+        resp = self.client.get(reverse("clinic:prescription", args=[self.p.pk]))
+        data = resp.context["drug_data"]
+        self.assertTrue(data[str(self.pred.pk)]["systemic_steroid"])
+        combo = DrugMaster.objects.get(
+            generic_name="Dexamethasone + Neomycin Sulphate")
+        self.assertFalse(data[str(combo.pk)]["systemic_steroid"])
+        self.assertFalse(data[str(self.ramipril.pk)]["systemic_steroid"])
+
+    def test_post_saves_the_taper_plan(self):
+        self.client.post(reverse("clinic:prescription", args=[self.p.pk]), {
+            "drug_1": str(self.pred.pk), "strength_1": "40 mg",
+            "route_1": "PO", "frequency_1": "1+0+0", "timing_1": "after",
+            "duration_1": "6 weeks",
+            "taper_1": "40 mg 1 wk -> 20 mg 1 wk -> stop",
+        })
+        item = PrescriptionItem.objects.get(drug=self.pred)
+        self.assertEqual(item.duration, "6 weeks")
+        self.assertEqual(item.taper_notes, "40 mg 1 wk -> 20 mg 1 wk -> stop")
+
+    def test_taper_plan_carries_forward_to_the_next_prescription(self):
+        self.client.post(reverse("clinic:prescription", args=[self.p.pk]), {
+            "drug_1": str(self.pred.pk), "strength_1": "40 mg",
+            "route_1": "PO", "frequency_1": "1+0+0", "timing_1": "after",
+            "duration_1": "6 weeks", "taper_1": "stop slowly",
+        })
+        finalize_prescription(Prescription.objects.get())
+        ClinicalEncounter.objects.create(
+            patient=self.p, encounter_date=dt.date(2026, 6, 8),
+            encounter_type=ClinicalEncounter.Type.FOLLOWUP)
+        resp = self.client.get(reverse("clinic:prescription", args=[self.p.pk]))
+        self.assertEqual(resp.context["rows_data"][0]["taper"], "stop slowly")
+
+
+class LongStrengthTests(TestCase):
+    """Combination products carry multi-ingredient strength strings.
+
+    The BD DrugBank formulary contains strengths up to 51 characters, e.g.
+    "1000 mg+327 mg (Conventional calcium)+500 mg+400 IU". At the old
+    max_length=40 these were offered in the prescription form's strength picker
+    and then overflowed PrescriptionItem.strength/dose on PostgreSQL
+    (DataError) while SQLite accepted them silently. max_length is now 120 for
+    both fields, the importer refuses anything longer, and the view clips a
+    hand-crafted over-long POST.
+    """
+
+    LONGEST_FORMULARY_STRENGTH = (
+        "1000 mg+327 mg (Conventional calcium)+500 mg+400 IU"
+    )
+
+    def setUp(self):
+        self.user = User.objects.create_user("strength_user", password="pw")
+        self.client.force_login(self.user)
+        self.p = Patient.objects.create(
+            patient_id="BGD-0903", name="Strength Patient", sex="F")
+        ClinicalEncounter.objects.create(
+            patient=self.p, encounter_date=dt.date(2026, 5, 4),
+            encounter_type=ClinicalEncounter.Type.FOLLOWUP)
+        self.calcium = DrugMaster.objects.create(
+            generic_name="Calcium Lactate Gluconate + Calcium Carbonate + Vitamin C + Vitamin D3",
+            drug_class=DrugClass.OTHER, default_route="PO",
+            available_strengths=[self.LONGEST_FORMULARY_STRENGTH])
+
+    def test_model_allows_the_longest_real_formulary_strength(self):
+        self.assertGreaterEqual(
+            PrescriptionItem._meta.get_field("strength").max_length,
+            len(self.LONGEST_FORMULARY_STRENGTH))
+        # dose is assigned the same value as strength, so the limits must agree.
+        self.assertEqual(
+            PrescriptionItem._meta.get_field("dose").max_length,
+            PrescriptionItem._meta.get_field("strength").max_length)
+
+    def test_real_formulary_strength_round_trips(self):
+        resp = self.client.post(reverse("clinic:prescription", args=[self.p.pk]), {
+            "drug_1": str(self.calcium.pk),
+            "strength_1": self.LONGEST_FORMULARY_STRENGTH,
+            "route_1": "PO", "frequency_1": "1+0+0", "timing_1": "after",
+            "duration_1": "continue",
+        })
+        self.assertEqual(resp.status_code, 302)
+        item = PrescriptionItem.objects.get(drug=self.calcium)
+        self.assertEqual(item.strength, self.LONGEST_FORMULARY_STRENGTH)
+        self.assertEqual(item.dose, self.LONGEST_FORMULARY_STRENGTH)
+
+    def test_absurdly_long_posted_strength_is_clipped_not_rejected(self):
+        limit = PrescriptionItem._meta.get_field("strength").max_length
+        resp = self.client.post(reverse("clinic:prescription", args=[self.p.pk]), {
+            "drug_1": str(self.calcium.pk),
+            "strength_1": "9" * (limit + 500),
+            "route_1": "P" * 50, "frequency_1": "f" * 200,
+            "duration_1": "d" * 200, "brand_1": "b" * 300,
+            "timing_1": "after",
+        })
+        self.assertEqual(resp.status_code, 302)
+        item = PrescriptionItem.objects.get(drug=self.calcium)
+        self.assertEqual(len(item.strength), limit)
+        self.assertEqual(len(item.dose), limit)
+        self.assertEqual(len(item.route), 20)
+        self.assertEqual(len(item.frequency), 40)
+        self.assertEqual(len(item.duration), 40)
+        self.assertEqual(len(item.brand), 120)
+
+    def test_form_inputs_declare_maxlength_matching_the_model(self):
+        resp = self.client.get(reverse("clinic:prescription", args=[self.p.pk]))
+        html = resp.content.decode()
+        # (input name, css class, model field the limit comes from)
+        for name, css, field in (
+            ("strength", "strength-inp", "strength"),
+            ("brand", "brand-inp", "brand"),
+            ("frequency", "freq-inp", "frequency"),
+            ("duration", "dur-inp", "duration"),
+        ):
+            with self.subTest(field=field):
+                limit = PrescriptionItem._meta.get_field(field).max_length
+                self.assertIn(
+                    f'name="{name}_1" class="{css}" maxlength="{limit}"', html)
+
+    def test_importer_refuses_a_strength_longer_than_the_field(self):
+        from prescriptions.management.commands.import_bddrugbank import MAX_STRENGTH
+        self.assertGreaterEqual(MAX_STRENGTH, len(self.LONGEST_FORMULARY_STRENGTH))
+        self.assertEqual(
+            MAX_STRENGTH, PrescriptionItem._meta.get_field("strength").max_length)
 
 
 def _base_dir():

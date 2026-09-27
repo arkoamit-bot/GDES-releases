@@ -8,23 +8,40 @@ from typing import Any
 # Clinical Calculators
 # ---------------------------------------------------------------------------
 
+def _is_female(sex: str) -> bool:
+    """Normalise the registry's sex codes ("F"/"M") and API words ("female")."""
+    return str(sex or "").strip().lower() in ("f", "female")
+
+
 def egfr_ckd_epi_2021(creatinine_mg_dl: float, age: int, sex: str, race: str = "other") -> float:
     """CKD-EPI 2021 eGFR calculator (race-free).
+
+    Inker LA et al., N Engl J Med 2021; 385:1736-1749::
+
+        eGFR = 142 * min(Scr/kappa, 1)^alpha * max(Scr/kappa, 1)^-1.200
+               * 0.9938^Age * [1.012 if female]
+
+    with ``kappa = 0.7`` (female) / ``0.9`` (male) and ``alpha = -0.241`` for
+    *both* sexes. The 2009 coefficients (-0.302 male / -1.018 female) belong to
+    the superseded race-adjusted equation and must not be used here: they
+    disagree with the value stored on every derived ``LabResult``
+    (``labs.services.egfr``) and can move a patient across a CKD stage boundary.
 
     Args:
         creatinine_mg_dl: Serum creatinine in mg/dL
         age: Age in years
-        sex: "male" or "female"
-        race: Ignored in 2021 equation (kept for API compat)
+        sex: "female"/"male" or the registry codes "F"/"M"
+        race: Ignored in the 2021 equation (kept for API compat)
 
     Returns:
         eGFR in mL/min/1.73m²
     """
     if creatinine_mg_dl <= 0:
         return 0.0
-    kappa = 0.7 if sex == "female" else 0.9
-    alpha = -0.241 if sex == "female" else -0.302
-    gender_factor = 1.018 if sex == "female" else 1.0
+    female = _is_female(sex)
+    kappa = 0.7 if female else 0.9
+    alpha = -0.241
+    gender_factor = 1.012 if female else 1.0
 
     scr_kappa = creatinine_mg_dl / kappa
     if scr_kappa <= 1:
@@ -79,10 +96,38 @@ def proteinuria_category(upcr_mg_mg: float) -> str:
     return "normal"
 
 
+# Registry drug-class codes (treatments.models.DrugMaster.DRUG_CLASS) and the
+# drug names clinicians actually type both map onto one dosing row. Lookup is by
+# code, not by name: a name-keyed table misses every "mmf"/"cni" row and then
+# returns full dose, which is the opposite of what the table advises.
+_RENAL_DOSE_ALIASES = {
+    "mmf": "mycophenolate",
+    "mycophenolate": "mycophenolate",
+    "mycophenolate_mofetil": "mycophenolate",
+    "mycophenolic_acid": "mycophenolate",
+    "azathioprine": "azathioprine",
+    "cyclophosphamide": "cyclophosphamide",
+    "cni": "cni",
+    "calcineurin_inhibitor": "cni",
+    "tacrolimus": "cni",
+    "ciclosporin": "cni",
+    "cyclosporin": "cni",
+    "colchicine": "colchicine",
+    "allopurinol": "allopurinol",
+    "doxycycline": "doxycycline",
+    "trimethoprim_sulfamethoxazole": "trimethoprim_sulfamethoxazole",
+    "tmp_smx": "trimethoprim_sulfamethoxazole",
+    "cotrimoxazole": "trimethoprim_sulfamethoxazole",
+    "sulfamethoxazole_trimethoprim": "trimethoprim_sulfamethoxazole",
+}
+
+
 def renal_dose_adjustment(drug_class: str, egfr: float, dose_pct: int = 100) -> dict:
     """Simplified renal dose adjustment for common nephrology drugs.
 
-    Returns dict with adjusted dose info.
+    ``drug_class`` accepts either a registry class code (``mmf``, ``cni``,
+    ``azathioprine``, ``cyclophosphamide``) or a drug name (``tacrolimus``,
+    ``mycophenolate``). Returns dict with adjusted dose info.
     """
     adjustments = {
         "mycophenolate": [
@@ -98,12 +143,9 @@ def renal_dose_adjustment(drug_class: str, egfr: float, dose_pct: int = 100) -> 
             (30, 67, "Reduce to 2/3 dose"),
             (10, 50, "Reduce to 1/2 dose; avoid in severe renal impairment"),
         ],
-        "tacrolimus": [
-            (30, 50, "Reduce dose; monitor levels closely"),
-            (10, 25, "Significant reduction required"),
-        ],
-        "ciclosporin": [
-            (30, 50, "Reduce dose; monitor trough levels"),
+        "cni": [
+            (30, 50, "Reduce dose; monitor trough levels closely"),
+            (10, 25, "Significant reduction required; specialist guidance"),
         ],
         "colchicine": [
             (30, 50, "Reduce to 50% dose"),
@@ -121,8 +163,11 @@ def renal_dose_adjustment(drug_class: str, egfr: float, dose_pct: int = 100) -> 
         ],
     }
 
-    drug_lower = drug_class.lower().replace(" ", "_").replace("-", "_")
-    if drug_lower not in adjustments:
+    drug_lower = str(drug_class or "").strip().lower()
+    for ch in (" ", "-", "/"):
+        drug_lower = drug_lower.replace(ch, "_")
+    key = _RENAL_DOSE_ALIASES.get(drug_lower)
+    if key is None:
         return {
             "drug": drug_class,
             "egfr": egfr,
@@ -130,7 +175,7 @@ def renal_dose_adjustment(drug_class: str, egfr: float, dose_pct: int = 100) -> 
             "dose_pct": dose_pct,
         }
 
-    for threshold_egfr, pct, note in adjustments[drug_lower]:
+    for threshold_egfr, pct, note in adjustments[key]:
         if egfr >= threshold_egfr:
             return {
                 "drug": drug_class,
@@ -150,11 +195,12 @@ def renal_dose_adjustment(drug_class: str, egfr: float, dose_pct: int = 100) -> 
 def kdigo_heatmap_point(egfr: float, upcr: float) -> dict:
     """Map a patient to a KDIGO heat-map risk zone.
 
-    Risk levels:
-        Green  (low):    G1-G2 + A1
-        Yellow (moderate): G3a + A1, or G1-G2 + A2
-        Orange (high):   G3b-G4 + A1, or G3a-G4 + A2, or G1-G2 + A3
-        Red    (very high): G5 any A, or any G + A3
+    Zones follow the KDIGO 2024 CKD heat map (green / yellow / orange / red)::
+
+        G1-G2 + A1 ................................. Low          (green)
+        G1-G2 + A2, G3a + A1 ....................... Moderate     (yellow)
+        G1-G2 + A3, G3a + A2, G3b + A1 ............. High         (orange)
+        G3a + A3, G3b + A2/A3, G4-G5 + any A ....... Very high    (red)
 
     Returns: {"egfr_zone": str, "proteinuria_zone": str, "risk": str, "color": str}
     """
@@ -172,25 +218,25 @@ def kdigo_heatmap_point(egfr: float, upcr: float) -> dict:
     else:
         egfr_zone = "G5"
 
-    # Proteinuria zone (ACR-based, using UPCR as proxy)
-    if upcr < 0.15:
+    # Albuminuria zone. UPCR (g/g) is used as the ACR proxy: A1 < 0.3,
+    # A2 0.3-3.0, A3 > 3.0 (KDIGO). g1-g2 is indexed positionally because
+    # "G3a"["1"] is "3" and "3" is not a digit.
+    if upcr < 0.3:
         proteinuria_zone = "A1"
-    elif upcr < 0.5:
-        proteinuria_zone = "A1"
-    elif upcr < 3.5:
+    elif upcr <= 3.0:
         proteinuria_zone = "A2"
     else:
         proteinuria_zone = "A3"
 
     # Risk classification
-    g = int(egfr_zone[1]) if egfr_zone[1].isdigit() else (3.5 if "a" in egfr_zone else 3.5)
+    g = {"G1": 0, "G2": 0, "G3a": 1, "G3b": 2, "G4": 3, "G5": 4}[egfr_zone]
     a = int(proteinuria_zone[1])
 
-    if g <= 2 and a <= 1:
+    if g == 0 and a == 1:
         risk, color = "Low risk", "green"
-    elif (egfr_zone == "G3a" and a <= 1) or (g <= 2 and a == 2):
+    elif (g == 0 and a == 2) or (g == 1 and a == 1):
         risk, color = "Moderately increased risk", "yellow"
-    elif (egfr_zone in ("G3b", "G4") and a <= 2) or (g <= 2 and a == 3):
+    elif (g == 0 and a == 3) or (g == 1 and a == 2) or (g == 2 and a == 1):
         risk, color = "High risk", "orange"
     else:
         risk, color = "Very high risk", "red"

@@ -243,6 +243,69 @@ class ContraindicationResult:
     alternative: str | None = None
 
 
+# Members of each class-keyed entry in CONTRANDICATION_DB. Without this table a
+# class rule is unreachable whenever the caller supplies a drug's generic name:
+# "gentamicin" never matches "aminoglycoside" and the CKD 4/5 contraindication
+# silently never fires. Keys are the class names used in the database; values
+# are the normalised generic names (and registry class codes) that map to it.
+DRUG_CLASS_MEMBERS: dict[str, frozenset[str]] = {
+    "nsaids": frozenset({
+        "nsaid", "ibuprofen", "naproxen", "diclofenac", "indomethacin",
+        "ketorolac", "celecoxib", "etoricoxib", "meloxicam", "piroxicam",
+    }),
+    "calcineurin_inhibitor": frozenset({
+        "cni", "tacrolimus", "ciclosporin", "cyclosporine",
+    }),
+    "sglt2_inhibitor": frozenset({
+        "sglt2i", "sglt2", "dapagliflozin", "empagliflozin", "canagliflozin",
+        "ertugliflozin", "sotagliflozin",
+    }),
+    "aminoglycoside": frozenset({
+        "aminoglycoside", "gentamicin", "amikacin", "tobramycin", "netilmicin",
+        "streptomycin", "neomycin", "isepamicin", "plazomicin",
+    }),
+    "corticosteroid": frozenset({
+        "steroid", "corticosteroid", "corticosteroids", "glucocorticoid",
+        "prednisolone", "prednisone", "methylprednisolone", "methylpred",
+        "dexamethasone", "hydrocortisone", "triamcinolone", "deflazacort",
+        "budesonide", "betamethasone", "cortisone",
+    }),
+    "iodinated_contrast": frozenset({
+        "iodinated_contrast", "contrast", "contrast_media", "iohexol",
+        "iopamidol", "iopromide", "iodixanol", "ioversol", "iomeprol",
+    }),
+    "anti_tnf": frozenset({
+        "anti_tnf", "tnf_inhibitor", "infliximab", "adalimumab", "etanercept",
+        "golimumab", "certolizumab",
+    }),
+    "raasi": frozenset({
+        "raasi", "ace_inhibitor", "arb", "ramipril", "losartan", "lisinopril",
+        "valsartan", "enalapril", "candesartan", "telmisartan",
+    }),
+    "metformin": frozenset({"metformin", "metformin_hcl"}),
+    "finerenone": frozenset({"finerenone", "ns_mra"}),
+    "rituximab": frozenset({"rituximab"}),
+    "warfarin": frozenset({"warfarin"}),
+    "hydroxychloroquine": frozenset({"hydroxychloroquine", "hcq"}),
+    "azathioprine": frozenset({"azathioprine"}),
+    "cyclophosphamide": frozenset({"cyclophosphamide", "cyclophosphamide_iv"}),
+    "mycophenolate": frozenset({
+        "mycophenolate", "mycophenolate_mofetil", "mycophenolic_acid", "mmf",
+    }),
+    "trimethoprim_sulfamethoxazole": frozenset({
+        "trimethoprim_sulfamethoxazole", "tmp_smx", "cotrimoxazole",
+        "sulfamethoxazole_trimethoprim",
+    }),
+}
+
+# Reverse index: generic name / class code -> the CONTRANDICATION_DB class keys
+# it satisfies. Built once at import so lookups stay O(1).
+_DRUG_TO_CLASSES: dict[str, frozenset[str]] = {}
+for _cls, _members in DRUG_CLASS_MEMBERS.items():
+    for _member in _members:
+        _DRUG_TO_CLASSES[_member] = _DRUG_TO_CLASSES.get(_member, frozenset()) | {_cls}
+
+
 def normalize_disease_id(name: str) -> str:
     """Normalize a disease name to lookup key."""
     mapping = {
@@ -310,10 +373,41 @@ def normalize_disease_id(name: str) -> str:
     return mapping.get(normalized, normalized.replace(" ", "_").replace("-", "_"))
 
 
+def _normalize_drug(name: str) -> str:
+    return str(name or "").strip().lower().replace(" ", "_").replace("-", "_")
+
+
+# ``normalize_disease_id`` deliberately collapses "CKD stage 5" into the coarser
+# ``ckd_stage_4_5`` because most rules are written for the whole range. That
+# makes the two finer-grained database rules unreachable, so a patient in CKD 4/5
+# would not trigger the SGLT2-inhibitor stage-5 contraindication. The reverse
+# expansion restores them: a 4/5 patient also satisfies the stage-5 rule.
+_DISEASE_IMPLIES: dict[str, frozenset[str]] = {
+    "ckd_stage_4_5": frozenset({"ckd_stage_5", "ckd_stage_3_5"}),
+    "ckd_stage_5_dialysis": frozenset({"ckd_stage_5", "ckd_stage_4_5", "ckd_stage_3_5"}),
+}
+
+
+def _disease_matches(db_disease: str, resolved: str) -> bool:
+    return db_disease == resolved or db_disease in _DISEASE_IMPLIES.get(resolved, frozenset())
+
+
+def _drug_matches(db_drug: str, drug_normalized: str) -> bool:
+    """Does a single normalised drug name satisfy a database ``drug`` key?
+
+    Exact match first, then the class-member index so a generic name like
+    "gentamicin" or "prednisolone" reaches the class-keyed rules.
+    """
+    if drug_normalized == db_drug:
+        return True
+    return db_drug in _DRUG_TO_CLASSES.get(drug_normalized, frozenset())
+
+
 def check_contraindications(
     drug: str,
     patient_diseases: list[str],
     patient_context: dict | None = None,
+    drug_class: str = "",
 ) -> list[ContraindicationResult]:
     """Check if a drug is contraindicated given the patient's disease conditions.
 
@@ -321,11 +415,15 @@ def check_contraindications(
         drug: Drug name or ID
         patient_diseases: List of patient's active diseases/conditions
         patient_context: Optional dict with egfr, age, etc.
+        drug_class: Optional registry class code (e.g. "steroid", "cni"). Supplied
+            by callers that hold a ``DrugMaster`` row; the class alone is enough
+            to reach the class-keyed rules when the generic name is unknown.
 
     Returns:
         List of ContraindicationResult objects
     """
-    drug_normalized = drug.strip().lower().replace(" ", "_").replace("-", "_")
+    drug_normalized = _normalize_drug(drug)
+    class_normalized = _normalize_drug(drug_class)
 
     resolved_diseases = [normalize_disease_id(d) for d in patient_diseases]
 
@@ -336,35 +434,19 @@ def check_contraindications(
         db_drug = contraindication["drug"]
         db_disease = contraindication["disease"]
 
-        drug_matches = (drug_normalized == db_drug)
-
-        if not drug_matches:
-            if db_drug == "nsaids" and drug_normalized in (
-                "ibuprofen", "naproxen", "diclofenac", "indomethacin",
-                "ketorolac", "celecoxib", "etoricoxib", "meloxicam",
-                "piroxicam", "nsaid",
-            ):
-                drug_matches = True
-            elif db_drug == "calcineurin_inhibitor" and drug_normalized in (
-                "tacrolimus", "ciclosporin", "cyclosporine", "cni",
-                "calcineurin_inhibitor",
-            ):
-                drug_matches = True
-            elif db_drug == "sglt2_inhibitor" and drug_normalized in (
-                "dapagliflozin", "empagliflozin", "canagliflozin",
-                "ertugliflozin", "sglt2i", "sglt2",
-            ):
-                drug_matches = True
+        drug_matches = _drug_matches(db_drug, drug_normalized)
+        if not drug_matches and class_normalized:
+            drug_matches = _drug_matches(db_drug, class_normalized)
 
         if not drug_matches:
             continue
 
         for disease in resolved_diseases:
-            pair_key = (drug_normalized, db_disease)
+            pair_key = (db_drug, db_disease)
             if pair_key in checked_pairs:
                 continue
 
-            if disease == db_disease:
+            if _disease_matches(db_disease, disease):
                 results.append(ContraindicationResult(
                     drug=drug,
                     disease=db_disease,

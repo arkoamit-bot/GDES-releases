@@ -671,6 +671,24 @@ def initialise(data_dir: Path) -> None:
         log(f"  (collectstatic warning: {exc})")
 
 
+def _generate_admin_password() -> str:
+    """Strong random password for unattended first-run installs.
+
+    A fixed fallback password must never be used here: this account has
+    superuser rights over the whole patient registry, and a well-known default
+    is equivalent to no authentication at all.
+    """
+    import secrets
+    import string
+    alphabet = string.ascii_letters + string.digits + "!@#$%^&*()-_=+"
+    while True:
+        pw = "".join(secrets.choice(alphabet) for _ in range(24))
+        # Guarantee the character classes Django's validators expect.
+        if (any(c.islower() for c in pw) and any(c.isupper() for c in pw)
+                and any(c.isdigit() for c in pw)):
+            return pw
+
+
 def ensure_admin(interactive: bool = True) -> None:
     """Guarantee at least one superuser. Prompt once via a small Tk dialog."""
     from django.contrib.auth import get_user_model
@@ -680,10 +698,19 @@ def ensure_admin(interactive: bool = True) -> None:
         return
 
     username, password = _admin_dialog() if interactive else (None, None)
-    if not username:  # dialog cancelled — fall back to a documented default
-        username, password = "admin", "bgddr-admin"
-        log("Admin dialog cancelled; created default admin / bgddr-admin "
-            "(change it in the admin immediately).")
+    if not username:
+        # Dialog cancelled or tkinter unavailable (unattended install). Generate
+        # a random password and surface it ONCE rather than shipping a default
+        # that anyone in the world could log in with.
+        username = "admin"
+        password = _generate_admin_password()
+        log("=" * 68)
+        log("  FIRST-RUN ADMINISTRATOR CREATED (no password prompt available)")
+        log(f"    username: {username}")
+        log(f"    password: {password}")
+        log("  This password is shown ONLY ONCE. Record it now and change it")
+        log("  immediately:  python manage.py changepassword admin")
+        log("=" * 68)
     User.objects.create_superuser(username=username, password=password)
     log(f"Administrator account '{username}' created.")
 
@@ -721,8 +748,8 @@ def _admin_dialog():
     def submit():
         if not u.get().strip():
             messagebox.showerror("BGDDR", "Username is required."); return
-        if len(p.get()) < 6:
-            messagebox.showerror("BGDDR", "Password must be at least 6 characters."); return
+        if len(p.get()) < 10:
+            messagebox.showerror("BGDDR", "Password must be at least 10 characters."); return
         if p.get() != p2.get():
             messagebox.showerror("BGDDR", "Passwords do not match."); return
         result["u"], result["p"] = u.get().strip(), p.get()

@@ -5,52 +5,65 @@
 <title>Prescription — {{ patient.patient_id }}</title>
 <style>
   {{ bn_font_face|safe }}
-  @page { size: A4; margin: 14mm 16mm; }
+  @page { size: A4; margin: 12mm 14mm; }
   * { box-sizing: border-box; }
-  body { font-family: "Segoe UI", Arial, sans-serif; color: #1a1a1a; font-size: 12.5px;
-         line-height: 1.4; }
+  /* Typography is deliberately large: the slip is read by patients (often
+     older, often with CKD-related visual change) at arm's length, and a
+     smaller body size was the most common complaint about the printout.
+     The scale is ~15% above the previous one, so the whitespace around it is
+     correspondingly tighter — a normal regimen still prints on one A4 page. */
+  body { font-family: "Segoe UI", Arial, sans-serif; color: #1a1a1a; font-size: 14.5px;
+         line-height: 1.45; }
   .bn { font-family: "Bn", "Segoe UI", Arial, sans-serif; }
 
-  .head { border-bottom: 2px solid #26215C; padding-bottom: 8px; margin-bottom: 6px; }
-  .head .en { font-size: 16px; font-weight: 700; color: #26215C; }
-  .head .bn { font-size: 14px; color: #26215C; }
-  .head .addr { font-size: 10px; color: #555; margin-top: 2px; }
-  .head .reg  { font-size: 10px; color: #555; font-style: italic; }
+  .head { border-bottom: 2px solid #26215C; padding-bottom: 6px; margin-bottom: 4px; }
+  .head .en { font-size: 18px; font-weight: 700; color: #26215C; }
+  .head .bn { font-size: 16px; color: #26215C; }
+  .head .addr { font-size: 11.5px; color: #555; margin-top: 2px; }
+  .head .reg  { font-size: 11.5px; color: #555; font-style: italic; }
 
-  .meta { display: flex; justify-content: space-between; font-size: 11px;
-          border-bottom: 1px solid #ccc; padding: 6px 0; margin-bottom: 8px; }
+  .meta { display: flex; justify-content: space-between; font-size: 12.5px;
+          border-bottom: 1px solid #ccc; padding: 4px 0; margin-bottom: 6px; }
   .meta div { line-height: 1.5; }
   .label { color: #777; }
 
-  .vitals { font-size: 11px; margin: 4px 0 10px; color: #333; }
-  .dx { margin: 6px 0 10px; }
+  .vitals { font-size: 12.5px; margin: 2px 0 6px; color: #333; }
+  .dx { margin: 4px 0 6px; }
   .dx .label { font-weight: 600; color: #26215C; }
 
-  .rx-mark { font-size: 26px; font-weight: 700; color: #26215C; line-height: 1; }
-  table { width: 100%; border-collapse: collapse; margin-top: 4px; }
-  th { text-align: left; font-size: 10px; text-transform: uppercase; color: #777;
-       border-bottom: 2px solid #26215C; padding: 5px 8px; letter-spacing: .3px; }
-  td { padding: 8px; border-bottom: 1px solid #eee; vertical-align: top; }
-  /* Zebra striping makes long medication lists easier to read line-by-line. */
-  tbody tr:nth-child(even) td { background: #f7f7fc; }
-  .drug { font-weight: 700; font-size: 13.5px; color: #1a1a1a; }
-  .brand { color: #666; font-weight: 400; font-size: 11px; }
-  .instr { font-size: 11.5px; color: #2a2a2a; margin-top: 3px;
+  .rx-mark { font-size: 24px; font-weight: 700; color: #26215C; line-height: 1; }
+  table { width: 100%; border-collapse: collapse; margin-top: 2px; }
+  th { text-align: left; font-size: 11px; text-transform: uppercase; color: #777;
+       border-bottom: 2px solid #26215C; padding: 4px 8px; letter-spacing: .3px; }
+  td { padding: 7px 8px; border-bottom: 1px solid #eee; vertical-align: top; }
+  /* Zebra striping makes long medication lists easier to read line-by-line.
+     Each drug is rendered as its own tbody element (see below) so an inserted
+     taper row can never shift the striping of the medications after it. */
+  tbody:nth-of-type(even) td { background: #f7f7fc; }
+  .drug { font-weight: 700; font-size: 15px; color: #1a1a1a; }
+  .brand { color: #666; font-weight: 400; font-size: 12.5px; }
+  .instr { font-size: 13px; color: #2a2a2a; margin-top: 4px;
            padding-left: 8px; border-left: 2px solid #d7d4ec; }
+  /* Taper plan: full-width and visually distinct, so the step-down cannot be
+     missed when the pharmacy hands the patient their steroid course. */
+  tr.taper-row td { background: transparent; padding-top: 0; padding-bottom: 2px; }
+  .taper { font-size: 13px; color: #7c2d12; margin-top: 4px;
+           padding: 6px 9px; border-left: 3px solid #b45309; background: #fffbeb; }
+  .taper b { color: #92400e; }
 
-  .advice { margin-top: 12px; font-size: 11px; }
+  .advice { margin-top: 8px; font-size: 12.5px; }
   .advice .label { font-weight: 600; color: #26215C; }
 
-  .foot { margin-top: 26px; display: flex; justify-content: space-between;
+  .foot { margin-top: 16px; display: flex; justify-content: space-between;
           align-items: flex-end; }
-  .next { font-size: 12px; }
+  .next { font-size: 13.5px; }
   .next .callout { display: inline-block; background: #f0eff8; border: 1px solid #d7d4ec;
                    border-radius: 6px; padding: 6px 12px; color: #26215C; }
   .next .callout strong { color: #26215C; }
-  .sign { text-align: center; font-size: 11px; }
+  .sign { text-align: center; font-size: 12.5px; }
   .sign .line { border-top: 1px solid #333; width: 180px; padding-top: 3px; }
-  .stamp { margin-top: 10px; font-size: 9px; color: #999; }
-  .draft-banner { color: #b00; font-weight: 700; font-size: 11px;
+  .stamp { margin-top: 6px; font-size: 10px; color: #999; }
+  .draft-banner { color: #b00; font-weight: 700; font-size: 12.5px;
                   border: 1px dashed #b00; padding: 3px 6px; display: inline-block; }
   /* Big diagonal DRAFT watermark so an un-finalized copy can never be mistaken
      for a signed prescription. */
@@ -107,8 +120,8 @@
       <tr><th style="width:34%">Drug</th><th>Strength</th><th>Route</th>
           <th>Frequency</th><th>Timing</th><th>Duration</th></tr>
     </thead>
+    {% for it in items %}
     <tbody>
-      {% for it in items %}
       <tr>
         <td>
           {% if it.brand %}
@@ -125,10 +138,19 @@
         <td>{{ it.get_timing_display }}</td>
         <td>{{ it.duration }}</td>
       </tr>
-      {% empty %}
-      <tr><td colspan="6" style="color:#999">No medications.</td></tr>
-      {% endfor %}
+      {% if it.taper_notes %}
+      <tr class="taper-row">
+        <td colspan="6">
+          <div class="taper"><b>⇩ Taper before stopping — {{ it.drug.generic_name }}:</b>
+            <span class="bn">ধীরে ধীরে ডোজ কমিয়ে বন্ধ করুন</span><br>
+            {{ it.taper_notes|linebreaksbr }}</div>
+        </td>
+      </tr>
+      {% endif %}
     </tbody>
+    {% empty %}
+    <tbody><tr><td colspan="6" style="color:#999">No medications.</td></tr></tbody>
+    {% endfor %}
   </table>
 
   {% if rx.investigations_advised %}

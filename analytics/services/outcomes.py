@@ -62,6 +62,15 @@ def _index_date(patient, egfr, creat):
     return min(candidates) if candidates else None
 
 
+def _at_or_after(series, date):
+    """Series values measured on/after ``date``; the whole series when the index
+    date is unknown. Baselines and "decline from baseline" endpoints must not be
+    seeded by a pre-enrollment referral measurement."""
+    if not date:
+        return series
+    return [(d, v) for d, v in series if d >= date]
+
+
 def _sustained_drop(series, baseline, frac):
     """First date value <= baseline*frac that stays <= on all later points."""
     threshold = baseline * frac
@@ -121,7 +130,7 @@ def _egfr_at(egfr, date):
     return nearest[1]
 
 
-def _proteinuria_outcome(series, baseline, disease, egfr):
+def _proteinuria_outcome(series, baseline, disease, egfr, baseline_egfr=None):
     """Disease-specific sustained remission dates, nadir, and best % reduction."""
     out = {"complete_date": None, "partial_date": None, "igan_date": None,
            "nadir": None, "best_reduction_pct": None}
@@ -135,7 +144,6 @@ def _proteinuria_outcome(series, baseline, disease, egfr):
     if disease == "lupus":
         # Complete renal response is date-aware: needs preserved eGFR at the
         # remission timepoint (KDIGO within 10-15% of baseline).
-        baseline_egfr = egfr[0][1] if egfr else None
         pred = R.lupus_complete_predicate(baseline_egfr, lambda d: _egfr_at(egfr, d))
         out["complete_date"] = _first_sustained_dated(series, pred)
     else:
@@ -207,14 +215,21 @@ def compute_patient_outcome(patient) -> PatientOutcome:
     prot, prot_source = _proteinuria_series(patient, prefer_upcr=(disease == "lupus"))
 
     index_date = _index_date(patient, egfr, creat)
-    baseline_egfr = egfr[0][1] if egfr else None
-    baseline_creat = creat[0][1] if creat else None
-    baseline_prot = prot[0][1] if prot else None
+    # Baseline = first value on/after the index date (never a pre-enrollment
+    # referral measurement), and the decline/rise endpoints are evaluated over
+    # the same post-index window.
+    egfr_post = _at_or_after(egfr, index_date)
+    creat_post = _at_or_after(creat, index_date)
+    prot_post = _at_or_after(prot, index_date)
+
+    baseline_egfr = egfr_post[0][1] if egfr_post else None
+    baseline_creat = creat_post[0][1] if creat_post else None
+    baseline_prot = prot_post[0][1] if prot_post else None
 
     # Kidney-function endpoints from the eGFR / creatinine trajectories.
-    s40 = _sustained_drop(egfr, baseline_egfr, 0.60) if baseline_egfr else None
-    s50 = _sustained_drop(egfr, baseline_egfr, 0.50) if baseline_egfr else None
-    dbl = _sustained_rise(creat, baseline_creat, 2.0) if baseline_creat else None
+    s40 = _sustained_drop(egfr_post, baseline_egfr, 0.60) if baseline_egfr else None
+    s50 = _sustained_drop(egfr_post, baseline_egfr, 0.50) if baseline_egfr else None
+    dbl = _sustained_rise(creat_post, baseline_creat, 2.0) if baseline_creat else None
 
     # Hard endpoints. ESKD = dialysis/transplant event OR sustained eGFR < 15.
     events = ClinicalEvent.objects.filter(patient=patient)
@@ -239,13 +254,13 @@ def compute_patient_outcome(patient) -> PatientOutcome:
     # --- Proteinuria regression (the primary disease-activity outcome) -------
     # Disease-specific, sustained, with FIRST-achieved dates (so time-to-event).
     # (`disease` was resolved above to pick the right proteinuria measure.)
-    pr = _proteinuria_outcome(prot, baseline_prot, disease, egfr)
+    pr = _proteinuria_outcome(prot_post, baseline_prot, disease, egfr, baseline_egfr)
     remission = (PatientOutcome.Remission.COMPLETE if pr["complete_date"]
                  else PatientOutcome.Remission.PARTIAL if pr["partial_date"]
                  else PatientOutcome.Remission.NONE)
     any_remission_date = _earliest(
         (pr["complete_date"], "c"), (pr["partial_date"], "p"))[0]
-    relapse_date = _proteinuria_relapse(prot, any_remission_date)
+    relapse_date = _proteinuria_relapse(prot_post, any_remission_date)
     any_relapse = bool(relapse_date) or relapse
 
     followup_days = ((last_contact - index_date).days
@@ -269,7 +284,7 @@ def compute_patient_outcome(patient) -> PatientOutcome:
         composite_kidney_event=bool(comp_date), composite_date=comp_date,
         composite_cause=comp_cause,
         remission_definition=disease, proteinuria_source=prot_source,
-        latest_upcr=_dec(prot[-1][1], 3) if prot else None,
+        latest_upcr=_dec(prot_post[-1][1], 3) if prot_post else None,
         nadir_upcr=_dec(pr["nadir"], 3),
         best_proteinuria_reduction_pct=_dec(pr["best_reduction_pct"], 1),
         complete_remission=bool(pr["complete_date"]), complete_remission_date=pr["complete_date"],

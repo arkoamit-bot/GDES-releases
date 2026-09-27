@@ -29,7 +29,12 @@ class UserSiteRoleSerializer(serializers.ModelSerializer):
 
 
 class PatientSerializer(serializers.ModelSerializer):
-    site_code = serializers.CharField(source="site.code", read_only=True)
+    # `site` is nullable for backward compatibility, and a null FK would raise
+    # AttributeError on the `site.code` traversal, turning one site-less patient
+    # into an HTTP 500 for the entire list endpoint. allow_null keeps the field
+    # serialisable as None instead.
+    site_code = serializers.CharField(
+        source="site.code", read_only=True, allow_null=True, default=None)
 
     class Meta:
         model = Patient

@@ -16,7 +16,8 @@ class PrescriptionItemInline(admin.TabularInline):
     extra = 1
     autocomplete_fields = ("drug",)
     fields = ("sort_order", "drug", "brand", "strength", "dose",
-              "frequency", "timing", "duration", "instruction_bn")
+              "frequency", "timing", "duration", "instruction_bn",
+              "taper_notes")
 
 
 @admin.register(Prescription)

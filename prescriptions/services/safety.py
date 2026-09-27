@@ -8,6 +8,8 @@ drug-disease contraindication engines from Phase 3.2.
      4. Glycaemic effect    — steroid/CNI hyperglycaemia monitoring
      5. Drug interactions   — nephrology DDI check (Phase 3.2)
      6. Contraindications   — drug-disease check (Phase 3.2)
+     7. Steroid taper       — a long systemic steroid course with no step-down
+                              plan (abrupt cessation risks adrenal crisis)
 """
 from __future__ import annotations
 
@@ -15,6 +17,8 @@ from collections import defaultdict
 from dataclasses import dataclass
 
 from treatments.models import DrugClass, StopReason, TreatmentExposure
+
+from .tapers import needs_taper
 
 
 @dataclass
@@ -115,7 +119,8 @@ def check_prescription(prescription) -> list[SafetyWarning]:
 
             for it in items:
                 results = check_contraindications(
-                    it.drug.generic_name, patient_diseases)
+                    it.drug.generic_name, patient_diseases,
+                    drug_class=getattr(it.drug, "drug_class", "") or "")
                 for ctr in results:
                     level = "block" if ctr.severity == "absolute" else "warning"
                     alt_text = f" Alternative: {ctr.alternative}" if ctr.alternative else ""
@@ -124,5 +129,17 @@ def check_prescription(prescription) -> list[SafetyWarning]:
                         f"{it.drug.generic_name} — {ctr.reason}.{alt_text}"))
         except ImportError:
             pass
+
+    # 7. Steroid course without a taper plan --------------------------------
+    # A systemic steroid given for weeks and then stopped outright can leave
+    # the adrenals suppressed. Warn (never block) so the prescriber documents
+    # the step-down on the slip.
+    for it in items:
+        if needs_taper(it):
+            warnings.append(SafetyWarning(
+                "warning", "steroid_taper_missing",
+                f"{it.drug.generic_name} ({it.duration}) has no taper plan — "
+                f"a course of this length should not stop suddenly. Add the "
+                f"step-down schedule, or shorten the course."))
 
     return warnings
