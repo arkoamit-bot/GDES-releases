@@ -8,54 +8,70 @@ if the registry later adopts a different equation (e.g. a cystatin-C based one).
 Preference order:
   1. gdes_core.egfr — the single authoritative implementation (bundled in the
      desktop build via BGDDR.spec THIRD_PARTY).
-  2. Local fallback — used when gdes_core is not importable (source runs without
-     the package installed, or any environment where the dependency is missing).
-     The fallback implements the same CKD-EPI 2021 equation so behaviour is
-     identical either way.
+  2. Local implementation — used when gdes_core is not importable (source runs
+     without the package installed). It is the same equation with the same
+     contract as the implementation that preceded gdes_core: the value is
+     rounded to 0.1 and stamped "CKD-EPI-2021-creatinine", so a result derived
+     either way is interchangeable in a slope.
+
+The first local fallback (2026-08-23) fixed alpha at -0.241 for both sexes,
+returned an unrounded float and stamped "CKD-EPI 2021 (local fallback)". Male
+eGFR at creatinine below kappa was therefore under-estimated (60 y, 0.6 mg/dL:
+107.8 instead of 110.5). Results derived in that window keep their original
+stamp; `reconcile_linked_facts` lists them for a governed re-derivation instead
+of rewriting history silently.
 """
 from __future__ import annotations
 
-import math
 from decimal import Decimal
-from typing import Tuple
 
-# Try the authoritative implementation first.
+FORMULA_VERSION = "CKD-EPI-2021-creatinine"
+DEFECTIVE_FALLBACK_VERSION = "CKD-EPI 2021 (local fallback)"
+
+
+def _local_ckd_epi_2021(scr_mg_dl: float, age_years: float, sex: str) -> tuple[float, str]:
+    """Return (eGFR mL/min/1.73m^2 rounded to 0.1, formula_version).
+
+    Inker LA et al., N Engl J Med 2021; 385:1736-1749 (NIDDK adult equations):
+
+        eGFR = 142 * min(Scr/k, 1)^a * max(Scr/k, 1)^-1.200 * 0.9938^Age
+               * 1.012 [if female]
+
+        k = 0.7 (female), 0.9 (male)
+        a = -0.241 (female), -0.302 (male)
+
+    sex: "F" (female) or anything else treated as male.
+    """
+    scr = float(scr_mg_dl)
+    age = float(age_years)
+    if scr <= 0 or age < 0:
+        raise ValueError("scr_mg_dl must be positive and age_years non-negative")
+    female = str(sex).upper().startswith("F")
+
+    kappa = 0.7 if female else 0.9
+    alpha = -0.241 if female else -0.302
+
+    ratio = scr / kappa
+    egfr = (142.0
+            * (min(ratio, 1.0) ** alpha)
+            * (max(ratio, 1.0) ** -1.200)
+            * (0.9938 ** age))
+    if female:
+        egfr *= 1.012
+    return round(egfr, 1), FORMULA_VERSION
+
+
+def _local_egfr_to_decimal(value: float) -> Decimal:
+    return Decimal(str(value))
+
+
 try:
-    from gdes_core.egfr import ckd_epi_2021 as _ckd_epi_2021  # noqa: F401
-    from gdes_core.egfr import egfr_to_decimal as _egfr_to_decimal  # noqa: F401
-    from gdes_core.egfr import FORMULA_VERSION  # noqa: F401
+    from gdes_core.egfr import ckd_epi_2021  # noqa: F401
+    from gdes_core.egfr import egfr_to_decimal  # noqa: F401
+    try:
+        from gdes_core.egfr import FORMULA_VERSION  # noqa: F401,F811
+    except ImportError:  # pragma: no cover - older gdes_core
+        pass
 except ImportError:
-    # Local fallback — CKD-EPI 2021 creatinine equation (race-free).
-    # Inker LA et al., N Engl J Med 2021; 385:1736-1749.
-    #
-    # eGFR = 142 * min(Scr/κ, 1)^α * max(Scr/κ, 1)^(-1.200)
-    #        * 0.9938^Age * [1.012 if female]
-    #
-    #   κ = 0.7 (female), 0.9 (male)
-    #   α = -0.241 (both sexes in the 2021 equation)
-    _FORMULA_VERSION = "CKD-EPI 2021 (local fallback)"
-
-    def _ckd_epi_2021(scr_mg_dl: float, age_years: float, sex: str) -> Tuple[float, str]:
-        if scr_mg_dl < 0 or age_years < 0:
-            raise ValueError("scr_mg_dl and age_years must be non-negative")
-        kappa = 0.7 if sex == "F" else 0.9
-        alpha = -0.241
-        ratio = scr_mg_dl / kappa
-        min_term = min(ratio, 1.0) ** alpha
-        max_term = max(ratio, 1.0) ** (-1.200)
-        age_factor = 0.9938 ** age_years
-        sex_factor = 1.012 if sex == "F" else 1.0
-        egfr = 142.0 * min_term * max_term * age_factor * sex_factor
-        return (egfr, _FORMULA_VERSION)
-
-    def _egfr_to_decimal(value: float) -> Decimal:
-        return Decimal(str(value))
-
-    FORMULA_VERSION = _FORMULA_VERSION
-    ckd_epi_2021 = _ckd_epi_2021
-    egfr_to_decimal = _egfr_to_decimal
-
-else:
-    FORMULA_VERSION = globals().get("FORMULA_VERSION", "gdes_core")
-    ckd_epi_2021 = _ckd_epi_2021
-    egfr_to_decimal = _egfr_to_decimal
+    ckd_epi_2021 = _local_ckd_epi_2021
+    egfr_to_decimal = _local_egfr_to_decimal
