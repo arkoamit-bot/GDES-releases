@@ -984,7 +984,8 @@ class LongStrengthTests(TestCase):
         self.assertGreaterEqual(
             PrescriptionItem._meta.get_field("strength").max_length,
             len(self.LONGEST_FORMULARY_STRENGTH))
-        # dose is assigned the same value as strength, so the limits must agree.
+        # Strength and dose are separate facts (2026-09-27); both hold a
+        # combination-product string without truncation.
         self.assertEqual(
             PrescriptionItem._meta.get_field("dose").max_length,
             PrescriptionItem._meta.get_field("strength").max_length)
@@ -999,13 +1000,18 @@ class LongStrengthTests(TestCase):
         self.assertEqual(resp.status_code, 302)
         item = PrescriptionItem.objects.get(drug=self.calcium)
         self.assertEqual(item.strength, self.LONGEST_FORMULARY_STRENGTH)
-        self.assertEqual(item.dose, self.LONGEST_FORMULARY_STRENGTH)
+        # Replaced 2026-09-27 (entry-linkage review): the old assertion
+        # (dose == strength) enshrined copying the product strength into the
+        # administered dose. No dose was stated, so none is stored; the
+        # regimen amount used by reconciliation is still the strength.
+        self.assertEqual(item.dose, "")
+        self.assertEqual(item.regimen_dose, self.LONGEST_FORMULARY_STRENGTH)
 
     def test_absurdly_long_posted_strength_is_clipped_not_rejected(self):
         limit = PrescriptionItem._meta.get_field("strength").max_length
         resp = self.client.post(reverse("clinic:prescription", args=[self.p.pk]), {
             "drug_1": str(self.calcium.pk),
-            "strength_1": "9" * (limit + 500),
+            "strength_1": "9" * (limit + 500), "dose_1": "8" * (limit + 500),
             "route_1": "P" * 50, "frequency_1": "f" * 200,
             "duration_1": "d" * 200, "brand_1": "b" * 300,
             "timing_1": "after",

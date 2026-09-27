@@ -58,6 +58,24 @@
     </fieldset>
     {% endfor %}
 
+    {% if existing %}
+    <fieldset class="fieldset">
+      <legend><i class="fas fa-clipboard-list"></i> Already on file for {{ existing_date }}</legend>
+      <div class="help" style="margin-bottom:6px">These are recorded already. Enter a value again only if it is a new measurement; to fix a wrong value, correct the recorded result instead of adding another.</div>
+      <table class="grid"><thead><tr><th>Test</th><th>Value</th><th>Entered via</th><th>Recorded</th></tr></thead><tbody>
+      {% for r in existing %}<tr><td>{{ r.test.name }}</td><td>{% if r.value_numeric is not None %}{{ r.value_numeric|floatformat:"-2" }} {{ r.unit }}{% endif %} {{ r.value_text }}</td><td>{{ r.get_entry_path_display|default:r.get_source_display }}</td><td>{{ r.created_at|date:"Y-m-d H:i" }}</td></tr>{% endfor %}
+      </tbody></table>
+    </fieldset>
+    {% endif %}
+    {% if duplicates %}
+    <div class="msg warn">
+      The value(s) below are identical to results already on file for this date and were <b>not</b> recorded:
+      <ul>{% for r in duplicates %}<li>{{ r.test.name }} {% if r.value_numeric is not None %}{{ r.value_numeric|floatformat:"-2" }}{% endif %} {{ r.value_text }} ({{ r.result_date }})</li>{% endfor %}</ul>
+      <label style="display:flex;gap:6px;align-items:center">{{ form.confirm_repeat }} {{ form.confirm_repeat.label }}</label>
+    </div>
+    {% endif %}
+    {{ form.form_token }}
+
     <div style="display:flex;gap:10px">
       <button class="btn" type="submit"><i class="fas fa-floppy-disk"></i> Save results</button>
       <a class="btn ghost" href="{% url 'clinic:patient_detail' patient.pk %}">Cancel</a>

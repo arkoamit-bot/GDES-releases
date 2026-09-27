@@ -52,6 +52,8 @@ def extract_patient_features(patient: Patient) -> dict:
         "features": [],
         "labs": [],
         "biopsy": [],
+        "biopsy_inferred": [],
+        "biopsy_absent": [],
         "proteinuria": "none",
         "albumin": "normal",
         "sediment": "bland",
@@ -93,117 +95,86 @@ def extract_patient_features(patient: Patient) -> dict:
         if assessment and assessment.features:
             features["features"].extend(assessment.features)
 
-    # --- Lab findings from latest results ---
+    # --- Lab findings: the newest CURRENT result of each test, read for what
+    # it says (labs.codes), not merely for being present. Each measure keeps its
+    # own variable: UPCR (g/g), 24-h protein (g/day) and UACR (mg/g) are not
+    # interchangeable.
     try:
+        from labs.codes import interpret, is_positive, latest_by_code
         from labs.models import LabResult
-        latest_results = (
-            LabResult.objects.filter(patient=patient)
-            .select_related("test")
-            .order_by("-sample_date")
-        )
+        latest = latest_by_code(
+            LabResult.objects.filter(patient=patient).select_related("test"))
+        features["lab_values"] = {}
+        features["lab_interpretations"] = {}
+        for code, result in latest.items():
+            features["lab_interpretations"][code] = interpret(result)
+            if result.value_numeric is not None:
+                features["lab_values"][code] = {
+                    "value": float(result.value_numeric), "unit": result.unit,
+                    "date": result.result_date.isoformat() if result.result_date else None,
+                    "result_id": result.pk}
 
-        for result in latest_results[:20]:  # Last 20 results
-            code = result.test.code.lower() if result.test else ""
+        def num(code):
+            r = latest.get(code)
+            return float(r.value_numeric) if r is not None and r.value_numeric is not None else None
 
-            # Proteinuria assessment
-            if code in ("upcr", "acr", "proteinuria"):
-                try:
-                    val = float(result.value_numeric)
-                    if val >= 3.5:
-                        features["proteinuria"] = "nephrotic"
-                    elif val >= 0.5 and features["proteinuria"] == "none":
-                        features["proteinuria"] = "subnephrotic"
-                except (ValueError, TypeError):
-                    pass
+        for code in ("upcr", "utp_24h"):
+            val = num(code)
+            if val is None:
+                continue
+            if val >= 3.5:
+                features["proteinuria"] = "nephrotic"
+            elif val >= 0.5 and features["proteinuria"] == "none":
+                features["proteinuria"] = "subnephrotic"
+        features["upcr"] = num("upcr")
+        features["utp_24h"] = num("utp_24h")
+        features["uacr"] = num("uacr")
 
-            # Albumin
-            if code in ("albumin", "alb"):
-                try:
-                    val = float(result.value_numeric)
-                    if val < 3.0:
-                        features["albumin"] = "low"
-                except (ValueError, TypeError):
-                    pass
+        alb = num("albumin")
+        if alb is not None and alb < 3.0:
+            features["albumin"] = "low"
 
-            # Urine sediment
-            if code in ("urine_rbc_casts", "rbc_casts"):
-                features["sediment"] = "casts"
-            elif code in ("urine_rbc", "hematuria") and features["sediment"] != "casts":
-                try:
-                    val = float(result.value_numeric)
-                    if val > 5:
-                        features["sediment"] = "hematuria"
-                except (ValueError, TypeError):
-                    pass
+        casts = latest.get("urine_rbc_casts")
+        if casts is not None and (is_positive(casts) or (casts.value_numeric or 0) > 0):
+            features["sediment"] = "casts"
+        rbc = num("urine_rbc")
+        if features["sediment"] != "casts" and rbc is not None and rbc > 5:
+            features["sediment"] = "hematuria"
 
-            # Complement
-            if code in ("c3", "complement_c3"):
-                try:
-                    val = float(result.value_numeric)
-                    if val < 90:
-                        features["labs"].append("lowC3")
-                except (ValueError, TypeError):
-                    pass
-            if code in ("c4", "complement_c4"):
-                try:
-                    val = float(result.value_numeric)
-                    if val < 10:
-                        features["labs"].append("lowC4")
-                except (ValueError, TypeError):
-                    pass
+        c3 = latest.get("c3")
+        if c3 is not None and (interpret(c3) == "low" or (c3.value_numeric is not None
+                                                           and c3.value_numeric < 90)):
+            features["labs"].append("lowC3")
+        c4 = latest.get("c4")
+        if c4 is not None and (interpret(c4) == "low" or (c4.value_numeric is not None
+                                                           and c4.value_numeric < 10)):
+            features["labs"].append("lowC4")
 
-            # ANCA
-            if code in ("anca", "anca_typing"):
-                features["labs"].append("anca")
-
-            # Anti-GBM
-            if code in ("anti_gbm", "antigbm"):
-                features["labs"].append("antiGbm")
-
-            # PLA2R
-            if code in ("pla2r", "anti_pla2r"):
-                features["labs"].append("pla2r")
-
-            # ANA / anti-dsDNA
-            if code in ("ana", "anti_dsDNA", "dsdna"):
-                features["labs"].append("anaDsDna")
-
-            # Hepatitis
-            if code in ("hbv", "hepatitis_b", "hcv", "hepatitis_c"):
-                features["labs"].append("hepatitis")
-
+        for codes, feature in ((("anca", "mpo_anca", "pr3_anca"), "anca"),
+                               (("anti_gbm",), "antiGbm"),
+                               (("anti_pla2r",), "pla2r"),
+                               (("ana", "anti_dsdna"), "anaDsDna"),
+                               (("hbsag", "anti_hcv"), "hepatitis")):
+            if any(latest.get(c) is not None and is_positive(latest[c]) for c in codes):
+                features["labs"].append(feature)
     except ImportError:
         pass
 
-    # --- Biopsy findings ---
+    # --- Biopsy: OBSERVED findings from the current report of the biopsy the
+    # patient's pathology summary is projected from, kept apart from
+    # expectations INFERRED from the diagnosis label (biopsy_inferred), which
+    # the rule engine reports as inferences.
     try:
-        from pathology.models import Biopsy, GNDiagnosis, IgANScore
-        biopsy = patient.biopsies.order_by("-biopsy_date").first()
+        from pathology.services.projection import select_source
+        from pathology.services.reasoning import biopsy_features
+        sel = select_source(patient)
+        biopsy = sel.biopsy or patient.biopsies.order_by("-biopsy_date", "-id").first()
         if biopsy:
+            observed, absent, inferred = biopsy_features(biopsy)
             features["biopsy"].append("biopsy_done")
-            # Check GN diagnosis
-            gn_dx = getattr(biopsy, "diagnosis", None)
-            if gn_dx:
-                dx_lower = gn_dx.diagnosis.lower() if gn_dx.diagnosis else ""
-                if "iga" in dx_lower:
-                    features["biopsy"].append("mesangialIga")
-                if "membranous" in dx_lower:
-                    features["biopsy"].append("subepithelial")
-                if "fsgs" in dx_lower or "focal segmental" in dx_lower:
-                    features["biopsy"].append("segmentalSclerosis")
-                if "lupus" in dx_lower:
-                    features["biopsy"].append("fullHouse")
-                if "c3" in dx_lower:
-                    features["biopsy"].append("c3Dominant")
-
-            # Check for crescents
-            if biopsy.crescent_pct and biopsy.crescent_pct > 0:
-                features["biopsy"].append("crescents")
-
-            # Check for podocyte effacement (from EM findings text)
-            if biopsy.em_findings and "podocyte" in biopsy.em_findings.lower():
-                features["biopsy"].append("podocyteEffacement")
-
+            features["biopsy"].extend(observed)
+            features["biopsy_absent"] = sorted(absent)
+            features["biopsy_inferred"] = sorted(set(inferred) - set(observed) - set(absent))
     except (ImportError, AttributeError):
         pass
 
@@ -223,7 +194,7 @@ def extract_patient_features(patient: Patient) -> dict:
         features["features"].append("diabetes")
 
     # Deduplicate lists
-    for key in ("features", "labs", "biopsy"):
+    for key in ("features", "labs", "biopsy", "biopsy_inferred", "biopsy_absent"):
         features[key] = list(set(features[key]))
 
     return features
@@ -348,6 +319,18 @@ def evaluate_entry(entry: KnowledgeBaseEntry, features: dict) -> DiseaseScore:
                 "condition": condition,
                 "explanation": explanation,
                 "weight": weight,
+            })
+        elif (condition.get("field") == "biopsy"
+              and condition.get("operator", "eq") in ("eq", "contains")
+              and condition.get("value") in (features.get("biopsy_inferred") or [])):
+            # Matched only by an expectation derived from the diagnosis label,
+            # not an observed finding: counted, but labelled as an inference.
+            matched.append({
+                "condition": condition,
+                "explanation": (f"{explanation} (inferred from the biopsy diagnosis; "
+                                f"not an observed finding)").strip(),
+                "weight": weight,
+                "inferred": True,
             })
 
     # A rule contributes to the differential ONLY when it actually fires — i.e.

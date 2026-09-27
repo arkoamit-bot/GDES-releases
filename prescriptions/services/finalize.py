@@ -32,12 +32,24 @@ def finalize_prescription(prescription, *, user=None, stop_reasons=None,
     if any(w.level == "block" for w in warnings) and not override_blocks:
         raise FinalizeBlocked(warnings)
 
+    # Acceptance: the requested catalogue tests become real lab orders on
+    # this visit (linked to an outstanding order for the same test instead of
+    # ordering it twice). Drafts never place orders.
+    from .issue import SNAPSHOT_VERSION, build_snapshot, commit_test_requests
+    commit_test_requests(prescription)
+
     prescription.status = prescription.Status.FINAL
     prescription.printed_by = user
     prescription.printed_at = timezone.now()
-    prescription.content_hash = prescription.compute_hash()
+    # Freeze what the printout shows, then hash that content (v2). Later
+    # edits to the patient, labs or appointments cannot change this slip.
+    prescription.issued_snapshot = build_snapshot(prescription)
+    prescription.snapshot_version = SNAPSHOT_VERSION
+    prescription.content_hash = prescription.compute_snapshot_hash()
+    prescription.content_hash_version = 2
     prescription.save(update_fields=["status", "printed_by", "printed_at",
-                                     "content_hash"])
+                                     "content_hash", "content_hash_version",
+                                     "issued_snapshot", "snapshot_version"])
 
     apply_reconciliation(prescription, stop_reasons=stop_reasons)
 
@@ -93,10 +105,16 @@ def new_version_from(prescription):
         encounter=prescription.encounter,
         version=next_version,
         diagnosis_text=prescription.diagnosis_text,
+        comorbidities=prescription.comorbidities,
         investigations_advised=prescription.investigations_advised,
+        advice=prescription.advice,
     )
     for it in items:
         it.pk = None
         it.prescription = clone
         it.save()
+    # Requested tests carry over as requests; ones already ordered stay
+    # linked to their order item, so the new version does not re-order them.
+    for req in prescription.test_requests.all():
+        clone.test_requests.create(test_id=req.test_id, order_item_id=req.order_item_id)
     return clone

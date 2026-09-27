@@ -21,11 +21,13 @@ def egfr_ckd_epi_2021(creatinine_mg_dl: float, age: int, sex: str, race: str = "
         eGFR = 142 * min(Scr/kappa, 1)^alpha * max(Scr/kappa, 1)^-1.200
                * 0.9938^Age * [1.012 if female]
 
-    with ``kappa = 0.7`` (female) / ``0.9`` (male) and ``alpha = -0.241`` for
-    *both* sexes. The 2009 coefficients (-0.302 male / -1.018 female) belong to
-    the superseded race-adjusted equation and must not be used here: they
-    disagree with the value stored on every derived ``LabResult``
-    (``labs.services.egfr``) and can move a patient across a CKD stage boundary.
+    with ``kappa = 0.7`` (female) / ``0.9`` (male) and ``alpha = -0.241``
+    (female) / ``-0.302`` (male) -- the NIDDK-published 2021 coefficients.
+    (The superseded 2009 equation used alpha -0.329 / -0.411, a 1.018 female
+    factor and a race term.) An earlier version of this function used -0.241
+    for both sexes, matching a defective local fallback in
+    ``labs.services.egfr``; both now share that one implementation, so the
+    decision calculator and every derived ``LabResult`` agree.
 
     Args:
         creatinine_mg_dl: Serum creatinine in mg/dL
@@ -38,19 +40,9 @@ def egfr_ckd_epi_2021(creatinine_mg_dl: float, age: int, sex: str, race: str = "
     """
     if creatinine_mg_dl <= 0:
         return 0.0
-    female = _is_female(sex)
-    kappa = 0.7 if female else 0.9
-    alpha = -0.241
-    gender_factor = 1.012 if female else 1.0
-
-    scr_kappa = creatinine_mg_dl / kappa
-    if scr_kappa <= 1:
-        ratio = scr_kappa ** alpha
-    else:
-        ratio = scr_kappa ** (-1.200)
-
-    egfr = 142.0 * ratio * (0.9938 ** age) * gender_factor
-    return round(max(egfr, 0), 1)
+    from labs.services.egfr import ckd_epi_2021
+    value, _version = ckd_epi_2021(creatinine_mg_dl, age, "F" if _is_female(sex) else "M")
+    return round(max(float(value), 0), 1)
 
 
 def bsa_mosteller(height_cm: float, weight_kg: float) -> float:

@@ -1,0 +1,142 @@
+{% extends "base.html" %}
+{% block title %}Biopsy {{ biopsy.biopsy_date }} — {{ patient.patient_id }}{% endblock %}
+{% block heading %}Biopsy report · {{ patient.patient_id }} · {{ biopsy.biopsy_date }}{% endblock %}
+{% block content %}
+
+<div class="crumbs"><a href="/patients/">Patients</a> ›
+  <a href="{% url 'clinic:patient_detail' patient.pk %}">{{ patient.patient_id }}</a> › Biopsy {{ biopsy.biopsy_date }}</div>
+
+<div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:14px">
+  <a class="btn ghost sm" href="{% url 'clinic:patient_detail' patient.pk %}"><i class="fas fa-arrow-left"></i> Back to patient</a>
+  <a class="btn sm" href="{% url 'clinic:biopsy_amend' patient.pk biopsy.pk %}"><i class="fas fa-file-pen"></i> Amend report</a>
+  <a class="btn ghost sm" href="{% url 'clinic:biopsy_amend' patient.pk biopsy.pk %}?kind=addendum"><i class="fas fa-file-circle-plus"></i> Add addendum</a>
+  {% if user.is_staff %}<a class="btn ghost sm" href="/admin/pathology/biopsy/{{ biopsy.pk }}/change/"><i class="fas fa-gear"></i> Admin</a>{% endif %}
+</div>
+
+<style>
+  .kv { display:grid; grid-template-columns: 220px 1fr; gap:4px 14px; font-size:14px; }
+  .kv dt { color:#64748b; } .kv dd { margin:0; }
+  .finding-table td, .finding-table th { font-size:13.5px; }
+  .legacy { font-size:12px; color:#92400e; background:#fffbeb; border:1px solid #fde68a; border-radius:4px; padding:0 5px; }
+  .superseded { opacity:.75; }
+</style>
+
+<div class="card" style="margin-bottom:14px">
+  <div class="card-header"><i class="fas fa-link text-primary-500"></i> Use in the patient record</div>
+  <div class="card-body">
+    {% if is_source %}
+      This biopsy is the source of the patient's pathology summary
+      ({% if source_state == "final" %}final, reviewed{% else %}provisional — local read, central review pending{% endif %}).
+    {% elif is_pending_newer %}
+      <strong>Pending.</strong> This biopsy is newer than the accepted final interpretation
+      {% if source_biopsy %}(biopsy {{ source_biopsy.biopsy_date }}){% endif %}, so it does not replace it until its review is final.
+    {% else %}
+      Not the current source of the patient's pathology summary{% if source_biopsy %} (source: biopsy {{ source_biopsy.biopsy_date }}){% endif %}.
+    {% endif %}
+    <div class="help">Review status: {{ biopsy.get_review_status_display }}.</div>
+  </div>
+</div>
+
+<div style="display:grid;grid-template-columns:1fr 1fr;gap:14px">
+  <div class="card">
+    <div class="card-header"><i class="fas fa-microscope text-primary-500"></i> Adopted interpretation</div>
+    <div class="card-body">
+      <dl class="kv">
+        <dt>Diagnosis</dt><dd>{% if biopsy.diagnosis %}{{ biopsy.diagnosis.get_diagnosis_display }}{% else %}— not stated —{% endif %}</dd>
+        {% if biopsy.diagnosis %}
+        <dt>Broad group</dt><dd>{{ biopsy.diagnosis.broad_group|default:"—" }}</dd>
+        <dt>Pathogenesis</dt><dd>{{ biopsy.diagnosis.pathogenesis_group|default:"—" }}</dd>
+        <dt>Primary / secondary</dt><dd>{{ biopsy.diagnosis.get_primary_secondary_display|default:"—" }}{% if biopsy.diagnosis.secondary_cause %} ({{ biopsy.diagnosis.secondary_cause }}){% endif %}</dd>
+        {% endif %}
+        <dt>Indication</dt><dd>{{ biopsy.get_indication_display|default:"—" }}</dd>
+        <dt>Result</dt><dd>{{ biopsy.get_result_category_display|default:"—" }}</dd>
+        {% if igan %}<dt>Oxford MEST-C</dt><dd>M{{ igan.M|default_if_none:"?" }} E{{ igan.E|default_if_none:"?" }} S{{ igan.S|default_if_none:"?" }} T{{ igan.T|default_if_none:"?" }} C{{ igan.C|default_if_none:"?" }}</dd>{% endif %}
+        {% if lupus %}<dt>ISN/RPS class</dt><dd>{{ lupus.isn_rps_class|default:"—" }}{% if lupus.activity_index is not None %} · activity {{ lupus.activity_index }}{% endif %}{% if lupus.chronicity_index is not None %} · chronicity {{ lupus.chronicity_index }}{% endif %}</dd>{% endif %}
+        {% if fsgs %}<dt>FSGS</dt><dd>{{ fsgs.get_primary_secondary_display|default:"—" }} · {{ fsgs.get_variant_display|default:"variant not stated" }}</dd>{% endif %}
+        {% if mn %}<dt>Membranous</dt><dd>PLA2R {{ mn.get_pla2r_tissue_display|default:"—" }} · THSD7A {{ mn.get_thsd7a_tissue_display|default:"—" }}{% if mn.mn_stage %} · stage {{ mn.mn_stage }}{% endif %}</dd>{% endif %}
+      </dl>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-header"><i class="fas fa-vial-circle-check text-primary-500"></i> Light-microscopy summary</div>
+    <div class="card-body">
+      <dl class="kv">
+        <dt>Adequacy</dt><dd>{{ biopsy.get_adequacy_display|default:"—" }}</dd>
+        <dt>Glomeruli (LM)</dt><dd>{{ biopsy.total_glomeruli|default_if_none:"—" }}</dd>
+        <dt>Global sclerosis</dt><dd>{% if biopsy.global_sclerosis_pct is not None %}{{ biopsy.global_sclerosis_pct }}%{% else %}—{% endif %}</dd>
+        <dt>IFTA</dt><dd>{% if biopsy.ifta_pct is not None %}{{ biopsy.ifta_pct }}%{% else %}—{% endif %}</dd>
+        <dt>Crescents</dt><dd>{{ biopsy.crescents_present|yesno:"Present,Absent,Not assessed" }}{% if biopsy.crescent_pct is not None %} ({{ biopsy.crescent_pct }}%){% endif %}</dd>
+        <dt>Necrosis</dt><dd>{{ biopsy.necrosis_present|yesno:"Present,Absent,Not assessed" }}</dd>
+        <dt>Arteriosclerosis</dt><dd>{{ biopsy.get_arteriosclerosis_display|default:"—" }}</dd>
+        <dt>Arteriolar hyalinosis</dt><dd>{{ biopsy.arteriolar_hyalinosis|yesno:"Present,Absent,Not assessed" }}</dd>
+        <dt>DKD lesion</dt><dd>{{ biopsy.dkd_lesion_present|yesno:"Present,Absent,Not assessed" }}</dd>
+        {% if legacy_if %}<dt>IF (legacy field)</dt><dd>{{ legacy_if }} <span class="legacy">legacy single choice</span></dd>{% endif %}
+        {% if legacy_em %}<dt>EM (legacy field)</dt><dd>{{ legacy_em }} <span class="legacy">legacy single choice</span></dd>{% endif %}
+        {% if biopsy.notes %}<dt>Notes</dt><dd>{{ biopsy.notes|linebreaksbr }}</dd>{% endif %}
+      </dl>
+    </div>
+  </div>
+</div>
+
+{% for r in current_reports %}
+<div class="card" style="margin-top:14px">
+  <div class="card-header"><i class="fas fa-file-medical text-primary-500"></i>
+    {{ r.get_role_display }} report · revision {{ r.revision }} · {{ r.get_status_display }}
+    {% if r.origin == "legacy" %}<span class="legacy" style="margin-left:8px">converted from legacy fields</span>{% endif %}
+  </div>
+  <div class="card-body">
+    {% include "clinic/_report_body.html" with r=r %}
+  </div>
+</div>
+{% empty %}
+<div class="card" style="margin-top:14px"><div class="card-body">No structured report yet. <a href="{% url 'clinic:biopsy_amend' patient.pk biopsy.pk %}">Record one</a>.</div></div>
+{% endfor %}
+
+{% if reviews %}
+<div class="card" style="margin-top:14px">
+  <div class="card-header"><i class="fas fa-user-doctor text-primary-500"></i> Independent reads (central review)</div>
+  <div class="card-body" style="padding:0">
+    <table class="grid">
+      <thead><tr><th>Read</th><th>Reviewer</th><th>Date</th><th>Diagnosis</th><th>MEST-C</th><th>ISN/RPS</th><th>FSGS variant</th><th>Final</th></tr></thead>
+      <tbody>
+      {% for rv in reviews %}
+        <tr>
+          <td>{{ rv.get_role_display }}</td><td>{{ rv.reviewer|default:"—" }}</td><td>{{ rv.review_date|default:"—" }}</td>
+          <td>{{ rv.diagnosis }}</td>
+          <td>{% if rv.mest_m is not None %}M{{ rv.mest_m }}E{{ rv.mest_e }}S{{ rv.mest_s }}T{{ rv.mest_t }}C{{ rv.mest_c }}{% else %}—{% endif %}</td>
+          <td>{{ rv.isn_rps_class|default:"—" }}</td><td>{{ rv.fsgs_variant|default:"—" }}</td>
+          <td>{% if rv.is_final %}<span class="badge ok">Final</span>{% endif %}</td>
+        </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+    {% if concordance and not concordance.concordant %}
+    <div class="msg warn" style="margin:10px">Local and central reads disagree on:
+      {% for d in concordance.discordant_fields %}<strong>{{ d.field }}</strong> (local {{ d.local|default:"—" }}, central {{ d.central|default:"—" }}){% if not forloop.last %}; {% endif %}{% endfor %}.
+      Both reads are kept; the final interpretation comes from the adjudication read.</div>
+    {% endif %}
+  </div>
+</div>
+{% endif %}
+
+{% if images %}
+<div class="card" style="margin-top:14px">
+  <div class="card-header"><i class="fas fa-image text-primary-500"></i> Images</div>
+  <div class="card-body">{% for im in images %}<div>{{ im.get_stain_display|default:"Image" }} — {{ im.description|default:im.image.name }}</div>{% endfor %}</div>
+</div>
+{% endif %}
+
+{% if history %}
+<details class="card" style="margin-top:14px">
+  <summary class="card-header" style="cursor:pointer"><i class="fas fa-clock-rotate-left text-primary-500"></i> Earlier revisions ({{ history|length }})</summary>
+  {% for r in history %}
+  <div class="card-body superseded" style="border-top:1px solid #eee">
+    <div style="font-weight:600;margin-bottom:6px">{{ r.get_role_display }} · revision {{ r.revision }} · {{ r.get_status_display }} · superseded{% if r.superseded_by %} by revision {{ r.superseded_by.revision }} ({{ r.superseded_by.get_origin_display|lower }}: {{ r.superseded_by.revision_reason }}){% endif %}</div>
+    {% include "clinic/_report_body.html" with r=r %}
+  </div>
+  {% endfor %}
+</details>
+{% endif %}
+
+{% endblock %}

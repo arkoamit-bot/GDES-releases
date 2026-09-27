@@ -20,12 +20,14 @@ _DEFS = {
     "enrollment_date": ("date", "ISO-8601", "Date of registry enrolment"),
     "cohort": ("category", "", "Registry cohort"),
     "diabetes_status": ("category", "none/t1/t2/other", "Diabetes status"),
-    "primary_diagnosis": ("string", "", "Primary GN diagnosis (text)"),
+    "primary_diagnosis": ("string", "", "Working clinical diagnosis (clinician-owned; may differ from pathology_diagnosis)"),
     "bmi": ("float", "kg/m^2", "Body mass index (auto-computed)"),
     "bmi_category": ("category", "underweight/normal/overweight/obese", "Asian BMI category"),
     "systolic_bp": ("integer", "mmHg", "Baseline systolic BP"),
     "diastolic_bp": ("integer", "mmHg", "Baseline diastolic BP"),
-    "hba1c": ("float", "%", "Baseline HbA1c"),
+    "hba1c": ("float", "%", "Baseline HbA1c: the linked baseline lab result, else the nearest result within -90/+30 days of the baseline date, else the legacy baseline field"),
+    "hba1c_date": ("date", "ISO-8601", "Date of the HbA1c value reported"),
+    "hba1c_source": ("category", "linked/window/legacy_field", "Where the baseline HbA1c came from"),
     "dm_duration_years": ("float", "years", "Diabetes duration"),
     "presentation_syndrome": ("category", "nephrotic/nephritic/rpgn/...", "Clinical presentation"),
     "diabetic_retinopathy": ("boolean", "0/1", "Diabetic retinopathy present"),
@@ -42,6 +44,10 @@ _DEFS = {
     "volume_status": ("category", "euvolemic/hypervolemic/hypovolemic", "Volume status"),
     "presenting_syndromes": ("string", ";-joined", "Presenting syndrome(s), multi-select"),
     "presenting_symptoms": ("string", ";-joined", "Presenting symptom(s), multi-select"),
+    "comorbidity_snapshot_source": ("category", "enrollment/legacy_mirror/correction", "Provenance of the baseline comorbidity columns (enrollment snapshot; legacy_mirror = pre-2026-09-27 values copied from the patient record)"),
+    "pathology_diagnosis": ("string", "", "Diagnosis of the selected biopsy (final review preferred)"),
+    "pathology_biopsy_date": ("date", "ISO-8601", "Date of the biopsy all pathology columns come from"),
+    "pathology_state": ("category", "final/provisional", "final = reviewed; provisional = local read pending central review"),
     "baseline_creatinine": ("float", "mg/dL", "Baseline serum creatinine"),
     "baseline_egfr": ("float", "mL/min/1.73m^2", "Baseline eGFR (CKD-EPI 2021)"),
     "baseline_upcr": ("float", "g/day-equiv", "Baseline proteinuria (24-h UTP preferred)"),
@@ -50,7 +56,7 @@ _DEFS = {
     "baseline_c3": ("float", "mg/dL", "Baseline complement C3"),
     "baseline_c4": ("float", "mg/dL", "Baseline complement C4"),
     "baseline_anti_pla2r": ("float", "RU/mL", "Baseline anti-PLA2R titre"),
-    "broad_group": ("string", "", "GN broad group (final pathology)"),
+    "broad_group": ("string", "", "GN broad group of the selected biopsy"),
     "mest_m": ("ordinal", "0/1", "Oxford MEST-C: mesangial hypercellularity"),
     "mest_e": ("ordinal", "0/1", "Oxford MEST-C: endocapillary hypercellularity"),
     "mest_s": ("ordinal", "0/1", "Oxford MEST-C: segmental sclerosis"),
@@ -131,3 +137,41 @@ def column_defs(identified=False, study=False):
     ``study`` is true the per-study columns (arm, stratum, …) are included."""
     cols = list(columns(identified)) + (STUDY_COLUMNS if study else [])
     return {col: _DEFS.get(col, ("", "", "")) for col in cols}
+
+
+# Codebook for the repeated-findings child table (build_findings_table).
+FINDING_DEFS = {
+    "patient_id": ("string", "Study ID", "Join key to the patient-level dataset"),
+    "biopsy_id": ("integer", "", "Biopsy (procedure/specimen) identifier"),
+    "biopsy_date": ("date", "ISO-8601", "Biopsy date"),
+    "is_pathology_source": ("boolean", "0/1", "This biopsy feeds the patient-level pathology columns"),
+    "report_id": ("integer", "", "Report revision identifier"),
+    "report_role": ("category", "local/central/adjudication", "Which read"),
+    "report_revision": ("integer", "", "Revision number within the read (amendments/addenda)"),
+    "report_status": ("category", "draft/pending/preliminary/final/inadequate", "Report state"),
+    "report_is_current": ("boolean", "0/1", "Current revision (0 = superseded, kept for history)"),
+    "report_origin": ("category", "guided/amendment/addendum/api/admin/legacy", "How the revision was entered"),
+    "finding_id": ("integer", "", "Finding identifier"),
+    "section": ("category", "lm_glomerular/tubulointerstitial/vascular/if_marker/if_interpretation/em/special_stain", "Report section"),
+    "code": ("category", "pathology.findings vocabulary", "Coded finding ('marker' for IF/IHC rows, 'other' + description)"),
+    "finding": ("string", "", "Readable finding label"),
+    "presence": ("category", "present/absent/indeterminate", "Observed presence"),
+    "severity": ("category", "minimal/mild/moderate/severe", "Severity, when reported"),
+    "extent": ("category", "focal/diffuse/segmental/global", "Extent, when reported"),
+    "extent_pct": ("float", "%", "Extent as reported (0-100)"),
+    "count": ("integer", "count", "Count, when reported"),
+    "denominator": ("integer", "count", "Denominator of count (e.g. glomeruli examined)"),
+    "site": ("category", "", "Site / compartment"),
+    "marker": ("category", "IgG/IgA/IgM/C3/C1q/kappa/lambda/fibrinogen/...", "IF/IHC marker"),
+    "intensity": ("category", "0/trace/1+/2+/3+", "IF intensity"),
+    "distribution": ("category", "granular/linear/pseudolinear/smudgy", "IF distribution"),
+    "detail": ("string", "", "Free-text elaboration"),
+    "finding_origin": ("category", "entered/legacy", "legacy = converted from an old single-choice field"),
+    "legacy_value": ("string", "", "Original legacy value, when converted"),
+}
+
+
+def findings_dictionary():
+    from .dataset import FINDING_COLUMNS
+    return [{"column": c, "type": FINDING_DEFS[c][0], "units_or_values": FINDING_DEFS[c][1],
+             "description": FINDING_DEFS[c][2]} for c in FINDING_COLUMNS]

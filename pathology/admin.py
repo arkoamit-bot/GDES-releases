@@ -1,7 +1,8 @@
 from django.contrib import admin
 
 from .models import (Biopsy, BiopsyImage, FSGSPathology, GNDiagnosis, IgANScore,
-                     LupusPathology, MembranousPathology, PathologyReview)
+                     LupusPathology, MembranousPathology, PathologyFinding,
+                     PathologyReport, PathologyReview)
 
 
 class PathologyReviewInline(admin.TabularInline):
@@ -63,6 +64,41 @@ class BiopsyAdmin(admin.ModelAdmin):
     readonly_fields = ("review_status",)
     inlines = [PathologyReviewInline, GNDiagnosisInline, IgANScoreInline,
                LupusInline, FSGSInline, MembranousInline, BiopsyImageInline]
+
+
+class PathologyFindingInline(admin.TabularInline):
+    model = PathologyFinding
+    extra = 0
+    can_delete = False
+    fields = ("section", "code", "other_label", "presence", "severity", "extent",
+              "extent_pct", "count", "denominator", "site", "marker", "intensity",
+              "distribution", "detail", "origin", "legacy_value")
+    readonly_fields = fields
+
+    def has_add_permission(self, request, obj=None):
+        return False
+
+
+@admin.register(PathologyReport)
+class PathologyReportAdmin(admin.ModelAdmin):
+    """Read-only history. Reports are recorded and amended through the
+    clinical report page or the API (pathology.services.report), which
+    validate them and keep every revision; editing a revision here would
+    bypass both."""
+    list_display = ("biopsy", "role", "revision", "status", "is_current", "origin",
+                    "report_date", "created_at")
+    list_filter = ("role", "status", "is_current", "origin")
+    search_fields = ("biopsy__patient__patient_id", "report_identifier")
+    inlines = [PathologyFindingInline]
+
+    def get_readonly_fields(self, request, obj=None):
+        return [f.name for f in PathologyReport._meta.fields]
+
+    def has_add_permission(self, request):
+        return False
+
+    def has_delete_permission(self, request, obj=None):
+        return False
 
 
 @admin.register(GNDiagnosis)

@@ -7,6 +7,7 @@ PrescriptionItem — a single "what to take now" line. Because we print the FULL
                  the reconciliation engine diffs against open exposures.
 """
 import hashlib
+import json
 
 from django.conf import settings
 from django.db import models
@@ -29,13 +30,19 @@ class Prescription(models.Model):
     )
 
     diagnosis_text = models.CharField(max_length=240, blank=True)
+    # What the clinician chose to PRINT: a selection from the patient's
+    # current conditions plus prescription-only notes. Omitting a condition
+    # here is not a clinical deletion; the patient record is not changed.
     comorbidities = models.CharField(
         max_length=240, blank=True,
-        help_text="Relevant comorbidities (e.g. Hypertension, Diabetes) — "
-                  "prints on the slip; pre-filled from baseline."
+        help_text="Comorbidities printed on the slip — chosen from the "
+                  "patient record, plus prescription-only notes."
     )
+    # Catalogue tests are structured PrescriptionTestRequest rows (linked to
+    # real LabOrders at finalization). This text holds only investigations
+    # that are not in the catalogue, plus legacy prescriptions' free text.
     investigations_advised = models.TextField(
-        blank=True, help_text="Labs/tests ordered at this visit (free text)."
+        blank=True, help_text="Investigations not in the lab catalogue (free text)."
     )
     advice = models.TextField(
         blank=True,
@@ -56,6 +63,20 @@ class Prescription(models.Model):
     )
     pdf_file = models.FileField(upload_to="prescriptions/%Y/%m/", blank=True)
     content_hash = models.CharField(max_length=64, blank=True)
+    # 1 = the original hash (compute_hash; kept for prescriptions finalized
+    # before issued snapshots). 2 = hash of the issued snapshot's clinical
+    # content. A style-only template change alters neither.
+    content_hash_version = models.PositiveSmallIntegerField(default=1)
+
+    # Everything the printout shows, frozen at finalization (patient identity,
+    # visit, vitals, eGFR with its source, diagnosis, printed comorbidities,
+    # items, investigations, advice, next visit). Rendering a finalized
+    # prescription reads this, so later edits to the patient, labs or
+    # appointments never change a prescription already issued. Empty for
+    # prescriptions finalized before 2026-09-27: their context was not kept and
+    # is not reconstructed.
+    issued_snapshot = models.JSONField(default=dict, blank=True, editable=False)
+    snapshot_version = models.PositiveSmallIntegerField(default=0, editable=False)
 
     # Set when the reconciliation engine has projected this Rx onto the
     # TreatmentExposure table. Guarantees we never reconcile twice.
@@ -83,8 +104,15 @@ class Prescription(models.Model):
     def is_final(self):
         return self.status == self.Status.FINAL
 
+    def compute_snapshot_hash(self):
+        """Hash v2: the issued snapshot's clinical content (not its styling)."""
+        content = {k: v for k, v in (self.issued_snapshot or {}).items()
+                   if k not in ("clinic", "rendered_at")}
+        blob = json.dumps(content, sort_keys=True, ensure_ascii=False, default=str)
+        return hashlib.sha256(blob.encode("utf-8")).hexdigest()
+
     def compute_hash(self):
-        """Stable hash of the clinical content, for the immutable snapshot."""
+        """Hash v1 -- unchanged, so prescriptions hashed with it still verify."""
         parts = [str(self.encounter_id), str(self.version), self.diagnosis_text]
         for it in self.items.all().order_by("id"):
             parts.append(
@@ -112,9 +140,13 @@ class PrescriptionItem(models.Model):
     # PrescriptionItem.strength on PostgreSQL while SQLite accepted them.
     strength = models.CharField(max_length=120, blank=True)
 
-    # Dosing as the clinician writes it. Kept in lockstep with `strength`:
-    # clinic.views assigns dose = strength, so the two limits must match.
-    dose = models.CharField(max_length=120, blank=True, help_text='e.g. "10 mg"')
+    # Dose per administration, distinct from the product strength: a 5 mg
+    # tablet taken as 2 tablets is strength "5 mg", dose "2" + unit "tab".
+    # Blank = the clinic convention of one unit of the product per frequency
+    # slot (1+0+1). Before 2026-09-27 the form copied the strength here, so a
+    # dose equal to the strength means "not separately stated" (see
+    # administered_dose); historical rows are never re-interpreted.
+    dose = models.CharField(max_length=120, blank=True, help_text='e.g. "2" or "10 mg"')
     dose_unit = models.CharField(max_length=20, blank=True)
     # Route of administration for THIS line — a drug like cyclophosphamide can
     # be PO on one prescription and IV on another. Blank -> drug default route.
@@ -147,10 +179,38 @@ class PrescriptionItem(models.Model):
     def __str__(self):
         return f"{self.drug.generic_name} {self.dose} {self.frequency}".strip()
 
+    # Units that count product units (so the regimen needs the strength too).
+    COUNT_UNITS = {"tab", "cap", "ml", "drop", "puff", "sachet", "unit", "vial",
+                   "amp", "patch", "application", "spoon"}
+
+    @property
+    def administered_dose(self):
+        """Dose per administration as written, or "" when not separately stated."""
+        dose = (self.dose or "").strip()
+        if not dose or dose == (self.strength or "").strip():
+            return ""
+        return f"{dose} {self.dose_unit or ''}".strip()
+
+    @property
+    def regimen_dose(self):
+        """The amount per administration used for reconciliation.
+
+        Not stated -> the strength (identical to what legacy rows stored, so
+        existing exposure episodes continue without a spurious split). A count
+        of units -> count x strength ("2 tab x 5 mg"); an amount -> the amount.
+        """
+        administered = self.administered_dose
+        strength = (self.strength or "").strip()
+        if not administered:
+            return strength or (self.dose or "").strip()
+        if (self.dose_unit or "").strip().lower() in self.COUNT_UNITS and strength:
+            return f"{administered} x {strength}"
+        return administered
+
     @property
     def signature(self):
         """Regimen identity used by reconciliation to detect dose changes."""
-        return (self.dose.strip().lower(), self.frequency.strip().lower(),
+        return (self.regimen_dose.strip().lower(), self.frequency.strip().lower(),
                 self.route_value)
 
     @property
@@ -159,6 +219,34 @@ class PrescriptionItem(models.Model):
         Feeds the reconciliation signature, so a PO→IV switch correctly splits
         the exposure episode."""
         return (self.route or self.drug.default_route or "PO").strip().upper()
+
+
+class PrescriptionTestRequest(models.Model):
+    """A catalogue investigation requested on a prescription.
+
+    Saving a draft records the request only. Finalization (the clinician's
+    acceptance) commits it as a LabOrderItem on the prescription's visit --
+    linking to an outstanding order for the same test at that visit instead of
+    creating a duplicate -- and stores the link here, so a retried finalize
+    never orders twice and the printout lists exactly what was ordered.
+    """
+    prescription = models.ForeignKey(
+        Prescription, on_delete=models.CASCADE, related_name="test_requests")
+    test = models.ForeignKey("labs.LabTest", on_delete=models.PROTECT, related_name="+")
+    order_item = models.ForeignKey(
+        "labs.LabOrderItem", on_delete=models.SET_NULL, null=True, blank=True,
+        related_name="prescription_requests")
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["prescription", "test__name"]
+        constraints = [
+            models.UniqueConstraint(fields=["prescription", "test"],
+                                    name="uniq_rx_test_request"),
+        ]
+
+    def __str__(self):
+        return f"{self.prescription_id}: {self.test.name}"
 
 
 class AdviceTemplate(models.Model):

@@ -104,7 +104,7 @@ def plan_reconciliation(prescription) -> ReconciliationPlan:
         if exp is None:
             plan.actions.append(PlannedAction(
                 "open", item.drug_id, item.drug.generic_name,
-                detail=f"{item.dose} {item.frequency}".strip()))
+                detail=f"{item.regimen_dose} {item.frequency}".strip()))
         elif exp.signature == item.signature:
             plan.actions.append(PlannedAction(
                 "continue", item.drug_id, item.drug.generic_name,
@@ -112,7 +112,7 @@ def plan_reconciliation(prescription) -> ReconciliationPlan:
         else:
             plan.actions.append(PlannedAction(
                 "change", item.drug_id, item.drug.generic_name,
-                detail=f"{exp.dose} {exp.frequency} → {item.dose} {item.frequency}".strip(),
+                detail=f"{exp.dose} {exp.frequency} → {item.regimen_dose} {item.frequency}".strip(),
                 exposure_id=exp.id))
 
     for drug_id, exp in open_by_drug.items():
@@ -149,7 +149,10 @@ def apply_reconciliation(prescription, *, stop_reasons=None, force=False):
     def _open(item):
         TreatmentExposure.objects.create(
             patient=patient, drug=item.drug, drug_name=item.drug.generic_name,
-            dose=item.dose, dose_unit=item.dose_unit, frequency=item.frequency,
+            # The regimen amount (strength when no separate dose is stated,
+            # "2 tab x 5 mg" when it is) -- the value the signature compares.
+            dose=item.regimen_dose, dose_unit=item.dose_unit, strength=item.strength,
+            frequency=item.frequency,
             route=item.route_value, start_date=as_of, ongoing=True,
             opened_by_encounter=encounter,
         )

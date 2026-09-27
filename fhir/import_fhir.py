@@ -92,10 +92,14 @@ def import_lab_from_fhir(fhir_obs: dict) -> dict:
     display = coding[0].get("display", "") if coding else ""
 
     if loinc_code:
-        test, _ = LabTest.objects.get_or_create(
-            code=loinc_code,
-            defaults={"name": display or loinc_code},
-        )
+        # Map to the catalogue test carrying this LOINC first, so an imported
+        # creatinine is the registry's creatinine (and derives eGFR); only an
+        # unknown code creates a new catalogue entry.
+        test = (LabTest.objects.filter(loinc=loinc_code).first()
+                or LabTest.objects.filter(code=loinc_code).first())
+        if test is None:
+            test = LabTest.objects.create(code=loinc_code, loinc=loinc_code,
+                                          name=display or loinc_code)
     else:
         return {"status": "error", "error": "No LOINC code"}
 
@@ -105,14 +109,20 @@ def import_lab_from_fhir(fhir_obs: dict) -> dict:
     effective = _parse_date(fhir_obs.get("effectiveDateTime"))
     issued = _parse_date(fhir_obs.get("issued"))
 
-    lab_result = LabResult.objects.create(
-        patient=patient,
-        test=test,
+    # Through the one recording service: unit normalisation, eGFR derivation,
+    # cache refresh; the Observation id makes a re-import idempotent.
+    from labs.services.results import record_result
+    obs_id = str(fhir_obs.get("id") or "")
+    lab_result = record_result(
+        patient, test,
         value_numeric=value_qty.get("value") if value_qty else None,
         value_text=value_str or "",
-        unit=value_qty.get("unit", ""),
+        unit=value_qty.get("unit", "") if value_qty else "",
         sample_date=effective or issued or date.today(),
         result_date=issued or effective or date.today(),
+        entry_path=LabResult.EntryPath.FHIR,
+        idempotency_key=f"fhir:{obs_id}" if obs_id else "",
+        source_report_id=obs_id[:60],
     )
 
     return {"status": "created", "id": lab_result.id}

@@ -34,7 +34,14 @@ class ClinicalEncounter(models.Model):
     )
     clinic_location = models.CharField(max_length=120, blank=True)
 
-    # Clinical findings captured at the visit (subset; feeds FollowUpVisit).
+    # Visit measurements are owned by clinical.VitalSign rows (several may be
+    # taken at one visit, each with its time). selected_vital is the reading
+    # this visit displays and prints; systolic_bp / diastolic_bp / weight_kg
+    # below are its compatibility projection, maintained by
+    # encounters.services.vitals -- read them, do not write them directly.
+    selected_vital = models.ForeignKey(
+        "clinical.VitalSign", on_delete=models.SET_NULL, null=True, blank=True,
+        related_name="+", help_text="The reading displayed and printed for this visit.")
     systolic_bp = models.PositiveSmallIntegerField(null=True, blank=True)
     diastolic_bp = models.PositiveSmallIntegerField(null=True, blank=True)
     weight_kg = models.DecimalField(

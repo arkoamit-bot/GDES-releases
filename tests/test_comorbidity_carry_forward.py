@@ -101,13 +101,15 @@ class TestMirrorToBaseline:
     def test_mirror_is_safe_without_a_patient(self):
         assert mirror_to_baseline(None, None) == []
 
-    def test_dm_duration_still_seeds_diabetes_status(self):
-        # The one flow that legitimately runs baseline -> patient: DM duration is
-        # only ever collected on the baseline.
+    def test_dm_duration_flags_diabetes_with_type_unrecorded(self):
+        # Replaced 2026-09-27 (entry-linkage review): a DM duration shows the
+        # patient has diabetes but says nothing about its type. The old
+        # assertion (silently set Type 2) enshrined a lossy inference; the
+        # status is now "type not recorded", visible for clinician confirmation.
         p = _patient("BGD-COM-13")
         _baseline(p, dm_duration_years=6)
         p.refresh_from_db()
-        assert p.diabetes_status == "t2"
+        assert p.diabetes_status == "unknown"
 
     def test_dm_inference_does_not_override_a_recorded_status(self):
         p = _patient("BGD-COM-14", diabetes_status="t1")

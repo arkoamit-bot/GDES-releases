@@ -33,6 +33,9 @@ class Command(BaseCommand):
                             help="Output file. Omit for an auto-named file in Exports/.")
         parser.add_argument("--identified", action="store_true",
                             help="Include direct identifiers (name/phone/reg).")
+        parser.add_argument("--table", choices=["patients", "findings"], default="patients",
+                            help="patients = one row per patient; findings = the "
+                                 "repeated biopsy-findings child table.")
         parser.add_argument("--study", default=None,
                             help="Study code: restrict to its enrolled patients "
                                  "and add the arm/stratum columns for ITT analysis.")
@@ -55,6 +58,21 @@ class Command(BaseCommand):
     def handle(self, *args, **opts):
         study = opts.get("study")
         out = self._resolve_out(opts["out"], opts["format"], opts["identified"], study)
+        if opts.get("table") == "findings":
+            from exports.services.dataset import build_findings_table
+            from exports.services.dictionary import findings_dictionary
+            cols, rows = build_findings_table(Patient.objects.all())
+            out = out.with_name(out.name.replace("bgddr_research_", "bgddr_biopsy_findings_"))
+            if opts["format"] == "xlsx":
+                with open(out, "wb") as f:
+                    f.write(to_xlsx(cols, rows, dictionary=findings_dictionary(),
+                                    dictionary_columns=DICTIONARY_COLUMNS))
+            else:
+                with open(out, "w", encoding="utf-8", newline="") as f:
+                    f.write(to_csv(cols, rows))
+            self.stdout.write(self.style.SUCCESS(
+                f"Wrote {len(rows)} finding rows x {len(cols)} columns to {out}."))
+            return
         cols, rows = build_dataset(Patient.objects.all().order_by("patient_id"),
                                    identified=opts["identified"], study=study)
         if opts["format"] == "xlsx":

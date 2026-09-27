@@ -236,7 +236,13 @@ class TreatmentExposure(models.Model):
     )
     # Denormalized snapshot of what was actually prescribed at the time.
     drug_name = models.CharField(max_length=120)
-    dose = models.CharField(max_length=40, blank=True)
+    # The regimen amount per administration (PrescriptionItem.regimen_dose):
+    # compared by the reconciliation signature, so a change in the number of
+    # tablets at an unchanged product strength splits the episode. 120 to hold
+    # combination-product strengths without truncation on PostgreSQL.
+    dose = models.CharField(max_length=120, blank=True)
+    # Product strength as prescribed (e.g. "5 mg"); display only.
+    strength = models.CharField(max_length=120, blank=True)
     dose_unit = models.CharField(max_length=20, blank=True)
     frequency = models.CharField(max_length=40, blank=True)
     route = models.CharField(max_length=20, blank=True, default="PO")

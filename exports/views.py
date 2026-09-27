@@ -2,6 +2,7 @@
 Research-dataset export.
 
   GET /exports/research-dataset/?fmt=csv|xlsx|sav&identified=0
+  GET /exports/research-dataset/?table=findings&fmt=csv|xlsx   (biopsy findings)
 
 De-identified by default (Study ID only). identified=1 requires data-manager
 role (or superuser), per §13.5. Token or session auth via DRF.
@@ -35,16 +36,29 @@ def research_dataset(request):
             status=403)
 
     study = (request.GET.get("study") or "").strip() or None
-    cols, rows = build_dataset(Patient.objects.all().order_by("patient_id"),
-                               identified=identified, study=study)
-    tag = "identified" if identified else "deidentified"
-    if study:
-        tag = f"{study}_{tag}"
+    table = (request.GET.get("table") or "patients").strip().lower()
+    dictionary_rows, dictionary_cols = data_dictionary(identified), DICTIONARY_COLUMNS
+    if table == "findings":
+        # Repeated biopsy findings: a child table keyed by patient / biopsy /
+        # report revision / finding (never widens the patient-level rows).
+        from .services.dataset import build_findings_table
+        from .services.dictionary import findings_dictionary
+        cols, rows = build_findings_table(Patient.objects.all())
+        dictionary_rows = findings_dictionary()
+        tag = "biopsy_findings"
+        if fmt == "sav":
+            fmt = "csv"
+    else:
+        cols, rows = build_dataset(Patient.objects.all().order_by("patient_id"),
+                                   identified=identified, study=study)
+        tag = "identified" if identified else "deidentified"
+        if study:
+            tag = f"{study}_{tag}"
 
     if fmt == "xlsx":
         try:
-            data = to_xlsx(cols, rows, dictionary=data_dictionary(identified),
-                           dictionary_columns=DICTIONARY_COLUMNS)
+            data = to_xlsx(cols, rows, dictionary=dictionary_rows,
+                           dictionary_columns=dictionary_cols)
         except ExcelUnavailable as exc:
             return Response({"detail": str(exc)}, status=503)
         resp = HttpResponse(

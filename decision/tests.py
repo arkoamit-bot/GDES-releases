@@ -31,9 +31,11 @@ class EgfrCalculatorTests(TestCase):
                     egfr_ckd_epi_2021(scr, age, sex), expected, places=1)
 
     def test_does_not_use_the_2009_coefficients(self):
-        # The superseded race-adjusted equation used alpha=-0.302 for males and
-        # a 1.018 female factor, which reported 128.2 here instead of 123.7.
-        self.assertEqual(egfr_ckd_epi_2021(0.5, 45, "M"), 123.7)
+        # Replaced 2026-09-27 (entry-linkage review): the 2021 equation uses
+        # alpha -0.302 for males (NIDDK). The previous assertion (123.7)
+        # pinned the defective shared -0.241 alpha and wrongly attributed
+        # -0.302 to the 2009 equation (which used -0.411 and gives ~131 here).
+        self.assertEqual(egfr_ckd_epi_2021(0.5, 45, "M"), 128.2)
         # Female, Scr 1.01, age 70: 59.9 (G3a). The 2009 constants gave 60.2 (G2).
         self.assertEqual(egfr_ckd_epi_2021(1.01, 70, "F"), 59.9)
 

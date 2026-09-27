@@ -107,6 +107,34 @@ def _celery_available() -> bool:
            bool(getattr(settings, "REDIS_URL", None))
 
 
+def dispatch_on_commit(event_type: str, *, key: str, source_model: str = "",
+                       source_pk: str = "", payload: dict[str, Any] | None = None) -> None:
+    """Dispatch once, after the surrounding transaction commits.
+
+    For aggregates saved in several steps (a biopsy, its diagnosis, its score
+    panels and report): each step asks for the event, one is sent, and only
+    once the whole aggregate is visible to handlers. Outside a transaction it
+    runs immediately. ``key`` identifies the aggregate: a second request for
+    the same event and key within the same transaction is dropped. A rollback
+    discards the pending callback with the transaction.
+    """
+    from django.db import transaction
+
+    token = (event_type, key)
+    conn = transaction.get_connection()
+    if conn.in_atomic_block and any(
+            getattr(entry[1], "_event_token", None) == token
+            for entry in conn.run_on_commit):
+        return
+
+    def _send():
+        dispatch(event_type, source_model=source_model, source_pk=source_pk,
+                 payload=payload)
+
+    _send._event_token = token
+    transaction.on_commit(_send)
+
+
 def dispatch(
     event_type: str,
     *,

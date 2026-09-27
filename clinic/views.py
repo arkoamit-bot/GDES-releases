@@ -72,20 +72,35 @@ def _clip(value, field):
     return text
 
 
-def _save_labs(patient, form, result_date):
-    """Record any point-of-care labs entered on the form as LabResult rows.
-    Entering creatinine auto-derives eGFR + refreshes the patient's cached value.
-    A lab failure must never lose the visit/baseline, so each is best-effort."""
-    from labs.services.results import record_result
-    saved = 0
-    for code, value, text in collect_labs(form.cleaned_data):
-        try:
-            record_result(patient, code, result_date=result_date,
-                          value_numeric=value, value_text=text)
-            saved += 1
-        except Exception:  # pragma: no cover - defensive
-            pass
-    return saved
+def _save_labs(patient, form, result_date, *, rows=None, entry_path="baseline",
+               user=None):
+    """Record the point-of-care labs entered on a form through the one lab
+    service. Entering creatinine auto-derives eGFR + refreshes the patient's
+    cached value. Returns a PanelOutcome: what was saved, what was already on
+    file for that date (not duplicated unless the user confirmed a repeat),
+    and which fields failed and why -- a failure never loses the rest."""
+    from labs.services.results import record_panel
+    rows = collect_labs(form.cleaned_data) if rows is None else rows
+    return record_panel(
+        patient, rows, result_date=result_date,
+        token=(form.cleaned_data.get("form_token") or ""),
+        entry_path=entry_path,
+        entered_by=user if getattr(user, "is_authenticated", False) else None,
+        allow_repeat=bool(form.cleaned_data.get("confirm_repeat")))
+
+
+def _panel_messages(request, outcome, what="result"):
+    """Truthful, per-field feedback for a panel save."""
+    if outcome.saved:
+        messages.success(request, f"{len(outcome.saved)} {what}(s) recorded.")
+    if outcome.existing:
+        messages.warning(request, "Already on file for that date, not recorded again: "
+                         + "; ".join(f"{r.test.name} {r.value_numeric if r.value_numeric is not None else r.value_text}"
+                                     f" ({r.result_date}, {r.get_entry_path_display() or r.get_source_display()})"
+                                     for r in outcome.existing)
+                         + ". Tick 'new repeat measurements' to record a genuine repeat.")
+    for code, msg in outcome.failed.items():
+        messages.error(request, f"{code}: not saved — {msg}")
 
 
 # --- Patients ---------------------------------------------------------------
@@ -443,6 +458,15 @@ def patient_detail(request, pk):
     dx_display = differential_for_display(
         patient, getattr(profile, "differential", None) if profile else None)
 
+    # Pathology summary: read-only projection with its source and any newer
+    # biopsy still pending review; and the current comorbidities with their
+    # source (a legacy-baseline-only item is flagged for confirmation).
+    from pathology.services.projection import select_source, working_diagnosis_differs
+    from patients.comorbidity import comorbidity_items
+    _sel = select_source(patient)
+    pathology_ctx = {"pending": _sel.pending_biopsies if _sel.state == "final" else [],
+                     "differs": working_diagnosis_differs(patient)}
+
     return render(request, "clinic/patient_detail.html", {
         "active": "patients", "patient": patient, "baseline": baseline,
         "encounters": encounters, "prescriptions": prescriptions,
@@ -465,6 +489,8 @@ def patient_detail(request, pk):
         "last_visit": last_visit,
         "patient_override_context": _get_patient_override_context(patient),
         "prediction_history": _get_prediction_history(patient),
+        "pathology": pathology_ctx,
+        "comorbidity_items": comorbidity_items(patient, baseline),
     })
 
 
@@ -472,19 +498,36 @@ def patient_detail(request, pk):
 
 @login_required(login_url=LOGIN)
 def baseline_edit(request, pk):
+    import datetime as _dt
+    from django.db import transaction
+
     patient = get_object_or_404(Patient, pk=pk)
     instance = getattr(patient, "baseline", None)
     form = BaselineForm(request.POST or None, instance=instance, patient=patient)
     if request.method == "POST" and form.is_valid():
-        obj = form.save(commit=False)
-        obj.patient = patient
-        # BaselineAssessment.save() syncs Level 2 comorbidities back to the
-        # Patient record itself (_sync_level2_to_patient), so nothing to do here.
-        obj.save()
-        import datetime as _dt
-        n = _save_labs(patient, form, obj.assessment_date or _dt.date.today())
-        messages.success(request, "Baseline assessment saved."
-                         + (f" {n} baseline lab result(s) recorded." if n else ""))
+        with transaction.atomic():
+            obj = form.save(commit=False)
+            obj.patient = patient
+            # The enrollment comorbidity snapshot is taken once, when the
+            # baseline is created (BaselineAssessment.save); editing a note here
+            # never rewrites it.
+            obj.save()
+        result_date = obj.assessment_date or _dt.date.today()
+        rows = list(collect_labs(form.cleaned_data))
+        hba1c = form.cleaned_data.get("hba1c")
+        if hba1c is not None:
+            rows.append(("hba1c", hba1c, ""))
+        outcome = _save_labs(patient, form, result_date, rows=rows,
+                             entry_path="baseline", user=request.user)
+        # Link the HbA1c this baseline reports: the one just entered, or the
+        # identical one already on file for the date.
+        hb = next((r for r in outcome.saved + outcome.existing
+                   if r.test.code == "hba1c"), None)
+        if hb is not None and obj.hba1c_result_id != hb.pk:
+            obj.hba1c_result = hb
+            obj.save(update_fields=["hba1c_result", "updated_at"])
+        messages.success(request, "Baseline assessment saved.")
+        _panel_messages(request, outcome, "baseline lab result")
         return redirect("clinic:patient_detail", pk=patient.pk)
     return render(request, "clinic/baseline_form.html",
                   {"active": "patients", "form": form, "patient": patient})
@@ -510,7 +553,15 @@ def followup_create(request, pk):
         enc = form.save(commit=False)
         enc.patient = patient
         enc.save()
-        n = _save_labs(patient, form, enc.encounter_date)
+        # The BP/weight typed on the visit form are one dated reading: record
+        # it as the visit's VitalSign (the measurement owner) and select it,
+        # so display, print and reasoning all read the same measurement.
+        from encounters.services.vitals import record_visit_vitals
+        record_visit_vitals(enc, systolic=form.cleaned_data.get("systolic_bp"),
+                            diastolic=form.cleaned_data.get("diastolic_bp"),
+                            weight_kg=form.cleaned_data.get("weight_kg"))
+        n = len(_save_labs(patient, form, enc.encounter_date, entry_path="guided",
+                           user=request.user).saved)
         # --- Level 2: sync any clinician changes back to Patient (single source) ---
         _sync_level2_from_followup(patient, form)
         # Advance the disease-phase state machine from this visit's assessment.
@@ -692,88 +743,163 @@ def _reconcile_lupus_class(dx_form, lupus_form):
     return True
 
 
-def _sync_biopsy_to_patient(patient, dxo, active_scores):
-    """Sync Level 2 biopsy data to Patient model (single source of truth)."""
-    changed = False
-    if dxo.diagnosis and not patient.biopsy_diagnosis:
-        patient.biopsy_diagnosis = dxo.get_diagnosis_display() or dxo.diagnosis
-        changed = True
-    if dxo.diagnosis and not patient.primary_diagnosis:
-        patient.primary_diagnosis = dxo.diagnosis
-        changed = True
-    if dxo.broad_group and not patient.gn_broad_group:
-        patient.gn_broad_group = dxo.broad_group
-        changed = True
-    if dxo.primary_secondary and not patient.gn_primary_secondary:
-        patient.gn_primary_secondary = dxo.primary_secondary
-        changed = True
-    # Oxford MEST-C
-    igan = active_scores.get("igan")
-    if igan and igan.is_valid():
-        score = f"M{igan.cleaned_data['M']}E{igan.cleaned_data['E']}S{igan.cleaned_data['S']}T{igan.cleaned_data['T']}C{igan.cleaned_data['C']}"
-        if not patient.oxford_mestc:
-            patient.oxford_mestc = score
-            changed = True
-    # ISN/RPS class — from the diagnosis, which is where it is stated; the panel
-    # is only a fallback for a diagnosis recorded without a class.
-    from pathology import lupus as lupus_rules
-    cls = lupus_rules.class_from_diagnosis(dxo.diagnosis)
-    if not cls:
-        lupus = active_scores.get("lupus")
-        if lupus and lupus.is_valid():
-            cls = lupus.cleaned_data.get("isn_rps_class", "")
-    if cls and not patient.isn_rps_class:
-        patient.isn_rps_class = cls
-        changed = True
-    if changed:
-        patient.save(update_fields=[
-            "biopsy_diagnosis", "primary_diagnosis", "gn_broad_group",
-            "gn_primary_secondary", "oxford_mestc",
-            "isn_rps_class", "updated_at"])
+def _reconcile_fsgs(dx_form, fsgs_form, fsgs_active):
+    """Primary/secondary and variant are stated by some FSGS diagnoses and
+    asked again on the diagnosis and the FSGS panel. Prefill blanks from the
+    diagnosis; report contradictions instead of saving them."""
+    from pathology import diagnosis as dxrules
+
+    if not dx_form.is_valid():
+        return True
+    diagnosis = dx_form.cleaned_data.get("diagnosis") or ""
+    if dxrules.family(diagnosis) != dxrules.FSGS and not fsgs_active:
+        return True
+    dx_ps = dx_form.cleaned_data.get("primary_secondary") or ""
+    panel_ps = panel_variant = ""
+    if fsgs_active and fsgs_form.is_valid():
+        panel_ps = fsgs_form.cleaned_data.get("primary_secondary") or ""
+        panel_variant = fsgs_form.cleaned_data.get("variant") or ""
+    ps, variant, errors = dxrules.reconcile_fsgs(diagnosis, dx_ps, panel_ps, panel_variant)
+    for (form_key, field), msg in errors.items():
+        (dx_form if form_key == "dx" else fsgs_form).add_error(field, msg)
+    if errors:
+        return False
+    if ps and not dx_ps:
+        dx_form.cleaned_data["primary_secondary"] = ps
+        dx_form.instance.primary_secondary = ps
+    if fsgs_active and fsgs_form.is_valid():
+        if ps and not panel_ps:
+            fsgs_form.instance.primary_secondary = ps
+        if variant and not panel_variant:
+            fsgs_form.instance.variant = variant
+    return True
+
+
+def _attach_report_errors(errors, report_form, formset, index, fallback_form):
+    """Map pathology.services.report errors back onto the forms."""
+    for key, messages_ in errors.items():
+        for msg in messages_:
+            if key.startswith("finding-"):
+                pos = int(key.split("-", 1)[1])
+                target = formset.forms[index[pos]] if pos < len(index) else None
+                (target or report_form).add_error(None, msg)
+            elif key in report_form.fields:
+                report_form.add_error(key, msg)
+            elif key in getattr(fallback_form, "fields", {}):
+                fallback_form.add_error(key, msg)
+            else:
+                report_form.add_error(None, msg)
+
+
+def _biopsy_summary_flags(bx_form):
+    from pathology import findings as vocab
+    return {f: bx_form.cleaned_data.get(f) for f in vocab.SUMMARY_LINKS}
 
 
 @login_required(login_url=LOGIN)
 def biopsy_create(request, pk):
     """Guided biopsy entry: the core biopsy + its diagnosis (the driver of the
     disease-specific remission rules) + optional MEST-C / ISN-RPS / FSGS / MN
-    score blocks. A score block is only saved when the user actually fills it.
+    score blocks + the local pathology report with any number of structured
+    findings. A score block is only saved when the user actually fills it.
     New biopsies enter the central-review workflow as 'pending'."""
+    from django.db import transaction
+
+    from pathology import diagnosis as dxrules
+    from pathology.models import PathologyReport
+    from pathology.services.projection import deferred_projection
+    from pathology.services.report import save_report, validate_report
+
+    from .forms import FindingFormSet, PathologyReportForm, findings_from_formset
+
     patient = get_object_or_404(Patient, pk=pk)
     post = request.POST or None
     bx = BiopsyForm(post, prefix="bx")
     dx = GNDiagnosisForm(post, prefix="dx")
+    rp = PathologyReportForm(post, prefix="rp")
+    # A submission without the findings block (older page, script) simply
+    # has no findings -- not a broken management form.
+    fs = FindingFormSet(post if post and "f-TOTAL_FORMS" in post else None, prefix="f")
     scores = {
         "igan": IgANScoreForm(post, prefix="igan"),
         "lupus": LupusPathologyForm(post, prefix="lupus"),
         "fsgs": FSGSPathologyForm(post, prefix="fsgs"),
         "mn": MembranousPathologyForm(post, prefix="mn"),
     }
+    warnings = []
 
     if request.method == "POST":
         # Validate the required pair; validate a score block only if touched.
         ok = bx.is_valid()
         ok = dx.is_valid() and ok
+        ok = rp.is_valid() and ok
+        ok = (fs.is_valid() if fs.is_bound else True) and ok
         active = {k: f for k, f in scores.items() if f.has_changed()}
         for f in active.values():
             ok = f.is_valid() and ok
+
+        diagnosis = dx.cleaned_data.get("diagnosis", "") if dx.is_valid() else ""
+        status = rp.cleaned_data.get("status") if rp.is_valid() else ""
+        if (dx.is_valid() and not diagnosis and status in (
+                PathologyReport.Status.FINAL, PathologyReport.Status.PRELIMINARY)):
+            dx.add_error("diagnosis", "A final or preliminary report needs a diagnosis. "
+                         "Record it as draft, pending or inadequate if there is none yet.")
+            ok = False
+
         # The ISN/RPS class is stated once: the diagnosis and the lupus panel
         # must agree, and a contradiction is reported rather than resolved.
         ok = _reconcile_lupus_class(dx, scores["lupus"]) and ok
+        ok = _reconcile_fsgs(dx, scores["fsgs"], "fsgs" in active) and ok
+        if dx.is_valid():
+            diagnosis = dx.cleaned_data.get("diagnosis") or ""
+
+        # A score panel outside the diagnosis family is not silently attached.
+        if rp.is_valid():
+            panel_errors = dxrules.check_panels(
+                diagnosis, active.keys(),
+                additional=rp.cleaned_data.get("additional_diagnoses") or [],
+                override_reason=rp.cleaned_data.get("panel_override_reason", ""))
+            for key, msg in panel_errors.items():
+                active[key].add_error(None, msg)
+                ok = False
+
+        findings, index = (findings_from_formset(fs) if fs.is_bound and fs.is_valid()
+                           else ([], []))
+        derived = {}
+        if ok:
+            data = rp.report_data()
+            data["primary_diagnosis"] = diagnosis
+            errors, warnings, derived = validate_report(
+                data, findings, total_glomeruli=bx.cleaned_data.get("total_glomeruli"),
+                summary=_biopsy_summary_flags(bx),
+                reported_pct={"global_sclerosis_pct": bx.cleaned_data.get("global_sclerosis_pct"),
+                              "crescent_pct": bx.cleaned_data.get("crescent_pct")})
+            if errors:
+                _attach_report_errors(errors, rp, fs, index, bx)
+                ok = False
 
         if ok:
-            biopsy = bx.save(commit=False)
-            biopsy.patient = patient
-            biopsy.save()
-            dxo = dx.save(commit=False)
-            dxo.biopsy = biopsy
-            dxo.save()
-            for f in active.values():
-                obj = f.save(commit=False)
-                obj.biopsy = biopsy
-                obj.save()
-            # --- Level 2: sync biopsy diagnosis to Patient (single source) ---
-            _sync_biopsy_to_patient(patient, dxo, active)
+            with transaction.atomic(), deferred_projection():
+                biopsy = bx.save(commit=False)
+                biopsy.patient = patient
+                for flag, value in derived.items():
+                    setattr(biopsy, flag, value)
+                biopsy.save()
+                dxo = None
+                if diagnosis:
+                    dxo = dx.save(commit=False)
+                    dxo.biopsy = biopsy
+                    dxo.save()
+                for f in active.values():
+                    obj = f.save(commit=False)
+                    obj.biopsy = biopsy
+                    obj.save()
+                save_report(biopsy, data=data, findings=findings,
+                            user=request.user if request.user.is_authenticated else None)
+            patient.refresh_from_db()
             extra = f" + {len(active)} score block(s)" if active else ""
+            if findings:
+                extra += f" + {len(findings)} finding(s)"
             # --- Confirm-GN gate (workflow) --------------------------------
             # A positive biopsy (specific GN) auto-registers the patient into the
             # GN clinic; a negative one (no specific GN) exits the registry.
@@ -789,15 +915,176 @@ def biopsy_create(request, pk):
                     patient.registration_status = RegistrationStatus.EXCLUDED
                     patient.save(update_fields=["registration_status"])
                     gate = " No specific GN on biopsy — patient marked excluded (registry ends)."
+            label = dxo.get_diagnosis_display() if dxo else rp.cleaned_data["status"]
             messages.success(
-                request, f"Biopsy recorded ({dxo.get_diagnosis_display()}){extra}. "
+                request, f"Biopsy recorded ({label}){extra}. "
                 f"It enters central review as 'pending'.{gate}")
-            return redirect("clinic:patient_detail", pk=patient.pk)
+            for w in warnings:
+                messages.warning(request, w)
+            return redirect("clinic:biopsy_detail", pk=patient.pk, bid=biopsy.pk)
 
     return render(request, "clinic/biopsy_form.html", {
         "active": "patients", "patient": patient,
-        "bx": bx, "dx": dx, "scores": scores, "score_hints": _SCORE_HINTS,
+        "bx": bx, "dx": dx, "rp": rp, "fs": fs, "scores": scores,
+        "score_hints": _SCORE_HINTS, "sections": _finding_sections(),
+        "mode": "create",
     })
+
+
+def _finding_sections():
+    from pathology import findings as vocab
+    return [{"key": key, "label": label,
+             "codes": [c for c, _ in codes]}
+            for key, (label, codes) in vocab.SECTIONS.items()]
+
+
+@login_required(login_url=LOGIN)
+def biopsy_detail(request, pk, bid):
+    """The full clinical report view for one biopsy: every report revision
+    with its findings, the current score panels, the independent review
+    reads and their disagreements, and whether this biopsy is the source of
+    the patient's pathology summary."""
+    from pathology.models import Biopsy
+    from pathology.services.projection import select_source
+    from pathology.services.review import concordance
+
+    patient = get_object_or_404(Patient, pk=pk)
+    biopsy = get_object_or_404(
+        Biopsy.objects.select_related("diagnosis"), pk=bid, patient=patient)
+    reports = list(biopsy.reports.prefetch_related("findings")
+                   .order_by("role", "-revision"))
+    current = [r for r in reports if r.is_current]
+    history = [r for r in reports if not r.is_current]
+    sel = select_source(patient)
+
+    def rel(name):
+        try:
+            return getattr(biopsy, name)
+        except Exception:
+            return None
+
+    return render(request, "clinic/biopsy_detail.html", {
+        "active": "patients", "patient": patient, "biopsy": biopsy,
+        "current_reports": current, "history": history,
+        "igan": rel("igan_score"), "lupus": rel("lupus"), "fsgs": rel("fsgs"),
+        "mn": rel("membranous"),
+        "reviews": list(biopsy.reviews.select_related("reviewer").all()),
+        "concordance": concordance(biopsy),
+        "images": list(biopsy.images.all()),
+        "is_source": sel.biopsy is not None and sel.biopsy.pk == biopsy.pk,
+        "source_state": sel.state,
+        "is_pending_newer": any(b.pk == biopsy.pk for b in sel.pending_biopsies),
+        "source_biopsy": sel.biopsy,
+        "legacy_if": biopsy.get_if_pattern_display() if biopsy.if_pattern else "",
+        "legacy_em": biopsy.get_em_findings_display() if biopsy.em_findings else "",
+    })
+
+
+@login_required(login_url=LOGIN)
+def biopsy_amend(request, pk, bid):
+    """Amend (replace) or add an addendum to the current local report. The
+    previous revision is kept, unchanged; the new one records who, when and
+    why. A repeat biopsy is a new biopsy, not an amendment."""
+    from django.db import transaction
+
+    from pathology.models import Biopsy, GNDiagnosis
+    from pathology.services.projection import FINAL_STATUSES, deferred_projection
+    from pathology.services.report import (ReportInvalid, amend_report,
+                                           current_report, legacy_report_from_biopsy,
+                                           save_report)
+
+    from .forms import (FindingFormSet, PathologyReportForm, findings_from_formset,
+                        findings_initial)
+
+    patient = get_object_or_404(Patient, pk=pk)
+    biopsy = get_object_or_404(Biopsy, pk=bid, patient=patient)
+    kind = request.POST.get("kind") or request.GET.get("kind") or "amendment"
+    if kind not in ("amendment", "addendum"):
+        kind = "amendment"
+    report = current_report(biopsy) or legacy_report_from_biopsy(biopsy)
+
+    initial_dx = biopsy.diagnosis.diagnosis if hasattr(biopsy, "diagnosis") else ""
+    post = request.POST or None
+    bx = BiopsyForm(post, prefix="bx", instance=biopsy)
+    rp = PathologyReportForm(post, prefix="rp", instance=None,
+                             initial=({} if kind == "addendum" or report is None else
+                                      {f: getattr(report, f) for f in PathologyReportForm.Meta.fields}))
+    fs = FindingFormSet(post, prefix="f",
+                        initial=([] if kind == "addendum" or report is None
+                                 else findings_initial(report)))
+    from django import forms as djforms
+    from patients import choices as pchoices
+    conclusion = djforms.ChoiceField(
+        required=False, choices=[("", "— unchanged / none —")] + list(pchoices.SPECIFIC_GN_DIAGNOSIS),
+        initial=(report.primary_diagnosis if report else initial_dx))
+    reason = (request.POST.get("revision_reason") or "").strip()
+
+    if request.method == "POST":
+        ok = bx.is_valid() and rp.is_valid() and fs.is_valid()
+        new_dx = (request.POST.get("primary_diagnosis") or "").strip()
+        if not reason:
+            messages.error(request, "State why the report is being amended.")
+            ok = False
+        if ok:
+            findings, index = findings_from_formset(fs)
+            data = rp.report_data()
+            data["primary_diagnosis"] = new_dx or (report.primary_diagnosis if report else "")
+            user = request.user if request.user.is_authenticated else None
+            try:
+                with transaction.atomic(), deferred_projection():
+                    from audit.local import acting_as
+                    with acting_as(user, reason=f"Pathology report {kind}: {reason}"[:240]):
+                        bx.save()
+                    if report is None:
+                        new, warnings = save_report(biopsy, data=data, findings=findings,
+                                                    user=user)
+                    else:
+                        new, warnings = amend_report(report, data=data, findings=findings,
+                                                     reason=reason, user=user, kind=kind)
+                    # The amended conclusion becomes the biopsy's adopted
+                    # diagnosis only while no reviewed read is final.
+                    if new_dx and biopsy.review_status not in FINAL_STATUSES:
+                        with acting_as(user, reason=f"Pathology report {kind}: {reason}"[:240]):
+                            GNDiagnosis.objects.update_or_create(
+                                biopsy=biopsy, defaults={"diagnosis": new_dx})
+                    elif new_dx and new_dx != initial_dx:
+                        warnings.append(
+                            "This biopsy has a finalized review, so the adopted diagnosis "
+                            "is unchanged. The amended conclusion is on the report; submit "
+                            "a review read to change the adopted diagnosis.")
+            except ReportInvalid as exc:
+                _attach_report_errors(exc.errors, rp, fs, index, bx)
+            else:
+                messages.success(request, f"Report {kind} recorded (revision {new.revision}).")
+                for w in warnings:
+                    messages.warning(request, w)
+                return redirect("clinic:biopsy_detail", pk=patient.pk, bid=biopsy.pk)
+
+    return render(request, "clinic/biopsy_form.html", {
+        "active": "patients", "patient": patient, "biopsy": biopsy,
+        "bx": bx, "rp": rp, "fs": fs, "scores": {}, "dx": None,
+        "score_hints": _SCORE_HINTS, "sections": _finding_sections(),
+        "mode": kind, "report": report, "reason": reason,
+        "conclusion_choices": conclusion.choices,
+        "conclusion_value": request.POST.get("primary_diagnosis",
+                                             report.primary_diagnosis if report else initial_dx),
+    })
+
+
+@login_required(login_url=LOGIN)
+def adopt_pathology_diagnosis(request, pk):
+    """Explicitly adopt the selected biopsy's diagnosis as the working
+    diagnosis (POST only, audited)."""
+    from pathology.services.projection import adopt_pathology_diagnosis as adopt
+    patient = get_object_or_404(Patient, pk=pk)
+    if request.method == "POST":
+        try:
+            new = adopt(patient, user=request.user,
+                        reason=(request.POST.get("reason") or "").strip())
+            messages.success(request, f"Working diagnosis set to {new}.")
+        except ValueError as exc:
+            messages.error(request, str(exc))
+    return redirect("clinic:patient_detail", pk=patient.pk)
 
 
 # --- Study enrolment (guided) -----------------------------------------------
@@ -917,14 +1204,53 @@ def treatment_add(request, pk):
 
 # --- Prescription (guided create) -------------------------------------------
 
+DOSE_UNITS = [("", "—"), ("tab", "tab"), ("cap", "cap"), ("ml", "mL"), ("mg", "mg"),
+              ("g", "g"), ("mcg", "mcg"), ("unit", "unit(s)"), ("drop", "drop(s)"),
+              ("puff", "puff(s)"), ("sachet", "sachet"), ("vial", "vial"),
+              ("amp", "amp"), ("spoon", "spoon")]
+
+
+def _requested_tests(values):
+    """Catalogue tests from the posted investigation values: test ids (the
+    current form) or exact test names (older pages), de-duplicated by id."""
+    from labs.models import LabTest
+    ids, names = [], []
+    for v in values:
+        v = (v or "").strip()
+        if not v:
+            continue
+        (ids if v.isdigit() else names).append(v)
+    tests = list(LabTest.objects.filter(pk__in=[int(i) for i in ids], is_active=True))
+    if names:
+        tests += list(LabTest.objects.filter(name__in=names, is_active=True))
+    seen, out = set(), []
+    for t in tests:
+        if t.pk not in seen:
+            seen.add(t.pk)
+            out.append(t)
+    return out
+
+
 @login_required(login_url=LOGIN)
 def prescription_create(request, pk):
     """Guided prescription entry: a draft Prescription on the patient's latest
     visit + its items, then hand off to the existing preview/finalize/PDF flow.
     Print the FULL current regimen each visit — that set is what finalize
-    reconciles into TreatmentExposure episodes."""
+    reconciles into TreatmentExposure episodes.
+
+    Linked, not re-typed: the next appointment is the visit's own (changing it
+    goes through encounters.services.scheduling); catalogue investigations are
+    structured requests that become lab orders at finalization; the printed
+    comorbidities are a selection from the patient record plus clearly
+    prescription-only notes; product strength and dose are separate facts."""
+    from django.db import transaction
     from django.db.models import Max
-    import datetime as dt
+
+    from encounters.services.scheduling import set_next_visit, suggested_next_visit
+    from labs.models import LabOrderItem, LabTest
+    from patients.comorbidity import comorbidity_items, structured_labels
+    from prescriptions.models import PrescriptionTestRequest
+
     patient = get_object_or_404(Patient, pk=pk)
     encounter = patient.encounters.order_by("-encounter_date", "-id").first()
     if encounter is None:
@@ -932,72 +1258,64 @@ def prescription_create(request, pk):
         return redirect("clinic:followup", pk=patient.pk)
 
     if request.method == "POST":
-        last = encounter.prescriptions.aggregate(m=Max("version"))["m"] or 0
-
-        # Merge multi-select investigations + free text
-        inv_list = request.POST.getlist("investigations_advised")
-        inv_text = (request.POST.get("investigations_advised_text") or "").strip()
-        investigations = ", ".join(filter(None, inv_list))
-        if inv_text:
-            investigations = (investigations + ", " + inv_text).strip(", ")
-
-        # Update encounter next_due_date if provided
-        next_due = request.POST.get("next_due_date")
-        if next_due:
-            encounter.next_due_date = next_due
-            encounter.save(update_fields=["next_due_date"])
-
-        rx = Prescription.objects.create(
-            encounter=encounter, version=last + 1,
-            diagnosis_text=(request.POST.get("diagnosis_text") or "").strip(),
-            comorbidities=", ".join(
-                filter(None, request.POST.getlist("comorbidities")
-                       + [(request.POST.get("comorbidities_text") or "").strip()]))[:240],
-            investigations_advised=investigations,
-            advice=(request.POST.get("advice") or "").strip(),
-            stop_notes=(request.POST.get("stop_notes") or "").strip(),
-        )
-        valid_drug_ids = set(
-            DrugMaster.objects.values_list("id", flat=True))
-        n = 0
+        valid_drug_ids = set(DrugMaster.objects.values_list("id", flat=True))
+        rows = []
         for i in range(1, MAX_PRESCRIPTION_ITEMS + 1):
             drug_id = request.POST.get(f"drug_{i}")
             # Skip empty rows and reject anything that isn't a known drug id.
             if not drug_id or not drug_id.isdigit() or int(drug_id) not in valid_drug_ids:
                 continue
-            strength_val = _clip(
-                request.POST.get(f"strength_{i}"), PrescriptionItem._meta.get_field("strength"))
-            PrescriptionItem.objects.create(
-                prescription=rx, drug_id=int(drug_id),
-                brand=_clip(
-                    request.POST.get(f"brand_{i}"), PrescriptionItem._meta.get_field("brand")),
-                strength=strength_val,
-                # No separate "dose" column — strength is the regimen amount and
-                # drives reconciliation's dose-change detection (signature).
-                dose=strength_val,
-                route=_clip(
-                    (request.POST.get(f"route_{i}") or "").strip().upper(),
-                    PrescriptionItem._meta.get_field("route")),
-                frequency=_clip(
-                    request.POST.get(f"frequency_{i}"), PrescriptionItem._meta.get_field("frequency")),
-                timing=_clip(
-                    request.POST.get(f"timing_{i}") or "after",
-                    PrescriptionItem._meta.get_field("timing")),
-                duration=_clip(
-                    request.POST.get(f"duration_{i}"), PrescriptionItem._meta.get_field("duration")),
-                instruction_bn=_clip(
-                    request.POST.get(f"instruction_{i}"),
-                    PrescriptionItem._meta.get_field("instruction_bn")),
-                taper_notes=(request.POST.get(f"taper_{i}") or "").strip(),
-                sort_order=i,
-            )
-            n += 1
-        if n == 0:
-            rx.delete()
+            rows.append(i)
+        if not rows:
             messages.error(request, "Add at least one medication.")
             return redirect("clinic:prescription", pk=patient.pk)
+
+        f = PrescriptionItem._meta.get_field
+        with transaction.atomic():
+            last = encounter.prescriptions.aggregate(m=Max("version"))["m"] or 0
+
+            # Next appointment: one scheduling action. Unchanged -> untouched.
+            next_due = (request.POST.get("next_due_date") or "").strip()
+            if next_due:
+                set_next_visit(encounter, next_due, user=request.user,
+                               reason=(request.POST.get("next_due_reason") or "").strip(),
+                               source="prescription")
+
+            rx = Prescription.objects.create(
+                encounter=encounter, version=last + 1,
+                diagnosis_text=(request.POST.get("diagnosis_text") or "").strip(),
+                comorbidities=", ".join(
+                    filter(None, request.POST.getlist("comorbidities")
+                           + [(request.POST.get("comorbidities_text") or "").strip()]))[:240],
+                # Only investigations outside the catalogue are free text now.
+                investigations_advised=(request.POST.get("investigations_advised_text") or "").strip(),
+                advice=(request.POST.get("advice") or "").strip(),
+                stop_notes=(request.POST.get("stop_notes") or "").strip(),
+            )
+            for test in _requested_tests(request.POST.getlist("investigations_advised")):
+                PrescriptionTestRequest.objects.create(prescription=rx, test=test)
+
+            for i in rows:
+                PrescriptionItem.objects.create(
+                    prescription=rx, drug_id=int(request.POST.get(f"drug_{i}")),
+                    brand=_clip(request.POST.get(f"brand_{i}"), f("brand")),
+                    # Product strength and the dose per administration are
+                    # different facts; blank dose = one unit of the product.
+                    strength=_clip(request.POST.get(f"strength_{i}"), f("strength")),
+                    dose=_clip(request.POST.get(f"dose_{i}"), f("dose")),
+                    dose_unit=_clip(request.POST.get(f"dose_unit_{i}"), f("dose_unit")),
+                    route=_clip((request.POST.get(f"route_{i}") or "").strip().upper(), f("route")),
+                    frequency=_clip(request.POST.get(f"frequency_{i}"), f("frequency")),
+                    timing=_clip(request.POST.get(f"timing_{i}") or "after", f("timing")),
+                    duration=_clip(request.POST.get(f"duration_{i}"), f("duration")),
+                    instruction_bn=_clip(request.POST.get(f"instruction_{i}"), f("instruction_bn")),
+                    taper_notes=(request.POST.get(f"taper_{i}") or "").strip(),
+                    sort_order=i,
+                )
+        n = len(rows)
         messages.success(request, f"Draft prescription created with {n} item(s). "
-                         "Review it, then Finalize to freeze and reconcile the medication history.")
+                         "Review it, then Finalize to freeze it, place the requested "
+                         "lab orders and reconcile the medication history.")
         return redirect("prescriptions:preview", pk=rx.pk)
 
     drugs = list(DrugMaster.objects.filter(is_active=True).order_by("generic_name"))
@@ -1033,18 +1351,27 @@ def prescription_create(request, pk):
         d.search_text = " ".join(
             [d.generic_name or ""] + _brands + _strengths).strip()
 
-    # Default next visit = 4 weeks from today (clinic schedule)
-    default_next = (dt.date.today() + dt.timedelta(weeks=4)).isoformat()
+    # The visit's selected next appointment, when there is one; otherwise a
+    # suggestion (4 weeks), labelled as such.
+    if encounter.next_due_date:
+        default_next, next_selected = encounter.next_due_date.isoformat(), True
+    else:
+        default_next, next_selected = suggested_next_visit().isoformat(), False
     from patients import choices
-    from labs.models import LabTest
 
     # Carry-forward: pre-fill rows from the patient's most recent prescription so
     # the FULL regimen is preserved; the clinician edits / removes / adds before
     # finalize. (Print the full current regimen each visit — finalize reconciles it.)
     prev = (Prescription.objects.filter(encounter__patient=patient)
-            .order_by("-created_at").prefetch_related("items").first())
+            .order_by("-created_at").prefetch_related("items", "test_requests").first())
     prev_items = list(prev.items.order_by("sort_order")) if prev else []
     item_by_drug = {it.drug_id: it for it in prev_items}
+
+    def _dose_fields(it):
+        # A separately stated dose only; legacy rows copied the strength.
+        if it is None or not it.administered_dose:
+            return {"dose": "", "dose_unit": ""}
+        return {"dose": it.dose, "dose_unit": it.dose_unit}
 
     # The patient's CURRENT regimen = ongoing treatment episodes. This includes
     # medications added manually via the Treatment page (prior/external drugs the
@@ -1057,8 +1384,9 @@ def prescription_create(request, pk):
         it = item_by_drug.get(exp.drug_id)
         carried.append(dict(
             drug_id=exp.drug_id, brand=(it.brand if it else ""),
-            strength=(it.strength if it and it.strength else exp.dose),
-            dose=exp.dose, route=(it.route_value if it else exp.route),
+            strength=(it.strength if it and it.strength else (exp.strength or exp.dose)),
+            **_dose_fields(it),
+            route=(it.route_value if it else exp.route),
             frequency=exp.frequency or (it.frequency if it else ""),
             timing=(it.timing if it else ""), duration=(it.duration if it else ""),
             instruction=(it.instruction_bn if it else ""),
@@ -1070,7 +1398,7 @@ def prescription_create(request, pk):
         if it.drug_id not in seen:
             carried.append(dict(
                 drug_id=it.drug_id, brand=it.brand, strength=it.strength,
-                dose=it.dose, route=it.route_value, frequency=it.frequency,
+                **_dose_fields(it), route=it.route_value, frequency=it.frequency,
                 timing=it.timing, duration=it.duration, instruction=it.instruction_bn,
                 taper=it.taper_notes))
             seen.add(it.drug_id)
@@ -1106,44 +1434,67 @@ def prescription_create(request, pk):
         }
         for d in drugs
     }
-    prefill_invest = set()
-    if prev and prev.investigations_advised:
-        prefill_invest = {s.strip() for s in prev.investigations_advised.split(",") if s.strip()}
+
+    # Investigations: structured requests carried by test id; a legacy
+    # prescription's free text is matched to catalogue names where exact.
+    lab_tests = list(LabTest.objects.filter(is_active=True, is_derived=False).order_by("name"))
+    by_name = {t.name: t.pk for t in lab_tests}
+    prefill_invest, prefill_invest_text = set(), ""
+    if prev:
+        prefill_invest = {r.test_id for r in prev.test_requests.all()}
+        leftovers = []
+        for s in (prev.investigations_advised or "").split(","):
+            s = s.strip()
+            if not s:
+                continue
+            if s in by_name and not prev.test_requests.exists():
+                prefill_invest.add(by_name[s])
+            else:
+                leftovers.append(s)
+        prefill_invest_text = ", ".join(leftovers)
+    outstanding = list(LabOrderItem.objects.filter(
+        order__encounter=encounter,
+        order__status__in=["ordered", "collected"]).select_related("test", "order"))
+    outstanding = [it for it in outstanding if not it.is_resulted]
 
     # Declutter: show carried-forward rows + a couple of blanks; the rest are
     # revealed one at a time by the "Add medication" button.
     initial_visible = min(MAX_PRESCRIPTION_ITEMS, max(3, len(carried) + 1))
 
-    # Comorbidities: standard tick-list, pre-checked from the baseline record
-    # (and the patient's diabetes status), then carried forward from the last Rx.
-    comorbidity_options = ["Hypertension", "Diabetes mellitus", "Bronchial asthma",
-                           "Hypothyroidism", "Dyslipidaemia", "Ischaemic heart disease",
-                           "COPD", "CKD"]
-    # Patient Level 2 + baseline, via the shared helper, so everything recorded
-    # at registration or baseline is pre-ticked here.
-    from patients.comorbidity import comorbidity_summary
+    # Comorbidities: the patient record's CURRENT conditions (ticked -> printed);
+    # plus common prescription-only items (asthma, thyroid ...) which may be
+    # carried from the last slip because the record does not own them. A
+    # condition the record owns is never carried from an old slip, so a
+    # correction on the record cannot be undone by the previous prescription.
+    record_items = comorbidity_items(patient, getattr(patient, "baseline", None))
+    owned = structured_labels() | {c["label"] for c in record_items}
+    comorbidity_options = ["Bronchial asthma", "Hypothyroidism", "Dyslipidaemia",
+                           "Ischaemic heart disease", "COPD", "CKD"]
     prefill_comorbid = set()
-    for label in comorbidity_summary(patient, getattr(patient, "baseline", None)):
-        # The tick-list uses the short label; "Diabetes mellitus (Type 2)" and
-        # the like must still match their checkbox.
-        match = next((o for o in comorbidity_options if label.startswith(o)), None)
-        prefill_comorbid.add(match or label)
+    extra = []
     if prev and prev.comorbidities:
-        prefill_comorbid |= {s.strip() for s in prev.comorbidities.split(",") if s.strip()}
-    # Any carried-forward value not in the standard list -> free-text box.
-    comorbid_extra = ", ".join(sorted(c for c in prefill_comorbid
-                                      if c not in comorbidity_options))
+        for s in (x.strip() for x in prev.comorbidities.split(",")):
+            if not s or s in owned or s.startswith("Diabetes mellitus"):
+                continue
+            if s in comorbidity_options:
+                prefill_comorbid.add(s)
+            else:
+                extra.append(s)
+    comorbid_extra = ", ".join(extra)
 
     return render(request, "clinic/prescription_form.html", {
         "active": "prescriptions", "patient": patient, "encounter": encounter,
         "drugs": drugs, "drug_groups": drug_groups,
         "rows_data": rows_data, "drug_data": drug_data,
-        "timings": PrescriptionItem.Timing.choices,
+        "timings": PrescriptionItem.Timing.choices, "dose_units": DOSE_UNITS,
         "default_diagnosis": patient.primary_diagnosis or "",
         "diagnosis_choices": choices.SPECIFIC_GN_DIAGNOSIS,
-        "lab_tests": LabTest.objects.filter(is_active=True).order_by("name"),
-        "default_next_visit": default_next,
-        "prefill_invest": prefill_invest, "prefill_advice": prev.advice if prev else "",
+        "lab_tests": lab_tests,
+        "default_next_visit": default_next, "next_visit_is_selected": next_selected,
+        "prefill_invest": prefill_invest, "prefill_invest_text": prefill_invest_text,
+        "outstanding_orders": outstanding,
+        "outstanding_test_ids": {it.test_id for it in outstanding},
+        "prefill_advice": prev.advice if prev else "",
         "carried_count": len(carried), "initial_visible": initial_visible,
         "patient_egfr": (float(patient.latest_egfr)
                          if patient.latest_egfr is not None else None),
@@ -1152,6 +1503,7 @@ def prescription_create(request, pk):
             .values("title", "body")),
         "taper_presets": [{"label": p.label, "text": p.text}
                           for p in TAPER_PRESETS],
+        "record_comorbidities": record_items,
         "comorbidity_options": comorbidity_options,
         "prefill_comorbid": prefill_comorbid, "comorbid_extra": comorbid_extra,
     })
@@ -1322,12 +1674,21 @@ def verify_treatment_with_vera(request, pk):
 
     # Biopsy
     biopsy_text = ""
-    biopsy = patient.biopsies.order_by("-biopsy_date").first() if hasattr(patient, "biopsies") else None
+    # The biopsy the patient's pathology summary is projected from (final
+    # review preferred), not simply the newest row.
+    from pathology.services.projection import select_source
+    _sel = select_source(patient)
+    biopsy = _sel.biopsy or (patient.biopsies.order_by("-biopsy_date").first()
+                             if hasattr(patient, "biopsies") else None)
     if biopsy:
-        gn = getattr(biopsy, "gn_diagnosis", None)
-        dx = gn.diagnosis if gn else ""
-        crescents = "Crescents present" if biopsy.crescents_present else "Crescents absent"
-        biopsy_text = f"{dx or 'Biopsy done'}; {crescents}"
+        try:
+            dx = biopsy.diagnosis.diagnosis
+        except Exception:
+            dx = ""
+        crescents = {True: "Crescents present", False: "Crescents absent"}.get(
+            biopsy.crescents_present, "Crescents not assessed")
+        state = {"final": "", "provisional": " (provisional, review pending)"}.get(_sel.state, "")
+        biopsy_text = f"{dx or 'Biopsy done'}{state}; {crescents}"
 
     # GDES assessment
     gdes_assessment = features.get("disease_phase", "")
@@ -2190,30 +2551,48 @@ def lab_results_entry(request, pk):
     """Enter result VALUES for a patient on a date — independent of a visit, so
     diagnostic serology (before biopsy) and results brought to a follow-up both
     have a home. Entering creatinine auto-derives eGFR + refreshes latest_egfr."""
+    from labs.models import LabResult
+    from labs.services.results import record_panel
+
     patient = get_object_or_404(Patient, pk=pk)
     form = LabResultsForm(request.POST or None)
+    ctx = {"active": "patients", "form": form, "patient": patient}
     if request.method == "POST" and form.is_valid():
-        from labs.services.results import record_result
         rows = form.collect()
         result_date = form.cleaned_data["result_date"]
-        saved = 0
-        for code, value_numeric, value_text in rows:
-            try:
-                record_result(patient, code, result_date=result_date,
-                              value_numeric=value_numeric, value_text=value_text,
-                              source="manual")
-                saved += 1
-            except Exception:
-                # A single bad value must not lose the rest of the panel.
-                continue
-        if saved:
-            messages.success(
-                request, f"Recorded {saved} result(s) dated {result_date}."
-                + (" eGFR updated." if any(c == "creatinine" for c, *_ in rows) else ""))
-            return redirect("clinic:patient_detail", pk=patient.pk)
-        messages.error(request, "Enter at least one result value.")
-    return render(request, "clinic/lab_results_form.html",
-                  {"active": "patients", "form": form, "patient": patient})
+        if not rows:
+            messages.error(request, "Enter at least one result value.")
+        else:
+            outcome = record_panel(
+                patient, rows, result_date=result_date,
+                token=form.cleaned_data.get("form_token") or "",
+                entry_path=LabResult.EntryPath.GUIDED,
+                entered_by=request.user,
+                allow_repeat=bool(form.cleaned_data.get("confirm_repeat")))
+            if outcome.saved:
+                messages.success(
+                    request, f"Recorded {len(outcome.saved)} result(s) dated {result_date}."
+                    + (" eGFR updated." if any(r.test.code == "creatinine"
+                                               for r in outcome.saved) else ""))
+            for code, msg in outcome.failed.items():
+                messages.error(request, f"{code}: not saved — {msg}")
+            if outcome.existing or outcome.failed:
+                # Truthful partial state: show what is on file and what is
+                # still outstanding instead of redirecting as if all saved.
+                if outcome.saved:
+                    messages.info(request, "The results listed as saved are recorded; "
+                                  "re-submitting will not record them twice.")
+                ctx.update(duplicates=outcome.existing)
+            else:
+                return redirect("clinic:patient_detail", pk=patient.pk)
+    day = (form.cleaned_data.get("result_date") if form.is_bound and form.is_valid()
+           else None)
+    if day:
+        ctx["existing"] = list(LabResult.objects.filter(patient=patient, result_date=day)
+                               .exclude(source=LabResult.Source.DERIVED)
+                               .select_related("test").order_by("test__name"))
+        ctx["existing_date"] = day
+    return render(request, "clinic/lab_results_form.html", ctx)
 
 
 # --- Advanced analytics results (HTML wrappers for JSON endpoints) ----------

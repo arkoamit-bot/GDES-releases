@@ -1,52 +1,158 @@
 {% extends "base.html" %}
 {% block title %}Biopsy — {{ patient.patient_id }}{% endblock %}
-{% block heading %}Record biopsy · {{ patient.patient_id }}{% endblock %}
+{% block heading %}{% if mode == "create" %}Record biopsy{% elif mode == "addendum" %}Report addendum{% else %}Amend report{% endif %} · {{ patient.patient_id }}{% endblock %}
 {% block content %}
 
 <div class="crumbs"><a href="/patients/">Patients</a> ›
-  <a href="{% url 'clinic:patient_detail' patient.pk %}">{{ patient.patient_id }}</a> › Biopsy</div>
+  <a href="{% url 'clinic:patient_detail' patient.pk %}">{{ patient.patient_id }}</a> ›
+  {% if biopsy %}<a href="{% url 'clinic:biopsy_detail' patient.pk biopsy.pk %}">Biopsy {{ biopsy.biopsy_date }}</a> › {% if mode == "addendum" %}Addendum{% else %}Amend{% endif %}{% else %}Biopsy{% endif %}</div>
 
-<!-- Page nav: back + shortcuts -->
 <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px;margin-bottom:16px">
   <div style="display:flex;gap:8px">
-    <a class="btn ghost sm" href="{% url 'clinic:patient_detail' patient.pk %}"><i class="fas fa-arrow-left"></i> Back to patient</a>
+    <a class="btn ghost sm" href="{% if biopsy %}{% url 'clinic:biopsy_detail' patient.pk biopsy.pk %}{% else %}{% url 'clinic:patient_detail' patient.pk %}{% endif %}"><i class="fas fa-arrow-left"></i> Back</a>
   </div>
 </div>
 
 {% include "clinic/_patient_context.html" %}
 
-<form method="post" autocomplete="off">
+<style>
+  .finding-section { border:1px solid var(--line,#e2e8f0); border-radius:10px; padding:10px 12px; margin-top:10px; }
+  .finding-section h4 { margin:0 0 6px; font-size:14px; display:flex; align-items:center; gap:8px; }
+  .finding-row { display:flex; flex-wrap:wrap; gap:6px; align-items:center; padding:6px 0; border-top:1px dashed #e5e7eb; }
+  .finding-row:first-of-type { border-top:0; }
+  .finding-row select, .finding-row input[type=text], .finding-row input[type=number] { font-size:13px; padding:4px 6px; }
+  .finding-row .fld-code select { min-width:220px; }
+  .finding-row .fld-detail input { min-width:200px; }
+  .finding-row .fld-pct input, .finding-row .fld-count input { width:64px; }
+  .finding-row .unit { font-size:12px; color:#64748b; margin:0 4px; }
+  .finding-row .fld-del { font-size:12px; color:#64748b; white-space:nowrap; }
+  /* Section-specific fields: IF/IHC marker rows show marker, intensity and
+     distribution; interpretation / EM / stains show the coded finding. */
+  .finding-row .fld-marker, .finding-row .fld-intensity, .finding-row .fld-distribution { display:none; }
+  .finding-row[data-section="if_marker"] .fld-marker,
+  .finding-row[data-section="if_marker"] .fld-intensity,
+  .finding-row[data-section="if_marker"] .fld-distribution { display:block; }
+  .finding-row[data-section="if_marker"] .fld-code,
+  .finding-row[data-section="if_marker"] .fld-severity,
+  .finding-row[data-section="if_marker"] .fld-extent,
+  .finding-row[data-section="if_marker"] .fld-count { display:none; }
+  .finding-row[data-section="if_interpretation"] .fld-severity,
+  .finding-row[data-section="if_interpretation"] .fld-extent,
+  .finding-row[data-section="if_interpretation"] .fld-pct,
+  .finding-row[data-section="if_interpretation"] .fld-count,
+  .finding-row[data-section="special_stain"] .fld-severity,
+  .finding-row[data-section="special_stain"] .fld-extent,
+  .finding-row[data-section="special_stain"] .fld-count { display:none; }
+</style>
+
+<form method="post" autocomplete="off" id="biopsy-form">
   {% csrf_token %}
   {% if bx.non_field_errors %}<div class="msg error">{{ bx.non_field_errors }}</div>{% endif %}
-  {% if dx.non_field_errors %}<div class="msg error">{{ dx.non_field_errors }}</div>{% endif %}
+  {% if dx and dx.non_field_errors %}<div class="msg error">{{ dx.non_field_errors }}</div>{% endif %}
+  {% if rp.non_field_errors %}<div class="msg error">{{ rp.non_field_errors }}</div>{% endif %}
+  {% if fs.non_form_errors %}<div class="msg error">{{ fs.non_form_errors }}</div>{% endif %}
 
   <div class="panel"><div class="pb">
+
+    {% if mode != "create" %}
+    <fieldset class="fieldset">
+      <legend><i class="fas fa-file-pen"></i> {% if mode == "addendum" %}Addendum{% else %}Amendment{% endif %}</legend>
+      <div class="help" style="margin-bottom:10px">
+        {% if report %}This creates revision {{ report.revision|add:1 }} of the {{ report.get_role_display|lower }} report. Revision {{ report.revision }} is kept unchanged and stays visible in the report history.{% else %}This biopsy has no structured report yet; this records the first one.{% endif %}
+        {% if mode == "addendum" %} An addendum keeps every existing finding and adds the ones below.{% endif %}
+      </div>
+      <div class="cols2">
+        <div class="frow">
+          <label for="id_revision_reason">Reason <span style="color:#b91c1c">*</span></label>
+          <input type="text" name="revision_reason" id="id_revision_reason" maxlength="240" value="{{ reason }}" required placeholder="e.g. EM report received; corrected glomerular count">
+        </div>
+        <div class="frow">
+          <label for="id_primary_diagnosis">Report conclusion (diagnosis)</label>
+          <select name="primary_diagnosis" id="id_primary_diagnosis">
+            {% for value, label in conclusion_choices %}<option value="{{ value }}"{% if value == conclusion_value %} selected{% endif %}>{{ label }}</option>{% endfor %}
+          </select>
+          <div class="help">Updates the biopsy's adopted diagnosis only while no reviewed read is final.</div>
+        </div>
+      </div>
+    </fieldset>
+    {% endif %}
+
+    {% if dx %}
     <fieldset class="fieldset">
       <legend><i class="fas fa-microscope"></i> Diagnosis</legend>
-      <div class="help" style="margin-bottom:10px">The diagnosis drives the disease-specific remission rules and cohort analytics. The matching score block below opens automatically.</div>
+      <div class="help" style="margin-bottom:10px">The diagnosis drives the disease-specific remission rules and cohort analytics. The matching score block below opens automatically. A draft, pending or inadequate report can be saved without one.</div>
       <div class="cols2">
-        {% for f in dx %}
-        <div class="frow">
-          <label for="{{ f.id_for_label }}">{{ f.label }}</label>
-          {{ f }}
-          {% if f.help_text %}<div class="help">{{ f.help_text }}</div>{% endif %}
-          {% if f.errors %}<div class="errs">{{ f.errors|striptags }}</div>{% endif %}
-        </div>
-        {% endfor %}
+        {% for f in dx %}{% include "clinic/_field.html" %}{% endfor %}
+      </div>
+    </fieldset>
+    {% endif %}
+
+    <fieldset class="fieldset">
+      <legend><i class="fas fa-file-medical"></i> Report</legend>
+      <div class="cols2">
+        {% include "clinic/_field.html" with f=rp.status %}
+        {% include "clinic/_field.html" with f=rp.report_identifier %}
+        {% include "clinic/_field.html" with f=rp.laboratory %}
+        {% include "clinic/_field.html" with f=rp.pathologist %}
+        {% include "clinic/_field.html" with f=rp.report_date %}
+        {% include "clinic/_field.html" with f=rp.context %}
       </div>
     </fieldset>
 
     <fieldset class="fieldset">
-      <legend><i class="fas fa-vial-circle-check"></i> Core biopsy &amp; lesions</legend>
+      <legend><i class="fas fa-vial-circle-check"></i> Specimen, adequacy &amp; light-microscopy summary</legend>
+      <div class="help" style="margin-bottom:8px">Counts are per modality — glomeruli seen on IF or EM are not added to the light-microscopy total. A reported percentage is kept as reported; a disagreement with the counts is shown as a warning.</div>
       <div class="cols2">
-        {% for f in bx %}
-        <div class="frow">
-          <label for="{{ f.id_for_label }}">{{ f.label }}</label>
-          {{ f }}
-          {% if f.help_text %}<div class="help">{{ f.help_text }}</div>{% endif %}
-          {% if f.errors %}<div class="errs">{{ f.errors|striptags }}</div>{% endif %}
+        {% for f in bx %}{% include "clinic/_field.html" %}{% endfor %}
+        {% include "clinic/_field.html" with f=rp.cortex_present %}
+        {% include "clinic/_field.html" with f=rp.medulla_present %}
+        {% include "clinic/_field.html" with f=rp.cores %}
+        {% include "clinic/_field.html" with f=rp.globally_sclerosed %}
+        {% include "clinic/_field.html" with f=rp.segmentally_sclerosed %}
+        {% include "clinic/_field.html" with f=rp.crescentic_glomeruli %}
+        {% include "clinic/_field.html" with f=rp.glomeruli_if %}
+        {% include "clinic/_field.html" with f=rp.glomeruli_em %}
+        {% include "clinic/_field.html" with f=rp.limitations %}
+      </div>
+    </fieldset>
+
+    <fieldset class="fieldset">
+      <legend><i class="fas fa-layer-group"></i> Modalities</legend>
+      <div class="help" style="margin-bottom:8px">Blank = not stated. A finding cannot be recorded for a modality marked not done, unavailable or pending.</div>
+      <div class="cols2">
+        {% include "clinic/_field.html" with f=rp.lm_status %}
+        {% include "clinic/_field.html" with f=rp.if_status %}
+        {% include "clinic/_field.html" with f=rp.ihc_status %}
+        {% include "clinic/_field.html" with f=rp.em_status %}
+      </div>
+    </fieldset>
+
+    <fieldset class="fieldset">
+      <legend><i class="fas fa-list-check"></i> Findings</legend>
+      <div class="help">Add as many findings as the report describes. Leave anything not reported blank — a blank is not a negative. Use “Other” with a description for anything not listed.</div>
+      {{ fs.management_form }}
+      {% for sec in sections %}
+      <div class="finding-section" data-section-box="{{ sec.key }}" data-label="{{ sec.label }}">
+        <h4>{{ sec.label }}
+          <button type="button" class="btn ghost sm add-finding" data-section="{{ sec.key }}" style="margin-left:auto"><i class="fas fa-plus"></i> Add {% if sec.key == "if_marker" %}marker{% else %}finding{% endif %}</button>
+        </h4>
+        <div class="finding-list" data-list="{{ sec.key }}">
+          {% for f in fs.forms %}{% if f.section_value == sec.key %}{% include "clinic/_finding_row.html" with sec=sec.key %}{% endif %}{% endfor %}
         </div>
-        {% endfor %}
+      </div>
+      {% endfor %}
+      <template id="finding-empty">{% include "clinic/_finding_row.html" with f=fs.empty_form sec="" %}</template>
+    </fieldset>
+
+    <fieldset class="fieldset">
+      <legend><i class="fas fa-clipboard-check"></i> Conclusion &amp; sign-off</legend>
+      <div class="cols2">
+        {% include "clinic/_field.html" with f=rp.additional_diagnoses %}
+        {% include "clinic/_field.html" with f=rp.comment %}
+        {% include "clinic/_field.html" with f=rp.signed_by %}
+        {% include "clinic/_field.html" with f=rp.signed_at %}
+        {% include "clinic/_field.html" with f=rp.original_report_text %}
+        {% if mode == "create" %}{% include "clinic/_field.html" with f=rp.panel_override_reason %}{% endif %}
       </div>
     </fieldset>
 
@@ -60,35 +166,74 @@
         {% elif key == "mn" %}Membranous — PLA2R/THSD7A &amp; stage{% endif %}
         <span class="help" style="font-weight:400">— optional, fill only if relevant</span>
       </summary>
+      {% if form.non_field_errors %}<div class="errs">{{ form.non_field_errors|striptags }}</div>{% endif %}
       <div class="cols2" style="margin-top:10px">
-        {% for f in form %}
-        <div class="frow">
-          <label for="{{ f.id_for_label }}">{{ f.label }}</label>
-          {{ f }}
-          {% if f.help_text %}<div class="help">{{ f.help_text }}</div>{% endif %}
-          {% if f.errors %}<div class="errs">{{ f.errors|striptags }}</div>{% endif %}
-        </div>
-        {% endfor %}
+        {% for f in form %}{% include "clinic/_field.html" %}{% endfor %}
       </div>
     </details>
     {% endfor %}
 
     <div style="display:flex;gap:10px;margin-top:14px">
-      <button class="btn" type="submit"><i class="fas fa-floppy-disk"></i> Save biopsy</button>
-      <a class="btn ghost" href="{% url 'clinic:patient_detail' patient.pk %}">Cancel</a>
+      <button class="btn" type="submit"><i class="fas fa-floppy-disk"></i> {% if mode == "create" %}Save biopsy{% else %}Save {{ mode }}{% endif %}</button>
+      <a class="btn ghost" href="{% if biopsy %}{% url 'clinic:biopsy_detail' patient.pk biopsy.pk %}{% else %}{% url 'clinic:patient_detail' patient.pk %}{% endif %}">Cancel</a>
     </div>
   </div></div>
+  <input type="hidden" name="kind" value="{{ mode }}">
 </form>
 
 {{ score_hints|json_script:"score-hints" }}
 <script>
   (function () {
+    // --- Repeatable findings ------------------------------------------------
+    var total = document.getElementById('id_f-TOTAL_FORMS');
+    var tpl = document.getElementById('finding-empty');
+    function scopeRow(row, section) {
+      row.setAttribute('data-section', section);
+      var hidden = row.querySelector('input[name$="-section"]');
+      if (hidden) hidden.value = section;
+      // Offer only this section's codes.
+      var sel = row.querySelector('.fld-code select');
+      if (sel) {
+        var box = document.querySelector('[data-section-box="' + section + '"]');
+        var label = box ? box.getAttribute('data-label') : '';
+        Array.prototype.slice.call(sel.querySelectorAll('optgroup')).forEach(function (g) {
+          if (g.label !== label) g.remove();
+        });
+      }
+      var code = row.querySelector('.fld-code select');
+      var marker = row.querySelector('.fld-marker select');
+      var other = row.querySelector('.fld-other');
+      function syncOther() {
+        var isOther = (code && code.value === 'other') || (marker && marker.value === 'other');
+        if (other) other.style.display = isOther ? '' : 'none';
+      }
+      if (code) code.addEventListener('change', syncOther);
+      if (marker) marker.addEventListener('change', syncOther);
+      syncOther();
+    }
+    document.querySelectorAll('.finding-list .finding-row').forEach(function (row) {
+      scopeRow(row, row.getAttribute('data-section'));
+    });
+    document.querySelectorAll('.add-finding').forEach(function (btn) {
+      btn.addEventListener('click', function () {
+        var section = btn.getAttribute('data-section');
+        var n = parseInt(total.value, 10);
+        var html = tpl.innerHTML.replace(/__prefix__/g, String(n));
+        var holder = document.createElement('div');
+        holder.innerHTML = html.trim();
+        var row = holder.firstElementChild;
+        document.querySelector('[data-list="' + section + '"]').appendChild(row);
+        scopeRow(row, section);
+        total.value = String(n + 1);
+        var first = row.querySelector('select, input[type=text]');
+        if (first) first.focus();
+      });
+    });
+
+    // --- Score panels + ISN/RPS class --------------------------------------
     var hints = JSON.parse(document.getElementById('score-hints').textContent);
     var sel = document.getElementById('id_dx-diagnosis');
     if (!sel) return;
-    // The ISN/RPS class is stated on the diagnosis. When the chosen diagnosis
-    // names one, mirror it into the lupus panel and lock the select, so the two
-    // cannot be made to disagree. (The server re-derives it either way.)
     var isn = document.getElementById('id_lupus-isn_rps_class');
     function syncLupusClass() {
       if (!isn) return;
@@ -103,13 +248,11 @@
         if (note) note.style.display = 'none';
       }
     }
-    // A disabled select is not submitted, so re-enable it just before submit —
-    // the value must still reach the server.
+    // A disabled select is not submitted, so re-enable it just before submit.
     var form = sel.closest('form');
     if (form) form.addEventListener('submit', function () {
       if (isn) isn.disabled = false;
     });
-
     function sync() {
       var v = (sel.value || '').toLowerCase();
       Object.keys(hints).forEach(function (key) {

@@ -45,6 +45,9 @@
         {% include "clinic/_field.html" with f=form.dm_duration_years %}
         {% include "clinic/_field.html" with f=form.hba1c %}
       </div>
+      {% with hv=form.baseline_hba1c %}{% if hv.source %}
+      <div class="help">Baseline HbA1c on file: <b>{{ hv.value }}%</b> dated {{ hv.date|default:"—" }} ({{ hv.label }}).{% if hv.source == "legacy_field" %} This value predates lab recording and is kept as entered; re-enter it above to record it as a dated lab result.{% endif %}</div>
+      {% endif %}{% endwith %}
       {% comment %}Comorbidities are Level 2 data, recorded once on the patient
       record. Shown here read-only so they are visible without a second copy
       that can disagree with the first.{% endcomment %}
@@ -86,8 +89,14 @@
     <fieldset class="fieldset">
       <legend><i class="fas fa-stethoscope"></i> C. Clinical presentation</legend>
       <div class="frow">
-        <label>{{ form.presentation_syndromes.label }}</label>
-        <div style="columns:2;gap:20px">{{ form.presentation_syndromes }}</div>
+        <label for="{{ form.presentation_syndromes.id_for_label }}">{{ form.presentation_syndromes.label }}</label>
+        <div style="max-width:360px">{{ form.presentation_syndromes }}</div>
+      </div>
+      <div class="frow">
+        <label>{{ form.additional_syndromes.label }}</label>
+        <input type="hidden" name="additional_syndromes_shown" value="1">
+        <div style="columns:2;gap:20px">{{ form.additional_syndromes }}</div>
+        <div class="help">Other presentations recorded for this patient. Clearing the primary and all of these clears the presentation.</div>
       </div>
       <div class="frow">
         <label>{{ form.presenting_symptoms.label }}</label>
@@ -123,7 +132,15 @@
 
     <fieldset class="fieldset">
       <legend><i class="fas fa-vial"></i> E. Baseline labs (optional)</legend>
-      <div class="help" style="margin-bottom:10px">Enter <b>creatinine</b> to auto-calculate the baseline eGFR. These are stored as the first point in the patient's longitudinal lab trend.</div>
+      <div class="help" style="margin-bottom:10px">Enter <b>creatinine</b> to auto-calculate the baseline eGFR. These are stored as dated points in the patient's longitudinal lab trend, through the same laboratory service as the results page.</div>
+      {% with recorded=form.recorded_results %}{% if recorded %}
+      <div style="margin-bottom:10px">
+        <div class="help"><b>Already on file around enrollment</b> — do not re-enter these; use the results page to add a new measurement or correct one.</div>
+        <div style="display:flex;flex-wrap:wrap;gap:6px;margin-top:4px">
+        {% for r in recorded %}<span class="badge neutral" style="font-size:12px" title="{{ r.get_entry_path_display|default:r.get_source_display }}">{{ r.test.name }} {% if r.value_numeric is not None %}{{ r.value_numeric|floatformat:"-2" }}{% endif %}{{ r.value_text }} · {{ r.result_date }}</span>{% endfor %}
+        </div>
+      </div>
+      {% endif %}{% endwith %}
       <div class="cols2">
         <div class="frow">
           <label for="{{ form.lab_creatinine.id_for_label }}">{{ form.lab_creatinine.label }}</label>
@@ -160,7 +177,10 @@
     <fieldset class="fieldset">
       <legend><i class="fas fa-pen"></i> Notes</legend>
       {{ form.notes }}
+      {% if form.baseline_encounter %}<div class="cols2" style="margin-top:8px">{% include "clinic/_field.html" with f=form.baseline_encounter %}</div>{% endif %}
     </fieldset>
+    {{ form.form_token }}
+    <label style="display:flex;gap:6px;align-items:center;font-size:12px;color:#475569;margin-bottom:10px">{{ form.confirm_repeat }} {{ form.confirm_repeat.label }} <span class="help">(only needed when a value identical to one already on file for the date is a genuine repeat)</span></label>
     <div style="display:flex;gap:10px">
       <button class="btn" type="submit"><i class="fas fa-floppy-disk"></i> Save baseline</button>
       <a class="btn ghost" href="{% url 'clinic:patient_detail' patient.pk %}">Cancel</a>

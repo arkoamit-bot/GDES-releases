@@ -76,7 +76,7 @@ def connect_handlers():
     subscribe(et.ENCOUNTER_UPDATED, _on_patient_event)
     subscribe(et.LAB_RESULT_CREATED, _on_lab_event)
     subscribe(et.LAB_RESULT_UPDATED, _on_lab_event)
-    subscribe(et.BIOPSY_CREATED, _on_patient_event)
+    subscribe(et.PATHOLOGY_REPORT_CHANGED, _on_patient_event)
     subscribe(et.CLINICAL_EVENT_CREATED, _on_clinical_event)
     subscribe(et.CLINICAL_ASSESSMENT_CREATED, _on_clinical_event)
     subscribe(et.CLINICAL_ASSESSMENT_UPDATED, _on_clinical_event)

@@ -37,43 +37,51 @@
             {% endfor %}
           </select>
           <div style="margin-top:10px">
-            <label style="display:block;margin-bottom:4px">Comorbidities
-              <span class="help" style="display:inline;margin:0">(pre-filled from baseline)</span>
+            <label style="display:block;margin-bottom:4px">Comorbidities to print
+              <span class="help" style="display:inline;margin:0">— ticked from the patient record; unticking only leaves it off this slip.
+              <a href="{% url 'clinic:patient_edit' patient.pk %}" style="color:#4f46e5"><i class="fas fa-pen"></i> Edit at source</a></span>
             </label>
             <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:4px 10px">
+              {% for c in record_comorbidities %}
+              <label style="display:flex;align-items:center;gap:6px;font-size:13px;cursor:pointer" title="{% if c.source == 'legacy_baseline' %}Only an older baseline records this — confirm on the patient record{% else %}From the patient record{% endif %}">
+                <input type="checkbox" name="comorbidities" value="{{ c.label }}" checked> {{ c.label }}{% if c.source == "legacy_baseline" %} <span class="badge neutral" style="font-size:10px">confirm</span>{% endif %}
+              </label>
+              {% endfor %}
               {% for c in comorbidity_options %}
-              <label style="display:flex;align-items:center;gap:6px;font-size:13px;cursor:pointer">
+              <label style="display:flex;align-items:center;gap:6px;font-size:13px;cursor:pointer" title="Prescription-only: not stored on the patient record">
                 <input type="checkbox" name="comorbidities" value="{{ c }}"{% if c in prefill_comorbid %} checked{% endif %}> {{ c }}
               </label>
               {% endfor %}
             </div>
-            <input type="text" name="comorbidities_text" placeholder="Other comorbidities (free text)" style="width:100%;margin-top:6px" value="{{ comorbid_extra }}">
+            <input type="text" name="comorbidities_text" placeholder="Prescription-only notes (not added to the patient record)" style="width:100%;margin-top:6px" value="{{ comorbid_extra }}">
           </div>
         </div>
         <div class="frow">
           <label>Investigations advised</label>
           <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px">
-            <span class="help" style="margin:0">Tick the tests to order:</span>
+            <span class="help" style="margin:0">Tick the tests to request. Orders are placed when the prescription is <b>finalized</b>, not when the draft is saved.</span>
             <a href="javascript:void(0)" id="inv-toggle" style="font-size:12px;color:#26215C;text-decoration:none" onclick="var chks=document.querySelectorAll('input[name=investigations_advised]');var allOn=[...chks].every(c=>c.checked);chks.forEach(c=>c.checked=!allOn);this.textContent=allOn?'Select all':'Clear all';return false;">Select all</a>
           </div>
           <div class="inv-grid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:6px;margin-bottom:8px;max-height:160px;overflow-y:auto;border:1px solid #ddd;padding:8px;border-radius:6px;background:#fafafa">
             {% for t in lab_tests %}
             <label class="inv-chk" style="display:flex;align-items:center;gap:6px;font-size:13px;cursor:pointer;padding:2px 4px;border-radius:4px;transition:background .15s" onmouseover="this.style.background='#e8e6f3'" onmouseout="if(!this.querySelector('input').checked)this.style.background='transparent'">
-              <input type="checkbox" name="investigations_advised" value="{{ t.name }}" style="cursor:pointer"{% if t.name in prefill_invest %} checked{% endif %} onchange="this.parentElement.style.background=this.checked?'#d7d4ec':'transparent'">
-              <span>{{ t.name }}</span>
+              <input type="checkbox" name="investigations_advised" value="{{ t.pk }}" style="cursor:pointer"{% if t.pk in prefill_invest %} checked{% endif %} onchange="this.parentElement.style.background=this.checked?'#d7d4ec':'transparent'">
+              <span>{{ t.name }}{% if t.pk in outstanding_test_ids %} <span class="badge neutral" style="font-size:10px" title="Already ordered at this visit and not yet resulted — it will be linked, not ordered twice">ordered</span>{% endif %}</span>
             </label>
             {% empty %}
             <div class="help" style="grid-column:1/-1">No lab tests configured. Add them in admin first.</div>
             {% endfor %}
           </div>
-          <input type="text" name="investigations_advised_text" placeholder="Additional investigations (free text)" style="width:100%">
+          <input type="text" name="investigations_advised_text" placeholder="Investigations not in the catalogue (free text)" style="width:100%" value="{{ prefill_invest_text }}">
+          {% if outstanding_orders %}<div class="help" style="margin-top:4px">Outstanding at this visit: {% for it in outstanding_orders %}{{ it.test.name }} ({{ it.order.ordered_date }}){% if not forloop.last %}, {% endif %}{% endfor %}.</div>{% endif %}
         </div>
       </div>
       <div class="cols2" style="margin-top:14px">
         <div class="frow">
           <label for="next_due_date">Next visit date</label>
           <input type="date" id="next_due_date" name="next_due_date" value="{{ default_next_visit }}" style="width:100%">
-          <div class="help">Auto-filled from the clinic schedule (4 weeks). Edit if needed.</div>
+          <div class="help">{% if next_visit_is_selected %}The visit's selected next appointment. Changing it here moves the appointment and its reminder (the change is recorded).{% else %}Suggestion: 4 weeks from today. It becomes the visit's next appointment when you save.{% endif %}</div>
+          <input type="hidden" name="next_due_original" value="{{ default_next_visit }}">
         </div>
       </div>
     </fieldset>
@@ -88,13 +96,14 @@
       <div style="overflow-x:auto">
       <table class="grid" style="min-width:1080px;table-layout:fixed;width:100%">
         <colgroup>
-          <col style="width:5%"><col style="width:20%"><col style="width:13%">
-          <col style="width:8%"><col style="width:14%">
-          <col style="width:14%"><col style="width:12%"><col style="width:14%">
+          <col style="width:5%"><col style="width:18%"><col style="width:12%">
+          <col style="width:7%"><col style="width:13%"><col style="width:9%">
+          <col style="width:13%"><col style="width:11%"><col style="width:12%">
         </colgroup>
         <thead><tr>
           <th>#</th><th>Drug</th><th>Brand</th>
           <th>Route</th><th>Strength</th>
+          <th title="Amount per administration, when not simply one unit of the product">Dose</th>
           <th>Frequency</th><th>Timing</th><th>Duration</th>
         </tr></thead>
         <tbody>
@@ -134,6 +143,12 @@
               <input type="text" name="strength_{{ r.i }}" class="strength-inp" maxlength="120" placeholder="e.g. 10mg" style="width:100%;{% if not r.strength %}display:none{% endif %}" value="{{ r.strength|default:'' }}">
             </td>
             <td>
+              <input type="text" name="dose_{{ r.i }}" maxlength="20" placeholder="1" title="Leave blank for one unit of the product per dose" style="width:100%;margin-bottom:4px" value="{{ r.dose|default:'' }}">
+              <select name="dose_unit_{{ r.i }}" style="width:100%">
+                {% for u, lbl in dose_units %}<option value="{{ u }}"{% if u == r.dose_unit %} selected{% endif %}>{{ lbl }}</option>{% endfor %}
+              </select>
+            </td>
+            <td>
               <select name="frequency_sel_{{ r.i }}" class="freq-sel" data-row="{{ r.i }}" style="width:100%;margin-bottom:4px">
                 <option value="">— select —</option>
                 <option value="__other__">Other → type</option>
@@ -163,7 +178,7 @@
             </td>
           </tr>
           <tr class="rx-taper-row" data-row="{{ r.i }}"{% if not r.taper %} style="display:none"{% endif %}>
-            <td colspan="8" style="padding:0 8px 8px 8px">
+            <td colspan="9" style="padding:0 8px 8px 8px">
               <div style="border-left:3px solid #b45309;background:#fffbeb;border-radius:0 6px 6px 0;padding:8px 10px">
                 <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:6px">
                   <label style="display:flex;align-items:center;gap:6px;font-size:13px;font-weight:600;color:#92400e;cursor:pointer">
@@ -447,7 +462,7 @@
       drugSel.value = '';                          // dropped from the Rx
       if (window.SearchableSelect) SearchableSelect.refresh(drugSel);
       populateRow(row, false);
-      ['brand','strength','frequency','duration','instruction'].forEach(function(f){
+      ['brand','strength','dose','dose_unit','frequency','duration','instruction'].forEach(function(f){
         var i = el(f, row); if (i) i.value = '';
       });
       drugSel.closest('tr').style.display = 'none';

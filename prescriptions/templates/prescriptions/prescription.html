@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<title>Prescription — {{ patient.patient_id }}</title>
+<title>Prescription — {{ s.patient.patient_id }}</title>
 <style>
   {{ bn_font_face|safe }}
   @page { size: A4; margin: 12mm 14mm; }
@@ -63,6 +63,8 @@
   .sign { text-align: center; font-size: 12.5px; }
   .sign .line { border-top: 1px solid #333; width: 180px; padding-top: 3px; }
   .stamp { margin-top: 6px; font-size: 10px; color: #999; }
+  .legacy-note { font-size: 11px; color: #92400e; border: 1px dashed #d97706;
+                 padding: 3px 6px; margin: 4px 0; }
   .draft-banner { color: #b00; font-weight: 700; font-size: 12.5px;
                   border: 1px dashed #b00; padding: 3px 6px; display: inline-block; }
   /* Big diagonal DRAFT watermark so an un-finalized copy can never be mistaken
@@ -76,72 +78,78 @@
 <body>
 
   <div class="head">
-    <div class="en">{{ clinic.name_en }}</div>
-    <div class="bn">{{ clinic.name_bn }}</div>
-    <div class="addr">{{ clinic.address }}</div>
-    <div class="reg">{{ clinic.registry }}</div>
+    <div class="en">{{ s.clinic.name_en }}</div>
+    <div class="bn">{{ s.clinic.name_bn }}</div>
+    <div class="addr">{{ s.clinic.address }}</div>
+    <div class="reg">{{ s.clinic.registry }}</div>
   </div>
 
   {% if not rx.is_final %}<div class="watermark">DRAFT</div>
   <div class="draft-banner">DRAFT — not finalized · not valid for dispensing</div>{% endif %}
+  {% if legacy_live %}<div class="legacy-note">Issued before issued-content snapshots were kept: patient details, vitals and eGFR below are the current record, not necessarily as printed originally.</div>{% endif %}
 
   <div class="meta">
     <div>
-      <span class="label">Patient:</span> <strong>{{ patient.name }}</strong><br>
-      <span class="label">ID:</span> {{ patient.patient_id }}
-      {% if patient.hospital_id %} &nbsp; <span class="label">Reg:</span> {{ patient.hospital_id }}{% endif %}<br>
-      <span class="label">Sex:</span> {{ patient.get_sex_display }}
-      {% if patient.diabetes_status != 'none' %} &nbsp; <span class="label">DM:</span> {{ patient.get_diabetes_status_display }}{% endif %}
+      <span class="label">Patient:</span> <strong>{{ s.patient.name }}</strong><br>
+      <span class="label">ID:</span> {{ s.patient.patient_id }}
+      {% if s.patient.hospital_id %} &nbsp; <span class="label">Reg:</span> {{ s.patient.hospital_id }}{% endif %}<br>
+      <span class="label">Sex:</span> {{ s.patient.sex }}
+      {% if s.patient.diabetes %} &nbsp; <span class="label">DM:</span> {{ s.patient.diabetes }}{% endif %}
     </div>
     <div style="text-align:right;">
-      <span class="label">Date:</span> {{ encounter.encounter_date }}<br>
-      <span class="label">Visit:</span> {{ encounter.get_encounter_type_display }}<br>
-      {% if patient.latest_egfr %}<span class="label">eGFR:</span> {{ patient.latest_egfr }} mL/min{% endif %}
+      <span class="label">Date:</span> {{ s.encounter.date }}<br>
+      <span class="label">Visit:</span> {{ s.encounter.type }}<br>
+      {% if s.egfr %}<span class="label">eGFR:</span> {{ s.egfr.value }} mL/min{% if s.egfr.date %} ({{ s.egfr.date }}){% endif %}{% endif %}
     </div>
   </div>
 
-  {% if encounter.systolic_bp or encounter.weight_kg %}
+  {% if s.vitals %}
   <div class="vitals">
-    {% if encounter.systolic_bp %}BP {{ encounter.systolic_bp }}/{{ encounter.diastolic_bp }} mmHg &nbsp;·&nbsp;{% endif %}
-    {% if encounter.weight_kg %}Weight {{ encounter.weight_kg }} kg{% endif %}
+    {% if s.vitals.systolic %}BP {{ s.vitals.systolic }}/{{ s.vitals.diastolic }} mmHg &nbsp;·&nbsp;{% endif %}
+    {% if s.vitals.weight_kg %}Weight {{ s.vitals.weight_kg }} kg{% endif %}
   </div>
   {% endif %}
 
-  {% if rx.diagnosis_text %}
-  <div class="dx"><span class="label">Diagnosis:</span> {{ rx.diagnosis_text }}</div>
+  {% if s.diagnosis %}
+  <div class="dx"><span class="label">Diagnosis:</span> {{ s.diagnosis }}</div>
   {% endif %}
-  {% if rx.comorbidities %}
-  <div class="dx"><span class="label">Comorbidities:</span> {{ rx.comorbidities }}</div>
+  {% if s.comorbidities %}
+  <div class="dx"><span class="label">Comorbidities:</span> {{ s.comorbidities }}</div>
   {% endif %}
 
   <div class="rx-mark">℞</div>
-  <table>
+  <table class="rx-table">
+    <colgroup>
+      <col class="c-drug"><col class="c-strength">{% if has_dose %}<col class="c-dose">{% endif %}
+      <col class="c-route"><col class="c-freq"><col class="c-timing"><col class="c-dur">
+    </colgroup>
     <thead>
-      <tr><th style="width:34%">Drug</th><th>Strength</th><th>Route</th>
+      <tr><th>Drug</th><th>Strength</th>{% if has_dose %}<th>Dose</th>{% endif %}<th>Route</th>
           <th>Frequency</th><th>Timing</th><th>Duration</th></tr>
     </thead>
-    {% for it in items %}
+    {% for it in s.items %}
     <tbody>
       <tr>
         <td>
           {% if it.brand %}
             <span class="drug">{{ it.brand }}</span>
-            <br><span class="brand">{{ it.drug.generic_name }}</span>
+            <br><span class="brand">{{ it.generic }}</span>
           {% else %}
-            <span class="drug">{{ it.drug.generic_name }}</span>
+            <span class="drug">{{ it.generic }}</span>
           {% endif %}
           {% if it.instruction_bn %}<div class="instr bn">{{ it.instruction_bn }}</div>{% endif %}
         </td>
         <td>{{ it.strength }}</td>
-        <td>{{ it.route_value }}</td>
+        {% if has_dose %}<td>{{ it.dose }}</td>{% endif %}
+        <td>{{ it.route }}</td>
         <td>{{ it.frequency }}</td>
-        <td>{{ it.get_timing_display }}</td>
+        <td>{{ it.timing }}</td>
         <td>{{ it.duration }}</td>
       </tr>
       {% if it.taper_notes %}
       <tr class="taper-row">
-        <td colspan="6">
-          <div class="taper"><b>⇩ Taper before stopping — {{ it.drug.generic_name }}:</b>
+        <td colspan="{% if has_dose %}7{% else %}6{% endif %}">
+          <div class="taper"><b>⇩ Taper before stopping — {{ it.generic }}:</b>
             <span class="bn">ধীরে ধীরে ডোজ কমিয়ে বন্ধ করুন</span><br>
             {{ it.taper_notes|linebreaksbr }}</div>
         </td>
@@ -153,35 +161,36 @@
     {% endfor %}
   </table>
 
-  {% if rx.investigations_advised %}
-  <div class="advice"><span class="label">Investigations advised:</span><br>{{ rx.investigations_advised|linebreaksbr }}</div>
+  {% if s.investigations or s.investigations_text %}
+  <div class="advice"><span class="label">Investigations advised:</span><br>
+    {% for inv in s.investigations %}{{ inv.test }}{% if not forloop.last %}, {% endif %}{% endfor %}{% if s.investigations and s.investigations_text %}, {% endif %}{{ s.investigations_text|linebreaksbr }}</div>
   {% endif %}
 
-  {% if rx.advice %}
-  <div class="advice"><span class="label">Advice / পরামর্শ:</span><br><span class="bn">{{ rx.advice|linebreaksbr }}</span></div>
+  {% if s.advice %}
+  <div class="advice"><span class="label">Advice / পরামর্শ:</span><br><span class="bn">{{ s.advice|linebreaksbr }}</span></div>
   {% endif %}
 
-  {% if encounter.advice %}
-  <div class="advice"><span class="label">Visit note:</span><br><span class="bn">{{ encounter.advice|linebreaksbr }}</span></div>
+  {% if s.visit_note %}
+  <div class="advice"><span class="label">Visit note:</span><br><span class="bn">{{ s.visit_note|linebreaksbr }}</span></div>
   {% endif %}
 
-  {% if rx.stop_notes %}
-  <div class="advice"><span class="label">Medications stopped this visit:</span><br>{{ rx.stop_notes|linebreaksbr }}</div>
+  {% if s.stop_notes %}
+  <div class="advice"><span class="label">Medications stopped this visit:</span><br>{{ s.stop_notes|linebreaksbr }}</div>
   {% endif %}
 
   <div class="foot">
     <div class="next">
-      {% if encounter.next_due_date %}<span class="callout"><strong>Next visit:</strong> {{ encounter.next_due_date }}</span>{% endif %}
+      {% if s.next_visit %}<span class="callout"><strong>Next visit:</strong> {{ s.next_visit }}</span>{% endif %}
     </div>
     <div class="sign">
-      <div class="line">{% if rx.printed_by %}Dr. {{ rx.printed_by.get_full_name|default:rx.printed_by.username }}{% else %}Signature{% endif %}</div>
+      <div class="line">{% if s.prescriber %}Dr. {{ s.prescriber }}{% else %}Signature{% endif %}</div>
     </div>
   </div>
 
   <div class="stamp">
     GDES Rx v{{ rx.version }} · {{ rx.get_status_display }}
     {% if rx.printed_at %} · printed {{ rx.printed_at }}{% endif %}
-    {% if rx.content_hash %} · {{ rx.content_hash|slice:":12" }}{% endif %}
+    {% if rx.content_hash %} · {{ rx.content_hash|slice:":12" }}{% if rx.content_hash_version == 2 %} (issued snapshot){% endif %}{% endif %}
   </div>
 
 </body>

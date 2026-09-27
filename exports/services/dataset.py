@@ -16,7 +16,6 @@ import datetime as dt
 
 from analytics.models import PatientOutcome
 from biomarkers.models import BiomarkerKinetics
-from pathology.models import GNDiagnosis
 from safety.models import AdverseEvent
 from treatments.models import DrugClass, TreatmentExposure
 
@@ -42,18 +41,21 @@ COLUMNS = (
      "diabetes_status", "primary_diagnosis"]
     # Baseline clinical
     + ["bmi", "bmi_category", "systolic_bp", "diastolic_bp", "hba1c",
-       "dm_duration_years", "presentation_syndrome", "diabetic_retinopathy",
+       "hba1c_date", "hba1c_source", "dm_duration_years", "presentation_syndrome", "diabetic_retinopathy",
        "cvd_history",
        # Baseline A–E expansion
        "alcohol_use", "previous_kidney_disease", "autoimmune_disease",
        "chronic_infection", "malignancy", "prior_immunosuppression",
        "pulse_bpm", "respiratory_rate", "temperature_c", "volume_status",
-       "presenting_syndromes", "presenting_symptoms"]
+       "presenting_syndromes", "presenting_symptoms",
+       "comorbidity_snapshot_source"]
     # Baseline labs
     + ["baseline_creatinine", "baseline_egfr", "baseline_upcr", "baseline_albumin",
        "baseline_hemoglobin", "baseline_c3", "baseline_c4", "baseline_anti_pla2r"]
-    # Pathology
-    + ["broad_group", "mest_m", "mest_e", "mest_s", "mest_t", "mest_c",
+    # Pathology -- every column from ONE selected biopsy (see
+    # pathology.services.projection), never mixed with the working diagnosis.
+    + ["pathology_diagnosis", "pathology_biopsy_date", "pathology_state",
+       "broad_group", "mest_m", "mest_e", "mest_s", "mest_t", "mest_c",
        "isn_rps_class", "fsgs_variant", "review_status"]
     # Treatment exposure flags
     + [name for name, _ in EXPOSURE_FLAGS] + ["ever_budesonide"]
@@ -104,7 +106,7 @@ def build_row(patient, *, identified=False):
     if base:
         row.update(bmi=base.bmi, bmi_category=base.bmi_category,
                    systolic_bp=base.systolic_bp, diastolic_bp=base.diastolic_bp,
-                   hba1c=base.hba1c, dm_duration_years=base.dm_duration_years,
+                   dm_duration_years=base.dm_duration_years,
                    presentation_syndrome=base.presentation_syndrome,
                    diabetic_retinopathy=base.diabetic_retinopathy,
                    cvd_history=base.cvd_history,
@@ -117,7 +119,14 @@ def build_row(patient, *, identified=False):
                    pulse_bpm=base.pulse_bpm, respiratory_rate=base.respiratory_rate,
                    temperature_c=base.temperature_c, volume_status=base.volume_status,
                    presenting_syndromes=";".join(base.presentation_syndromes or []),
-                   presenting_symptoms=";".join(base.presenting_symptoms or []))
+                   presenting_symptoms=";".join(base.presenting_symptoms or []),
+                   comorbidity_snapshot_source=base.comorbidity_snapshot_source)
+        # HbA1c: the dated laboratory observation the baseline reports (linked,
+        # else the nearest within the enrollment window), else the legacy
+        # baseline field -- with its date and which of those it is.
+        from labs.services.baseline import baseline_hba1c
+        hv = baseline_hba1c(base)
+        row.update(hba1c=hv.value, hba1c_date=hv.date, hba1c_source=hv.source or None)
 
     row.update(baseline_albumin=_latest_lab(patient, "albumin"),
                baseline_hemoglobin=_latest_lab(patient, "hemoglobin"),
@@ -125,21 +134,23 @@ def build_row(patient, *, identified=False):
                baseline_c4=_latest_lab(patient, "c4"),
                baseline_anti_pla2r=_latest_lab(patient, "anti_pla2r"))
 
-    # Pathology: latest biopsy diagnosis + MEST-C.
-    gd = (GNDiagnosis.objects.filter(biopsy__patient=patient)
-          .select_related("biopsy").order_by("-biopsy__biopsy_date").first())
-    if gd:
-        b = gd.biopsy
-        row.update(broad_group=gd.broad_group, review_status=b.review_status)
-        ig = getattr(b, "igan_score", None)
+    # Pathology: the selected biopsy (final review preferred over a newer
+    # pending one), its diagnosis and ITS scores -- one source for the lot.
+    from pathology.diagnosis import effective_qualifiers
+    from pathology.services.projection import select_source
+    sel = select_source(patient)
+    b = sel.biopsy
+    if b is not None:
+        gd = b.diagnosis
+        q = effective_qualifiers(b)
+        row.update(pathology_diagnosis=gd.diagnosis, pathology_biopsy_date=b.biopsy_date,
+                   pathology_state=sel.state, broad_group=gd.broad_group,
+                   review_status=b.review_status,
+                   isn_rps_class=q.get("isn_rps_class") or None,
+                   fsgs_variant=q.get("variant") or None)
+        ig = getattr(b, "igan_score", None) if hasattr(b, "igan_score") else None
         if ig:
             row.update(mest_m=ig.M, mest_e=ig.E, mest_s=ig.S, mest_t=ig.T, mest_c=ig.C)
-        ln = getattr(b, "lupus", None)
-        if ln:
-            row["isn_rps_class"] = ln.isn_rps_class
-        fs = getattr(b, "fsgs", None)
-        if fs:
-            row["fsgs_variant"] = fs.variant
 
     exposures = list(TreatmentExposure.objects.filter(patient=patient)
                      .values_list("drug__drug_class", "drug__generic_name"))
@@ -230,3 +241,55 @@ def build_dataset(queryset, *, identified=False, study=None):
                 itt=bool(e))
         rows.append(row)
     return cols, rows
+
+
+# --- Repeated biopsy findings: a child table --------------------------------
+# One row per finding, keyed patient / biopsy / report revision / finding, so
+# repeated findings never multiply the patient-level rows above. Join on
+# patient_id (and biopsy_id) in the analysis.
+
+FINDING_COLUMNS = [
+    "patient_id", "biopsy_id", "biopsy_date", "is_pathology_source",
+    "report_id", "report_role", "report_revision", "report_status",
+    "report_is_current", "report_origin", "finding_id", "section", "code",
+    "finding", "presence", "severity", "extent", "extent_pct", "count",
+    "denominator", "site", "marker", "intensity", "distribution", "detail",
+    "finding_origin", "legacy_value",
+]
+
+
+def build_findings_table(queryset, *, current_only=False):
+    """(columns, rows) of structured biopsy findings for ``queryset`` patients."""
+    from pathology.models import PathologyFinding
+    from pathology.services.projection import select_source
+
+    source_ids = {}
+    rows = []
+    qs = (PathologyFinding.objects
+          .filter(report__biopsy__patient__in=queryset)
+          .select_related("report", "report__biopsy", "report__biopsy__patient")
+          .order_by("report__biopsy__patient__patient_id", "report__biopsy__biopsy_date",
+                    "report__role", "report__revision", "section", "sort_order", "id"))
+    if current_only:
+        qs = qs.filter(report__is_current=True)
+    for f in qs:
+        r, b = f.report, f.report.biopsy
+        p = b.patient
+        if p.pk not in source_ids:
+            sel = select_source(p)
+            source_ids[p.pk] = sel.biopsy.pk if sel.biopsy else None
+        rows.append({
+            "patient_id": p.patient_id, "biopsy_id": b.pk, "biopsy_date": b.biopsy_date,
+            "is_pathology_source": source_ids[p.pk] == b.pk,
+            "report_id": r.pk, "report_role": r.role, "report_revision": r.revision,
+            "report_status": r.status, "report_is_current": r.is_current,
+            "report_origin": r.origin, "finding_id": f.pk, "section": f.section,
+            "code": f.code, "finding": f.display_label, "presence": f.presence,
+            "severity": f.severity or None, "extent": f.extent or None,
+            "extent_pct": f.extent_pct, "count": f.count, "denominator": f.denominator,
+            "site": f.site or None, "marker": f.marker or None,
+            "intensity": f.intensity or None, "distribution": f.distribution or None,
+            "detail": f.detail or None, "finding_origin": f.origin,
+            "legacy_value": f.legacy_value or None,
+        })
+    return list(FINDING_COLUMNS), rows

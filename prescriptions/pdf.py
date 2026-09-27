@@ -32,15 +32,24 @@ def _bengali_font_face_css() -> str:
     return ""
 
 
-def render_prescription_html(prescription) -> str:
-    return render_to_string("prescriptions/prescription.html", {
+def render_context(prescription) -> dict:
+    """Template context: the frozen issued snapshot for a prescription issued
+    with one; the live linked records for a draft (and, flagged, for one
+    finalized before snapshots existed)."""
+    from .services.issue import view_model
+    vm = view_model(prescription)
+    return {
         "rx": prescription,
-        "patient": prescription.patient,
-        "encounter": prescription.encounter,
-        "items": prescription.items.select_related("drug").all(),
-        "clinic": settings.CLINIC,
+        "s": vm["s"],
+        "legacy_live": vm["legacy_live"],
+        "has_dose": any(it.get("dose") for it in vm["s"].get("items", [])),
         "bn_font_face": _bengali_font_face_css(),
-    })
+    }
+
+
+def render_prescription_html(prescription) -> str:
+    return render_to_string("prescriptions/prescription.html",
+                            render_context(prescription))
 
 
 def render_prescription_pdf(prescription) -> bytes:
@@ -94,12 +103,21 @@ def render_prescription_html_download(prescription) -> str:
     return html.replace("</body>", extra + "\n</body>")
 
 
-def save_prescription_pdf(prescription, data: bytes) -> Path:
-    """Persist a finalized prescription PDF to MEDIA_ROOT/prescriptions/."""
+def save_prescription_pdf(prescription, data: bytes) -> Path | None:
+    """Archive a FINALIZED prescription's PDF under MEDIA_ROOT/prescriptions/.
+
+    The first archived file is the original and is never overwritten: a later
+    download (after a template or font change) is served but not archived over
+    it. Drafts are never archived.
+    """
+    if not prescription.is_final:
+        return None
     pdf_dir = getattr(settings, "PRESCRIPTION_PDF_DIR",
                       Path(settings.BASE_DIR) / "media" / "prescriptions")
     pdf_dir.mkdir(parents=True, exist_ok=True)
     fname = f"{prescription.patient.patient_id}_v{prescription.version}_{prescription.pk}.pdf"
     path = pdf_dir / fname
+    if path.exists():
+        return path
     path.write_bytes(data)
     return path
