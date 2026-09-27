@@ -26,6 +26,13 @@ db-*.sqlite3
 /Media/
 /media/
 /Exports/
+# Git matches ignore patterns case-insensitively on Windows (core.ignorecase),
+# so /Exports/ above also swallowed the `exports` Django app. Track its Python
+# source only; runtime export files never get a .py suffix.
+!/exports/
+/exports/**
+!/exports/**/
+!/exports/**/*.py
 /Imports/
 /Temp/
 .initialized
