@@ -77,7 +77,13 @@ def predict_egfr_trajectory(
     if horizons is None:
         horizons = [6, 12, 24]
 
-    patient = Patient.objects.get(patient_id=patient_id)
+    try:
+        patient = Patient.objects.get(patient_id=patient_id)
+    except Patient.DoesNotExist:
+        empty = _empty_forecast(patient_id, horizons, "patient_not_found")
+        empty.method_summary = "Patient not found"
+        return empty
+
     series = _extract_egfr_series(patient)
     today = dt.date.today()
 
@@ -902,7 +908,19 @@ def predict_relapse_risk(
     if horizons is None:
         horizons = [6, 12]
 
-    patient = Patient.objects.get(patient_id=patient_id)
+    try:
+        patient = Patient.objects.get(patient_id=patient_id)
+    except Patient.DoesNotExist:
+        empty = RelapseForecast(
+            patient_id=patient_id,
+            prediction_date=dt.date.today(),
+            disease="unknown",
+            predictions=[],
+            model_used="patient_not_found",
+            overall_risk_tier="low",
+        )
+        return empty
+
     disease = (patient.primary_diagnosis or "").lower()
     features = _extract_relapse_features(patient)
     model = _get_relapse_model(disease)
@@ -1266,7 +1284,17 @@ def predict_treatment_response(
     if horizons is None:
         horizons = [3, 6, 12]
 
-    patient = Patient.objects.get(patient_id=patient_id)
+    try:
+        patient = Patient.objects.get(patient_id=patient_id)
+    except Patient.DoesNotExist:
+        return TreatmentResponseForecast(
+            patient_id=patient_id,
+            prediction_date=dt.date.today(),
+            treatment="patient_not_found",
+            predictions=[],
+            monitoring_cadence="every_3_months",
+            recommendation_summary="Patient not found.",
+        )
 
     # Infer treatment if not specified
     if treatment is None:
