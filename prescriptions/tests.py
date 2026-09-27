@@ -794,9 +794,15 @@ class SteroidTaperTests(TestCase):
     def test_print_typography_is_large_enough_to_read(self):
         # Guards the "make the printed slip bigger" request: a silent CSS
         # regression back to ~9pt body text is the failure mode.
+        # 2026-09-27: the scale is now in points and patient-facing text
+        # (body, instructions, tapers, advice) is 12 pt (was 14.5px body with
+        # 13px instructions and 12.5px advice).
         item = self._item(self.pred, duration="6 weeks")
         html = render_prescription_html(item.prescription)
-        self.assertIn("font-size: 14.5px", html)
+        self.assertIn("font-size: 12pt; line-height: 1.35", html)
+        for selector in (".instr { font-size: 12pt", ".taper { font-size: 12pt",
+                         ".advice { margin-top: 7pt; font-size: 12pt"):
+            self.assertIn(selector, html)
         self.assertNotIn("font-size: 12.5px;\n         line-height: 1.4;", html)
 
     def test_taper_notes_are_covered_by_the_content_hash(self):

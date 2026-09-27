@@ -1,0 +1,46 @@
+Synthetic dry run of reconcile_linked_facts (fixture: tests/test_reconcile_linked_facts.py::legacy_world).
+No live data. biopsy_legacy_false_lesions counts only rows created before 2026-09-27, so the synthetic biopsy (created today) is not counted.
+
+reconcile_linked_facts (dry-run)
+
+== comorbidity_disagreements: 1
+   {"patient": "LEG-1", "patient_pk": 1, "baseline_pk": 1, "field": "hypertension", "patient_value": false, "baseline_value": true, "patient_recorded": false, "baseline_source": "legacy_mirror", "proposal": "confirm the current state on the patient record; legacy baseline value shown as 'confirm' until then"}
+
+== comorbidity_legacy_false: 2
+   {"field": "hypertension", "patients_with_unstamped_false": 1, "treated_as": "not recorded (unknown)"}
+   {"field": "malignancy", "patients_with_unstamped_false": 1, "treated_as": "not recorded (unknown)"}
+
+== diabetes_type_unconfirmed: 0
+
+== pathology_projection: 1
+   {"patient": "LEG-1", "patient_pk": 1, "source_biopsy_pk": 1, "state": "provisional", "differences": {"biopsy_diagnosis": {"stored": "IgA nephropathy", "projected": "Minimal change disease"}}, "working_diagnosis_differs": true, "pending_newer_biopsies": [], "action": "re-project; working diagnosis left for clinician adoption"}
+
+== biopsy_legacy_if_em: 1
+   {"patient": "LEG-1", "biopsy_pk": 1, "if_pattern": "mesangial_iga", "em_findings": "foot_process_effacement", "unrecognised_kept_as_narrative": [], "action": "convert to legacy-tagged findings"}
+
+== biopsy_legacy_false_lesions: 4
+   {"field": "arteriolar_hyalinosis", "pre_change_false_rows": 0, "note": "old default False; cannot be distinguished from 'not assessed' -- left as stored"}
+   {"field": "dkd_lesion_present", "pre_change_false_rows": 0, "note": "old default False; cannot be distinguished from 'not assessed' -- left as stored"}
+   {"field": "crescents_present", "pre_change_false_rows": 0, "note": "old default False; cannot be distinguished from 'not assessed' -- left as stored"}
+   {"field": "necrosis_present", "pre_change_false_rows": 0, "note": "old default False; cannot be distinguished from 'not assessed' -- left as stored"}
+
+== baseline_hba1c: 1
+   {"patient": "LEG-1", "baseline_pk": 1, "legacy_value": "8.1", "assessment_date": "2026-03-01", "status": "record as legacy lab result and link"}
+
+== lab_possible_duplicates: 1
+   {"patient": "LEG-1", "test": "albumin", "date": "2026-03-01", "value": "3.1000", "rows": [2, 3], "status": "possible duplicate entry OR genuine repeat -- resolve by correcting (superseding) one; nothing deleted"}
+
+== egfr_defective_fallback: 1
+   {"patient": "LEG-1", "egfr_pk": 1, "creatinine_pk": null, "sex": "M", "value": "107.8117", "status": "male: under-estimated when creatinine < 0.9 mg/dL -- re-derive under governance (correct_result on the creatinine)"}
+
+== prescription_dose_equals_strength: 1
+   {"prescription_items_with_dose_copied_from_strength": 0, "treated_as": "dose not separately stated (no historical dose inferred)"}
+
+== prescriptions_without_snapshot: 1
+   {"finalized_without_issued_snapshot": 0, "treated_as": "rendered from current records with a visible notice; not back-filled"}
+
+== encounter_vitals_without_reading: 1
+   {"patient": "LEG-1", "encounter_pk": 1, "systolic": 150, "diastolic": 90, "weight_kg": null, "action": "represent as a VitalSign reading (source legacy)"}
+
+== presentation_syndromes: 1
+   {"patient": "LEG-1", "baseline_pk": 1, "list": ["nephrotic", "aki"], "legacy_scalar": "", "status": "kept: primary + additional presentations"}

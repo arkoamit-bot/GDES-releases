@@ -1,77 +1,96 @@
-<!DOCTYPE html>
+{% load rx_print %}<!DOCTYPE html>
 <html lang="en">
 <head>
 <meta charset="utf-8">
 <title>Prescription — {{ s.patient.patient_id }}</title>
 <style>
   {{ bn_font_face|safe }}
+  /* Printed labels and fixed wording are English only (2026-09-27 request);
+     clinician-typed text (instructions, advice) prints exactly as typed.
+     One print scale for every route: in-app print, HTML download, WeasyPrint
+     and the xhtml2pdf fallback. Sizes are literal points (the fallback does
+     not scale px reliably). The slip is read by patients -- often older, often
+     with CKD-related visual change -- at arm's length, so patient-facing text
+     (drug lines, instructions, tapers, advice) is 12 pt. A long regimen is
+     allowed to run onto a second page instead of shrinking the type. */
   @page { size: A4; margin: 12mm 14mm; }
   * { box-sizing: border-box; }
-  /* Typography is deliberately large: the slip is read by patients (often
-     older, often with CKD-related visual change) at arm's length, and a
-     smaller body size was the most common complaint about the printout.
-     The scale is ~15% above the previous one, so the whitespace around it is
-     correspondingly tighter — a normal regimen still prints on one A4 page. */
-  body { font-family: "Segoe UI", Arial, sans-serif; color: #1a1a1a; font-size: 14.5px;
-         line-height: 1.45; }
-  .bn { font-family: "Bn", "Segoe UI", Arial, sans-serif; }
+  html { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  body { font-family: "Segoe UI", Arial, sans-serif; color: #1a1a1a;
+         font-size: 12pt; line-height: 1.35; margin: 0; }
+  @media screen { body { padding: 12mm 14mm; max-width: 210mm; margin: 0 auto; } }
+  @media print { .no-print { display: none !important; } }
+  .bn { font-family: "Bn", "Nirmala UI", "Vrinda", "Segoe UI", Arial, sans-serif; }
 
-  .head { border-bottom: 2px solid #26215C; padding-bottom: 6px; margin-bottom: 4px; }
-  .head .en { font-size: 18px; font-weight: 700; color: #26215C; }
-  .head .bn { font-size: 16px; color: #26215C; }
-  .head .addr { font-size: 11.5px; color: #555; margin-top: 2px; }
-  .head .reg  { font-size: 11.5px; color: #555; font-style: italic; }
+  .head { border-bottom: 2px solid #26215C; padding-bottom: 4pt; margin-bottom: 4pt; }
+  .head .en { font-size: 15pt; font-weight: 700; color: #26215C; }
+  .head .bn { font-size: 13pt; color: #26215C; }
+  .head .addr { font-size: 9.5pt; color: #555; margin-top: 1pt; }
+  .head .reg  { font-size: 9.5pt; color: #555; font-style: italic; }
 
-  .meta { display: flex; justify-content: space-between; font-size: 12.5px;
-          border-bottom: 1px solid #ccc; padding: 4px 0; margin-bottom: 6px; }
-  .meta div { line-height: 1.5; }
-  .label { color: #777; }
+  table.meta { width: 100%; border-collapse: collapse; font-size: 10.5pt;
+               border-bottom: 1px solid #ccc; margin-bottom: 5pt; }
+  table.meta td { border: 0; padding: 3pt 0; vertical-align: top; background: none; }
+  table.meta td.right { text-align: right; width: 36%; }
+  .label { color: #666; }
 
-  .vitals { font-size: 12.5px; margin: 2px 0 6px; color: #333; }
-  .dx { margin: 4px 0 6px; }
+  .vitals { font-size: 10.5pt; margin: 2pt 0 5pt; color: #333; }
+  .dx { margin: 3pt 0 5pt; font-size: 12pt; }
   .dx .label { font-weight: 600; color: #26215C; }
 
-  .rx-mark { font-size: 24px; font-weight: 700; color: #26215C; line-height: 1; }
-  table { width: 100%; border-collapse: collapse; margin-top: 2px; }
-  th { text-align: left; font-size: 11px; text-transform: uppercase; color: #777;
-       border-bottom: 2px solid #26215C; padding: 4px 8px; letter-spacing: .3px; }
-  td { padding: 7px 8px; border-bottom: 1px solid #eee; vertical-align: top; }
+  .rx-mark { font-size: 20pt; font-weight: 700; color: #26215C; line-height: 1; }
+  table.rx-table { width: 100%; border-collapse: collapse; margin-top: 2pt;
+                   table-layout: fixed; }
+  .rx-table thead { display: table-header-group; }   /* repeat on each page */
+  .rx-table th { text-align: left; font-size: 10pt; text-transform: uppercase; color: #555;
+                 border-bottom: 2px solid #26215C; padding: 3pt 5pt; letter-spacing: 0; }
+  .rx-table td { padding: 5pt 5pt; border-bottom: 1px solid #e5e5e5; vertical-align: top;
+                 overflow-wrap: break-word; word-wrap: break-word; }
+  col.c-drug { width: 28%; } col.c-strength { width: 15%; } col.c-dose { width: 8%; }
+  col.c-route { width: 9%; } col.c-freq { width: 13%; } col.c-timing { width: 14%; }
+  col.c-dur { width: 13%; }
+  /* Keep a medication line with its instruction and taper; a block taller
+     than a page still breaks rather than being clipped. */
+  .rx-table tbody { page-break-inside: avoid; break-inside: avoid; }
+  .rx-table tr { page-break-inside: avoid; break-inside: avoid; }
   /* Zebra striping makes long medication lists easier to read line-by-line.
      Each drug is rendered as its own tbody element (see below) so an inserted
      taper row can never shift the striping of the medications after it. */
   tbody:nth-of-type(even) td { background: #f7f7fc; }
-  .drug { font-weight: 700; font-size: 15px; color: #1a1a1a; }
-  .brand { color: #666; font-weight: 400; font-size: 12.5px; }
-  .instr { font-size: 13px; color: #2a2a2a; margin-top: 4px;
-           padding-left: 8px; border-left: 2px solid #d7d4ec; }
+  .drug { font-weight: 700; font-size: 12.5pt; color: #1a1a1a; }
+  .brand { color: #555; font-weight: 400; font-size: 10.5pt; }
+  .instr { font-size: 12pt; color: #2a2a2a; margin-top: 3pt;
+           padding-left: 6pt; border-left: 2px solid #d7d4ec; }
   /* Taper plan: full-width and visually distinct, so the step-down cannot be
      missed when the pharmacy hands the patient their steroid course. */
-  tr.taper-row td { background: transparent; padding-top: 0; padding-bottom: 2px; }
-  .taper { font-size: 13px; color: #7c2d12; margin-top: 4px;
-           padding: 6px 9px; border-left: 3px solid #b45309; background: #fffbeb; }
+  tr.taper-row td { background: transparent; padding-top: 0; padding-bottom: 3pt; }
+  .taper { font-size: 12pt; color: #7c2d12; margin-top: 2pt;
+           padding: 5pt 7pt; border-left: 3px solid #b45309; background: #fffbeb; }
   .taper b { color: #92400e; }
 
-  .advice { margin-top: 8px; font-size: 12.5px; }
+  .advice { margin-top: 7pt; font-size: 12pt; }
   .advice .label { font-weight: 600; color: #26215C; }
 
-  .foot { margin-top: 16px; display: flex; justify-content: space-between;
-          align-items: flex-end; }
-  .next { font-size: 13.5px; }
+  table.foot { width: 100%; border-collapse: collapse; margin-top: 12pt;
+               page-break-inside: avoid; break-inside: avoid; }
+  table.foot td { border: 0; background: none; vertical-align: bottom; padding: 0; }
+  .next { font-size: 12pt; }
   .next .callout { display: inline-block; background: #f0eff8; border: 1px solid #d7d4ec;
-                   border-radius: 6px; padding: 6px 12px; color: #26215C; }
+                   border-radius: 6px; padding: 4pt 9pt; color: #26215C; }
   .next .callout strong { color: #26215C; }
-  .sign { text-align: center; font-size: 12.5px; }
-  .sign .line { border-top: 1px solid #333; width: 180px; padding-top: 3px; }
-  .stamp { margin-top: 6px; font-size: 10px; color: #999; }
-  .legacy-note { font-size: 11px; color: #92400e; border: 1px dashed #d97706;
-                 padding: 3px 6px; margin: 4px 0; }
-  .draft-banner { color: #b00; font-weight: 700; font-size: 12.5px;
-                  border: 1px dashed #b00; padding: 3px 6px; display: inline-block; }
+  .sign { text-align: center; font-size: 10.5pt; }
+  .sign .line { border-top: 1px solid #333; width: 140pt; padding-top: 2pt;
+                margin-left: auto; }
+  .stamp { margin-top: 5pt; font-size: 8.5pt; color: #777; }
+  .legacy-note { font-size: 9.5pt; color: #92400e; border: 1px dashed #d97706;
+                 padding: 2pt 5pt; margin: 3pt 0; }
+  .draft-banner { color: #b00; font-weight: 700; font-size: 10.5pt;
+                  border: 1px dashed #b00; padding: 2pt 5pt; display: inline-block; }
   /* Big diagonal DRAFT watermark so an un-finalized copy can never be mistaken
      for a signed prescription. */
   .watermark { position: fixed; top: 42%; left: 50%;
                transform: translate(-50%,-50%) rotate(-30deg);
-               font-size: 120px; font-weight: 800; color: rgba(176,0,32,.08);
+               font-size: 90pt; font-weight: 800; color: rgba(176,0,32,.08);
                letter-spacing: 8px; z-index: 0; pointer-events: none; }
 </style>
 </head>
@@ -79,7 +98,6 @@
 
   <div class="head">
     <div class="en">{{ s.clinic.name_en }}</div>
-    <div class="bn">{{ s.clinic.name_bn }}</div>
     <div class="addr">{{ s.clinic.address }}</div>
     <div class="reg">{{ s.clinic.registry }}</div>
   </div>
@@ -88,20 +106,20 @@
   <div class="draft-banner">DRAFT — not finalized · not valid for dispensing</div>{% endif %}
   {% if legacy_live %}<div class="legacy-note">Issued before issued-content snapshots were kept: patient details, vitals and eGFR below are the current record, not necessarily as printed originally.</div>{% endif %}
 
-  <div class="meta">
-    <div>
+  <table class="meta"><tr>
+    <td>
       <span class="label">Patient:</span> <strong>{{ s.patient.name }}</strong><br>
       <span class="label">ID:</span> {{ s.patient.patient_id }}
       {% if s.patient.hospital_id %} &nbsp; <span class="label">Reg:</span> {{ s.patient.hospital_id }}{% endif %}<br>
       <span class="label">Sex:</span> {{ s.patient.sex }}
       {% if s.patient.diabetes %} &nbsp; <span class="label">DM:</span> {{ s.patient.diabetes }}{% endif %}
-    </div>
-    <div style="text-align:right;">
+    </td>
+    <td class="right">
       <span class="label">Date:</span> {{ s.encounter.date }}<br>
       <span class="label">Visit:</span> {{ s.encounter.type }}<br>
       {% if s.egfr %}<span class="label">eGFR:</span> {{ s.egfr.value }} mL/min{% if s.egfr.date %} ({{ s.egfr.date }}){% endif %}{% endif %}
-    </div>
-  </div>
+    </td>
+  </tr></table>
 
   {% if s.vitals %}
   <div class="vitals">
@@ -117,8 +135,8 @@
   <div class="dx"><span class="label">Comorbidities:</span> {{ s.comorbidities }}</div>
   {% endif %}
 
-  <div class="rx-mark">℞</div>
-  <table class="rx-table">
+  <div class="rx-mark">Rx</div>
+  <table class="rx-table" repeat="1">
     <colgroup>
       <col class="c-drug"><col class="c-strength">{% if has_dose %}<col class="c-dose">{% endif %}
       <col class="c-route"><col class="c-freq"><col class="c-timing"><col class="c-dur">
@@ -139,7 +157,7 @@
           {% endif %}
           {% if it.instruction_bn %}<div class="instr bn">{{ it.instruction_bn }}</div>{% endif %}
         </td>
-        <td>{{ it.strength }}</td>
+        <td>{{ it.strength|soft_breaks }}</td>
         {% if has_dose %}<td>{{ it.dose }}</td>{% endif %}
         <td>{{ it.route }}</td>
         <td>{{ it.frequency }}</td>
@@ -149,8 +167,8 @@
       {% if it.taper_notes %}
       <tr class="taper-row">
         <td colspan="{% if has_dose %}7{% else %}6{% endif %}">
-          <div class="taper"><b>⇩ Taper before stopping — {{ it.generic }}:</b>
-            <span class="bn">ধীরে ধীরে ডোজ কমিয়ে বন্ধ করুন</span><br>
+          <div class="taper"><b>Taper before stopping — {{ it.generic }}:</b>
+            Reduce the dose step by step as below; do not stop suddenly.<br>
             {{ it.taper_notes|linebreaksbr }}</div>
         </td>
       </tr>
@@ -167,7 +185,7 @@
   {% endif %}
 
   {% if s.advice %}
-  <div class="advice"><span class="label">Advice / পরামর্শ:</span><br><span class="bn">{{ s.advice|linebreaksbr }}</span></div>
+  <div class="advice"><span class="label">Advice:</span><br><span class="bn">{{ s.advice|linebreaksbr }}</span></div>
   {% endif %}
 
   {% if s.visit_note %}
@@ -178,14 +196,14 @@
   <div class="advice"><span class="label">Medications stopped this visit:</span><br>{{ s.stop_notes|linebreaksbr }}</div>
   {% endif %}
 
-  <div class="foot">
-    <div class="next">
+  <table class="foot"><tr>
+    <td class="next">
       {% if s.next_visit %}<span class="callout"><strong>Next visit:</strong> {{ s.next_visit }}</span>{% endif %}
-    </div>
-    <div class="sign">
+    </td>
+    <td class="sign">
       <div class="line">{% if s.prescriber %}Dr. {{ s.prescriber }}{% else %}Signature{% endif %}</div>
-    </div>
-  </div>
+    </td>
+  </tr></table>
 
   <div class="stamp">
     GDES Rx v{{ rx.version }} · {{ rx.get_status_display }}

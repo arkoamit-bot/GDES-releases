@@ -92,13 +92,14 @@ def render_prescription_html_download(prescription) -> str:
     window.addEventListener('load', function(){
       var btn = document.createElement('button');
       btn.textContent = 'Print / Save as PDF';
+      btn.className = 'no-print';
       btn.style.cssText = 'position:fixed;top:12px;right:12px;padding:8px 14px;'
         + 'font-size:14px;background:#26215C;color:#fff;border:0;border-radius:6px;cursor:pointer;';
       btn.onclick = function(){ window.print(); };
       document.body.appendChild(btn);
     });
     </script>
-    <style>@media screen{ body{ margin:20px; } }</style>
+    <style>@media print{ .no-print{ display:none !important; } }</style>
     """
     return html.replace("</body>", extra + "\n</body>")
 

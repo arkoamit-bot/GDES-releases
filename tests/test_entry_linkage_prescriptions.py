@@ -268,6 +268,52 @@ class TestIssuedSnapshot:
             f"{drug.pk}||5 mg|5 mg||1+0+0|after||"]).encode()).hexdigest()
         assert rx.compute_hash() == expected
 
+    def test_preview_isolates_the_print_document(self, patient, encounter, drug, signed_in):
+        from prescriptions.pdf import render_prescription_html_download
+        rx = self._final_rx(patient, encounter, drug)
+        page = signed_in.get(reverse("prescriptions:preview", args=[rx.pk])).content.decode()
+        # The slip is its own document in a frame: no print-time visibility
+        # hack on the app page, no second @page rule.
+        assert 'id="rx-frame"' in page and "srcdoc=" in page
+        assert "visibility: hidden" not in page
+        download = render_prescription_html_download(rx)
+        assert "no-print" in download and "@media print" in download
+
+    def test_print_scale_is_in_points(self, patient, encounter, drug):
+        from prescriptions.pdf import render_prescription_html
+        html = render_prescription_html(self._final_rx(patient, encounter, drug))
+        for rule in ("font-size: 12pt; line-height: 1.35", ".drug { font-weight: 700; font-size: 12.5pt",
+                     ".rx-table th { text-align: left; font-size: 10pt",
+                     ".stamp { margin-top: 5pt; font-size: 8.5pt",
+                     "thead { display: table-header-group; }",
+                     "page-break-inside: avoid"):
+            assert rule in html
+
+    def test_printed_wording_is_english_only(self, patient, encounter, drug):
+        import re
+        from prescriptions.models import Prescription, PrescriptionItem
+        from prescriptions.pdf import render_prescription_html
+        rx = Prescription.objects.create(encounter=encounter, version=1, advice="Low salt diet")
+        PrescriptionItem.objects.create(prescription=rx, drug=drug, strength="40 mg",
+                                        instruction_bn="Take after breakfast",
+                                        taper_notes="40 mg x 1 wk, then 20 mg x 1 wk, then stop")
+        html = render_prescription_html(rx)
+        assert not re.search("[ঀ-৿]", html)       # no fixed Bangla text
+        assert "do not stop suddenly" in html and "Advice:" in html
+        assert "Take after breakfast" in html                # typed text as typed
+
+    def test_long_combination_strength_breaks_between_ingredients(self, patient, encounter):
+        from prescriptions.models import Prescription, PrescriptionItem
+        from prescriptions.pdf import render_prescription_html
+        from treatments.models import DrugMaster
+        combo = DrugMaster.objects.create(generic_name="Calcium + Vitamin D3", drug_class="other")
+        rx = Prescription.objects.create(encounter=encounter, version=1)
+        PrescriptionItem.objects.create(prescription=rx, drug=combo,
+                                        strength="1000 mg+327 mg+500 mg+400 IU")
+        html = render_prescription_html(rx)
+        assert "1000 mg+<wbr>327 mg+<wbr>500 mg+<wbr>400 IU" in html
+        assert rx.items.get().strength == "1000 mg+327 mg+500 mg+400 IU"   # stored unchanged
+
     def test_archived_pdf_is_not_overwritten(self, patient, encounter, drug, tmp_path, settings):
         from prescriptions.pdf import save_prescription_pdf
         settings.PRESCRIPTION_PDF_DIR = tmp_path

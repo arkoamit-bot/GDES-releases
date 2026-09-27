@@ -36,7 +36,7 @@
     </a>
   {% endif %}
 
-  <button class="btn" type="button" onclick="window.print()" style="background:#1d4ed8;color:#fff">
+  <button class="btn" type="button" id="rx-print" style="background:#1d4ed8;color:#fff">
     <i class="fas fa-print"></i> Print prescription
   </button>
   <a class="btn ghost" href="{% url 'prescriptions:pdf' rx.pk %}" target="_blank">
@@ -55,24 +55,33 @@
   {% endif %}
 </div>
 
-<!-- Prescription preview rendered inline -->
-<div style="border:1px solid #ddd;border-radius:8px;overflow:hidden;background:#fff;padding:16px">
-  <div id="rx-print-area" style="max-width:210mm;margin:0 auto">
-    {{ prescription_html|safe }}
-  </div>
+<!-- The prescription is its own document in an isolated frame: its print
+     stylesheet (sizes, @page margins, page breaks) cannot restyle the app, the
+     app cannot restyle it, and Print prints exactly this document -- the same
+     one the HTML download and the PDF engines render. (It used to be injected
+     into this page, with a visibility:hidden print hack that left blank pages.) -->
+<div style="border:1px solid #ddd;border-radius:8px;overflow:hidden;background:#fff">
+  <iframe id="rx-frame" title="Prescription" srcdoc="{{ prescription_html }}"
+          style="display:block;width:100%;min-height:297mm;border:0;background:#fff"></iframe>
 </div>
 
-<!-- Print only the prescription itself (no sidebar / header / buttons), so the
-     in-app Print button gives a fast, integrated printout — no external PDF app. -->
-<style>
-@media print {
-  body * { visibility: hidden !important; }
-  #rx-print-area, #rx-print-area * { visibility: visible !important; }
-  #rx-print-area { position: absolute; left: 0; top: 0; width: 100%; max-width: none; padding: 0; margin: 0; }
-  aside, header, .crumbs { display: none !important; }
-  @page { margin: 12mm; }
-}
-</style>
+<script>
+  (function () {
+    var frame = document.getElementById('rx-frame');
+    function fit() {
+      try {
+        var doc = frame.contentDocument;
+        if (doc && doc.body) frame.style.height = (doc.documentElement.scrollHeight + 24) + 'px';
+      } catch (e) { /* same-origin srcdoc; nothing to do if blocked */ }
+    }
+    frame.addEventListener('load', fit);
+    window.addEventListener('resize', fit);
+    document.getElementById('rx-print').addEventListener('click', function () {
+      frame.contentWindow.focus();
+      frame.contentWindow.print();
+    });
+  })();
+</script>
 
 <script>
   document.getElementById('finalize-form')?.addEventListener('submit', function(e) {
