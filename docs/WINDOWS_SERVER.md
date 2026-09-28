@@ -12,7 +12,7 @@ GDES runs beside the DKD registry on the same machine, built the same way
 | Code | `E:\DKDR server` | `E:\GDES server` |
 | State | `E:\dkdr-data` | `E:\gdes-data` (`app\` data + logs, `backups\`, `bin\`, `caddy\`) |
 | Tasks (SYSTEM) | `DKDR *` | `GDES Server`, `GDES Caddy`, `GDES Watchdog`, `GDES Backup` (02:15) |
-| Firewall | TCP 80 from 192.168.7.0/24 | TCP 8080 from 192.168.7.0/24 (Private profile) |
+| Firewall | TCP 80 from 192.168.7.0/24 | TCP 8080 from 192.168.7.0/24 and 192.168.10.0/24 (Private profile) |
 
 Status: **trial server.** It runs branch
 `claude/opus-linkage-histopathology-review-7c2d25`, which has not had clinical
@@ -98,6 +98,10 @@ Change together, or GDES answers nothing and says nothing about why:
 `DJANGO_ALLOWED_HOSTS` and `GDES_CSRF_TRUSTED_ORIGINS` in `.env`; the site
 address in `deploy\windows\Caddyfile`; `$LanSubnet` in `install.ps1` (re-run
 it); `$AppHost`/`$EdgeUrl` in `watchdog.ps1`.
+
+A PC on another clinic network (for example `192.168.10.x`) is let in only
+when its network is listed in `$LanSubnet`; otherwise the firewall drops the
+connection silently and the browser just times out.
 
 ## Known limits
 

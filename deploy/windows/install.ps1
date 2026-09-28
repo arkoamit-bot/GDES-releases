@@ -32,7 +32,9 @@ $SuperFile = 'E:\dkdr-data\postgres-superuser.txt'
 $DkdCaddy  = 'E:\dkdr-data\bin\caddy.exe'
 $Py        = Join-Path $Root '.venv\Scripts\python.exe'
 $EnvFile   = Join-Path $Root '.env'
-$LanSubnet = '192.168.7.0/24'
+# Clinic networks allowed in. 192.168.10.0/24 is the second clinic LAN,
+# routed through 192.168.7.1 (added 2026-09-28).
+$LanSubnet = @('192.168.7.0/24', '192.168.10.0/24')
 $Port      = 8080
 
 if (-not ([Security.Principal.WindowsPrincipal] [Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)) {
@@ -180,7 +182,7 @@ $fw = "GDES registry (HTTP $Port, clinic LAN)"
 Get-NetFirewallRule -DisplayName $fw -ErrorAction SilentlyContinue | Remove-NetFirewallRule
 New-NetFirewallRule -DisplayName $fw -Direction Inbound -Protocol TCP -LocalPort $Port `
     -Action Allow -Profile Private -RemoteAddress $LanSubnet | Out-Null
-Write-Output "ok  TCP $Port inbound, Private profile, $LanSubnet only (8100 and 5432 stay closed)"
+Write-Output "ok  TCP $Port inbound, Private profile, $($LanSubnet -join ', ') only (8100 and 5432 stay closed)"
 
 # --- 5. start and verify -------------------------------------------------------------
 Step 'start'
