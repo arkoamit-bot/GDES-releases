@@ -1,0 +1,47 @@
+name: Documentation
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'docs/**'
+      - '.hermes/**/*.md'
+      - '**/*.md'
+  pull_request:
+    branches: [main]
+    paths:
+      - 'docs/**'
+      - '.hermes/**/*.md'
+
+jobs:
+  validate-docs:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Check markdown syntax
+        run: |
+          echo "=== Checking markdown files ==="
+          find . -name "*.md" -not -path "./.git/*" -not -path "./.venv/*" | while read f; do
+            # Basic checks: no empty links, no broken image refs
+            if grep -n '\[\](' "$f" 2>/dev/null; then
+              echo "WARNING: Empty link text in $f"
+            fi
+          done
+          echo "Markdown validation complete"
+
+      - name: Check docs/ index exists
+        run: |
+          if [ -f "docs/README.md" ]; then
+            echo "docs/README.md index exists"
+          else
+            echo "WARNING: docs/README.md index missing"
+          fi
+
+      - name: Check .hermes documentation
+        run: |
+          echo "=== AI Factory Documentation ==="
+          ls -la .hermes/documentation/ 2>/dev/null || echo "No documentation directory"
+          ls -la .hermes/agents/ 2>/dev/null | wc -l
+          ls -la .hermes/workflows/ 2>/dev/null | wc -l
+          ls -la .hermes/prompts/ 2>/dev/null | wc -l

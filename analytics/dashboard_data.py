@@ -7,9 +7,9 @@ Every query is wrapped defensively so dashboards always render.
 from __future__ import annotations
 
 import datetime as dt
-from collections import defaultdict
 
-from django.db.models import Avg, Count, Max, Min, Q
+
+from django.db.models import Avg, Count
 from django.db.models.functions import TruncMonth
 
 

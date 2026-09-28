@@ -1,0 +1,48 @@
+name: Security Scan
+
+on:
+  schedule:
+    - cron: '0 6 * * 1'  # Weekly Monday 6AM UTC
+  workflow_dispatch:
+
+jobs:
+  security:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install dependencies
+        run: |
+          pip install --upgrade pip
+          pip install safety bandit pip-audit
+
+      - name: Run pip-audit (dependency vulnerabilities)
+        run: pip-audit -r requirements.txt --output pip-audit-report.json --format json || true
+
+      - name: Run Bandit (security lint)
+        run: bandit -r . -f json -o bandit-report.json --exclude ./.venv,./.git,./scripts/_archive || true
+
+      - name: Check for hardcoded secrets
+        run: |
+          echo "=== Checking for hardcoded credentials ==="
+          if grep -rn "password.*=.*['\"]" --include="*.py" . | grep -v "test_\|_test\|conftest\|\.pyc\|migrations\|scripts/_archive"; then
+            echo "WARNING: Possible hardcoded credentials found"
+            grep -rn "password.*=.*['\"]" --include="*.py" . | grep -v "test_\|_test\|conftest\|\.pyc\|migrations\|scripts/_archive" || true
+          else
+            echo "No hardcoded credentials detected"
+          fi
+
+      - name: Upload security reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: security-reports
+          path: |
+            pip-audit-report.json
+            bandit-report.json
+          retention-days: 30

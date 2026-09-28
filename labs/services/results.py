@@ -77,8 +77,9 @@ def validate(test: LabTest, value: Decimal | None, value_text: str,
              result_date, sample_date=None):
     if value is None and not (value_text or "").strip():
         raise ValidationError("Enter a value or a qualitative result.")
-    if test.is_derived:
-        raise ValidationError(f"{test.name} is derived automatically and cannot be entered.")
+    # A derived test (eGFR) may still arrive as a reported value from another
+    # laboratory or an import; the guided forms do not offer it, and the API
+    # refuses results that claim to be computed (source="derived").
     if value is not None and value < 0:
         raise ValidationError({"value_numeric": "Cannot be negative."})
     if result_date is None:

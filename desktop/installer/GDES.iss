@@ -14,7 +14,7 @@
   #define AppVersion "7.3.12"
 #endif
 #define AppExeName "GDES.exe"
-#define DistDir "..\..\dist\GDES"
+#define DistDir "..\\..\\dist\\GDES"
 
 [Setup]
 AppId={{B9D2F0A1-GDES-4C7E-9A11-BGDDRPILOT01}}
@@ -34,12 +34,15 @@ SolidCompression=yes
 WizardStyle=modern
 ArchitecturesInstallIn64BitMode=x64compatible
 SetupLogging=yes
+DisableProgramGroupPage=yes
+PrivilegesRequired=lowest
+PrivilegesRequiredOverridesAllowed=dialog
 
 [Languages]
 Name: "english"; MessagesFile: "compiler:Default.isl"
 
 [Tasks]
-Name: "desktopicon"; Description: "Create a &desktop shortcut"; GroupDescription: "Shortcuts:"
+Name: "desktopicon"; Description: "{cm:CreateDesktopIcon}"; GroupDescription: "{cm:AdditionalIcons}"; Flags: unchecked
 
 [Files]
 Source: "{#DistDir}\*"; DestDir: "{app}"; Flags: recursesubdirs createallsubdirs ignoreversion
@@ -52,9 +55,9 @@ Name: "{app}\Data"; Flags: uninsneveruninstall
 Name: "{app}\Data\Logs"; Flags: uninsneveruninstall
 
 [Icons]
-Name: "{group}\{#AppName}"; Filename: "{app}\{#AppExeName}"; WorkingDir: "{app}"
-Name: "{group}\Uninstall {#AppName}"; Filename: "{uninstallexe}"
-Name: "{autodesktop}\{#AppName}"; Filename: "{app}\{#AppExeName}"; WorkingDir: "{app}"; Tasks: desktopicon
+Name: "{group}\GDES"; Filename: "{app}\GDES.exe"
+Name: "{group}\Uninstall GDES"; Filename: "{uninstallexe}"
+Name: "{autodesktop}\GDES"; Filename: "{app}\GDES.exe"; Tasks: desktopicon
 
 [Run]
 Filename: "{tmp}\MicrosoftEdgeWebview2Setup.exe"; Parameters: "/silent /install"; \
@@ -63,9 +66,9 @@ Filename: "{app}\{#AppExeName}"; Description: "Launch {#AppName} now"; \
   Flags: nowait postinstall skipifsilent
 
 [Code]
-function WebView2Missing: Boolean;
+procedure CurStepChanged(CurStep: TSetupStep);
 var
-  v: String;
+  ResultCode: Integer;
 begin
   Result := not (
     RegQueryStringValue(HKLM,

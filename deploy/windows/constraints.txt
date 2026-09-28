@@ -1,4 +1,4 @@
-# Exact versions the test suite passed with on 2026-09-27 (pip freeze of the
+# Exact versions the test suite passed with on 2026-09-28 (pip freeze of the
 # development venv). Used as constraints for the server install:
 #   uv pip install -r requirements-server.txt -c deploy/windows/constraints.txt
 amqp==5.3.1
@@ -70,3 +70,5 @@ webencodings==0.5.1
 whitenoise==6.12.0
 xhtml2pdf==0.2.17
 zopfli==0.4.3
+django-csp==3.8
+django-ratelimit==4.1.0

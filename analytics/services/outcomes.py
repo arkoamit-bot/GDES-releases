@@ -29,7 +29,6 @@ reviewed and frozen before enrolment — change them here, re-run, done.
 """
 from __future__ import annotations
 
-import datetime as dt
 from decimal import Decimal
 
 from django.db import transaction

@@ -348,3 +348,37 @@ CKD-EPI 2021 eGFR, refreshes `Patient.latest_egfr`, and that immediately feeds
 the prescription's renal-dosing safety check — labs make the next Rx safer with
 no manual step. See `labs/services/results.py` and `…/egfr.py`.
 ```
+
+## Documentation Structure
+
+This repository contains comprehensive documentation organized as follows:
+
+### Root Documentation
+- `README.md` — This file (project overview)
+- `PROJECT_CONSTITUTION.md` — Project governance and standards
+- `PROJECT_CONTEXT.md` — Project context and background
+- `TRACK.md` — Project tracking and milestones
+
+### Documentation Directory (`/docs/`)
+- **Architecture** (`docs/architecture/`) — System architecture documentation
+- **Clinical** (`docs/clinical/`) — Clinical documentation
+  - **Diseases** (`docs/clinical/diseases/`) — Disease-specific documentation (195 files)
+- **Development** (`docs/development/`) — Development guides
+- **Deployment** (`docs/deployment/`) — Deployment documentation
+- **Releases** (`docs/releases/`) — Release notes and changelogs
+- **Reports** (`docs/reports/`) — Technical reports
+- **Workflows** (`docs/workflows/`) — Workflow documentation
+
+### AI Factory Documentation (`/.hermes/`)
+- **System** (`.hermes/HERMES_SYSTEM.md`) — Hermes system operating instructions
+- **Bootstrap** (`.hermes/HERMES_MASTER_BOOTSTRAP.md`) — Master bootstrap instruction
+- **Documentation** (`.hermes/documentation/`) — AI Factory documentation
+- **Agents** (`.hermes/agents/`) — Agent definitions
+- **Workflows** (`.hermes/workflows/`) — Reusable workflows
+- **Prompts** (`.hermes/prompts/`) — Production-ready prompts
+- **Memory** (`.hermes/memory/`) — Project knowledge base
+- **Reports** (`.hermes/reports/`) — Intelligence reports
+- **Scripts** (`.hermes/scripts/`) — Automation scripts
+
+### Documentation Index
+See `docs/DOCUMENTATION_INDEX.md` for a comprehensive index of all documentation.
