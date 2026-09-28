@@ -56,6 +56,13 @@ class TestAutopaste:
     """_click_input_area is always mocked -- a real click would move the mouse
     of whoever is running the tests."""
 
+    @pytest.fixture(autouse=True)
+    def _as_if_windows(self):
+        # The guard logic is platform-independent once the Win32 calls are
+        # mocked; without this every case returns "unsupported" on Linux CI.
+        with patch.object(ap, "is_supported", return_value=True):
+            yield
+
     def test_pastes_when_vera_is_foreground(self):
         with patch.object(ap, "_foreground_info", return_value=("Vera Health", "chrome.exe")), \
              patch.object(ap, "_click_input_area", return_value=True), \

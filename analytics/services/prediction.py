@@ -81,9 +81,12 @@ def predict_egfr_trajectory(
     try:
         patient = Patient.objects.get(patient_id=patient_id)
     except Patient.DoesNotExist:
-        empty = _empty_forecast(patient_id, horizons, "patient_not_found")
-        empty.method_summary = "Patient not found"
-        return empty
+        return EGFRForecast(
+            patient_id=patient_id,
+            prediction_date=dt.date.today(),
+            predictions=[],
+            method_summary="Patient not found",
+        )
 
     series = _extract_egfr_series(patient)
     today = dt.date.today()

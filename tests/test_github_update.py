@@ -35,6 +35,8 @@ def test_apply_update_writes_breadcrumb_and_visible_helper(tmp_path, monkeypatch
         spawned["flags"] = creationflags
         return object()
     monkeypatch.setattr(updater.subprocess, "Popen", fake_popen)
+    # The flag only exists on Windows; supply it so the check also runs on Linux CI.
+    monkeypatch.setattr(updater.subprocess, "CREATE_NEW_CONSOLE", 0x10, raising=False)
 
     app = tmp_path / "app"; (app / "Logs").mkdir(parents=True)
     staging = tmp_path / "staging"; staging.mkdir()
