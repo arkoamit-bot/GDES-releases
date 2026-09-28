@@ -411,12 +411,18 @@ def _build_prescription_prompt(patient, profile, management_plan):
     if egfr:
         try:
             e = float(egfr.split()[0])
-            if e >= 90: ckd_stage = "G1"
-            elif e >= 60: ckd_stage = "G2"
-            elif e >= 45: ckd_stage = "G3a"
-            elif e >= 30: ckd_stage = "G3b"
-            elif e >= 15: ckd_stage = "G4"
-            else: ckd_stage = "G5"
+            if e >= 90:
+                ckd_stage = "G1"
+            elif e >= 60:
+                ckd_stage = "G2"
+            elif e >= 45:
+                ckd_stage = "G3a"
+            elif e >= 30:
+                ckd_stage = "G3b"
+            elif e >= 15:
+                ckd_stage = "G4"
+            else:
+                ckd_stage = "G5"
         except (ValueError, IndexError):
             pass
 
