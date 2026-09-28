@@ -16,8 +16,9 @@ logger = logging.getLogger(__name__)
 
 from patients.models import Patient
 from encounters.models import ClinicalEncounter
-from prescriptions.models import AdviceTemplate, Prescription, PrescriptionItem
-from prescriptions.services.tapers import TAPER_PRESETS, is_systemic_steroid
+from prescriptions.models import (AdviceTemplate, Prescription, PrescriptionItem,
+                                  TaperTemplate)
+from prescriptions.services.tapers import is_systemic_steroid
 from treatments.models import DrugMaster
 
 from ..forms import (AdmissionForm, AdverseEventForm, BaselineForm, BiopsyForm,

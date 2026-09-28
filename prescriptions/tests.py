@@ -12,14 +12,13 @@ from encounters.models import ClinicalEncounter
 from patients.models import Patient
 from treatments.models import DrugClass, DrugMaster, StopReason, TreatmentExposure
 
-from .models import Prescription, PrescriptionItem
+from .models import Prescription, PrescriptionItem, TaperTemplate
 from .pdf import render_prescription_html
 from .services.finalize import finalize_prescription
 from .services.reconciliation import (AlreadyReconciled, apply_reconciliation,
                                       plan_reconciliation)
 from .services.safety import check_prescription
-from .services.tapers import (TAPER_PRESETS, course_length_days, is_systemic_steroid,
-                              needs_taper)
+from .services.tapers import course_length_days, is_systemic_steroid, needs_taper
 
 # Column order `import_bddrugbank`'s DictReader expects. Without this header
 # row DictReader consumes the first data row as field names and imports
@@ -917,8 +916,23 @@ class PrescriptionFormTaperTests(TestCase):
         self.assertEqual(resp.status_code, 200)
         self.assertContains(resp, "taper-presets")
         self.assertContains(resp, "Taper this course before stopping")
-        # Presets reach the browser as JSON for the row's dropdown.
-        self.assertEqual(len(resp.context["taper_presets"]), len(TAPER_PRESETS))
+        # Active taper templates (seeded by migration) reach the browser as JSON.
+        active = list(TaperTemplate.objects.filter(is_active=True).values("title", "body"))
+        self.assertTrue(active)
+        self.assertEqual(resp.context["taper_presets"], active)
+
+    def test_inactive_taper_template_is_not_offered(self):
+        TaperTemplate.objects.update(is_active=False)
+        TaperTemplate.objects.create(title="Clinic ladder", body="30 mg x 1 wk")
+        resp = self.client.get(reverse("clinic:prescription", args=[self.p.pk]))
+        self.assertEqual(resp.context["taper_presets"],
+                         [{"title": "Clinic ladder", "body": "30 mg x 1 wk"}])
+
+    def test_no_seeded_template_contradicts_the_printed_taper_heading(self):
+        # The slip prints "Taper before stopping ... reduce the dose step by
+        # step" above the text, so no template may say no taper is needed.
+        for body in TaperTemplate.objects.values_list("body", flat=True):
+            self.assertNotIn("no taper", body.lower())
 
     def test_only_systemic_steroids_are_marked_taperable(self):
         DrugMaster.objects.create(

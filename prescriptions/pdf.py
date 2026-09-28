@@ -47,9 +47,12 @@ def render_context(prescription) -> dict:
     }
 
 
-def render_prescription_html(prescription) -> str:
-    return render_to_string("prescriptions/prescription.html",
-                            render_context(prescription))
+def render_prescription_html(prescription, *, simple_pdf: bool = False) -> str:
+    """`simple_pdf` drops what xhtml2pdf cannot draw (the faded diagonal DRAFT
+    watermark); the DRAFT banner still prints."""
+    ctx = render_context(prescription)
+    ctx["simple_pdf"] = simple_pdf
+    return render_to_string("prescriptions/prescription.html", ctx)
 
 
 def render_prescription_pdf(prescription) -> bytes:
@@ -68,7 +71,8 @@ def render_prescription_pdf(prescription) -> bytes:
         from xhtml2pdf import pisa
         from io import BytesIO
         result = BytesIO()
-        pdf = pisa.pisaDocument(BytesIO(html.encode("utf-8")), result,
+        simple = render_prescription_html(prescription, simple_pdf=True)
+        pdf = pisa.pisaDocument(BytesIO(simple.encode("utf-8")), result,
                                 encoding="utf-8")
         if not pdf.err:
             return result.getvalue()

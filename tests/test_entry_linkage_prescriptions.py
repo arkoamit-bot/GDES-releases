@@ -282,12 +282,34 @@ class TestIssuedSnapshot:
     def test_print_scale_is_in_points(self, patient, encounter, drug):
         from prescriptions.pdf import render_prescription_html
         html = render_prescription_html(self._final_rx(patient, encounter, drug))
-        for rule in ("font-size: 12pt; line-height: 1.35", ".drug { font-weight: 700; font-size: 12.5pt",
-                     ".rx-table th { text-align: left; font-size: 10pt",
+        for rule in ("font-size: 12pt; line-height: 1.35", ".drug { font-weight: 700; font-size: 12pt",
+                     ".rx-table th { text-align: left; font-size: 9pt",
+                     "font-size: 11pt; overflow-wrap: break-word",
                      ".stamp { margin-top: 5pt; font-size: 8.5pt",
                      "thead { display: table-header-group; }",
                      "page-break-inside: avoid"):
             assert rule in html
+
+    @pytest.mark.parametrize("dose", ["", "2"])
+    def test_regimen_columns_fit_the_page_in_xhtml2pdf(self, patient, encounter, drug, dose):
+        """xhtml2pdf ignores <col> widths and collapses an empty cell's column:
+        Strength and Route overlapped and Duration ran off the page (2026-09-28)."""
+        import re
+        from prescriptions.models import Prescription, PrescriptionItem
+        from prescriptions.pdf import render_prescription_html
+        rx = Prescription.objects.create(encounter=encounter, version=1)
+        PrescriptionItem.objects.create(prescription=rx, drug=drug, strength="", dose=dose,
+                                        route="PO", frequency="1+0+0")
+        html = render_prescription_html(rx, simple_pdf=True)
+        head = html.split("<thead>")[1].split("</thead>")[0]
+        widths = [int(w) for w in re.findall(r'<th width="(\d+)%"', head)]
+        assert len(widths) == (7 if dose else 6) and sum(widths) == 100
+        assert "<col " not in html
+        row = html.split("<tbody>")[1].split("</tbody>")[0]
+        assert "<td></td>" not in row and "<td>&nbsp;</td>" in row
+        # The faded diagonal watermark is dropped for xhtml2pdf; the banner stays.
+        assert 'class="watermark"' not in html and "DRAFT — not finalized" in html
+        assert 'class="watermark"' in render_prescription_html(rx)
 
     def test_printed_wording_is_english_only(self, patient, encounter, drug):
         import re

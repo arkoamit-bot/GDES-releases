@@ -42,13 +42,11 @@
   table.rx-table { width: 100%; border-collapse: collapse; margin-top: 2pt;
                    table-layout: fixed; }
   .rx-table thead { display: table-header-group; }   /* repeat on each page */
-  .rx-table th { text-align: left; font-size: 10pt; text-transform: uppercase; color: #555;
-                 border-bottom: 2px solid #26215C; padding: 3pt 5pt; letter-spacing: 0; }
-  .rx-table td { padding: 5pt 5pt; border-bottom: 1px solid #e5e5e5; vertical-align: top;
-                 overflow-wrap: break-word; word-wrap: break-word; }
-  col.c-drug { width: 28%; } col.c-strength { width: 15%; } col.c-dose { width: 8%; }
-  col.c-route { width: 9%; } col.c-freq { width: 13%; } col.c-timing { width: 14%; }
-  col.c-dur { width: 13%; }
+  .rx-table th { text-align: left; font-size: 9pt; text-transform: uppercase; color: #555;
+                 border-bottom: 2px solid #26215C; padding: 3pt 4pt; letter-spacing: 0; }
+  /* Regimen cells 11 pt (drug name stays 12 pt) so seven columns fit A4. */
+  .rx-table td { padding: 4pt 4pt; border-bottom: 1px solid #e5e5e5; vertical-align: top;
+                 font-size: 11pt; overflow-wrap: break-word; word-wrap: break-word; }
   /* Keep a medication line with its instruction and taper; a block taller
      than a page still breaks rather than being clipped. */
   .rx-table tbody { page-break-inside: avoid; break-inside: avoid; }
@@ -57,8 +55,8 @@
      Each drug is rendered as its own tbody element (see below) so an inserted
      taper row can never shift the striping of the medications after it. */
   tbody:nth-of-type(even) td { background: #f7f7fc; }
-  .drug { font-weight: 700; font-size: 12.5pt; color: #1a1a1a; }
-  .brand { color: #555; font-weight: 400; font-size: 10.5pt; }
+  .drug { font-weight: 700; font-size: 12pt; color: #1a1a1a; }
+  .brand { color: #555; font-weight: 400; font-size: 10pt; }
   .instr { font-size: 12pt; color: #2a2a2a; margin-top: 3pt;
            padding-left: 6pt; border-left: 2px solid #d7d4ec; }
   /* Taper plan: full-width and visually distinct, so the step-down cannot be
@@ -90,7 +88,8 @@
      for a signed prescription. */
   .watermark { position: fixed; top: 42%; left: 50%;
                transform: translate(-50%,-50%) rotate(-30deg);
-               font-size: 90pt; font-weight: 800; color: rgba(176,0,32,.08);
+               font-size: 90pt; font-weight: 800;
+               color: rgba(176,0,32,.08);
                letter-spacing: 8px; z-index: 0; pointer-events: none; }
 </style>
 </head>
@@ -102,7 +101,8 @@
     <div class="reg">{{ s.clinic.registry }}</div>
   </div>
 
-  {% if not rx.is_final %}<div class="watermark">DRAFT</div>
+  {# xhtml2pdf cannot rotate, fix or fade text: it drew a huge solid-red word. #}
+  {% if not rx.is_final %}{% if not simple_pdf %}<div class="watermark">DRAFT</div>{% endif %}
   <div class="draft-banner">DRAFT — not finalized · not valid for dispensing</div>{% endif %}
   {% if legacy_live %}<div class="legacy-note">Issued before issued-content snapshots were kept: patient details, vitals and eGFR below are the current record, not necessarily as printed originally.</div>{% endif %}
 
@@ -136,14 +136,20 @@
   {% endif %}
 
   <div class="rx-mark">Rx</div>
+  {% comment %}Column widths sit on the header cells, not in <colgroup>: xhtml2pdf
+  (the PDF fallback) ignores <col> widths, so columns overlapped and the last
+  one ran off the page. Each set sums to 100%. Empty cells get &nbsp; because
+  xhtml2pdf collapses a column whose cell is empty.{% endcomment %}
   <table class="rx-table" repeat="1">
-    <colgroup>
-      <col class="c-drug"><col class="c-strength">{% if has_dose %}<col class="c-dose">{% endif %}
-      <col class="c-route"><col class="c-freq"><col class="c-timing"><col class="c-dur">
-    </colgroup>
     <thead>
-      <tr><th>Drug</th><th>Strength</th>{% if has_dose %}<th>Dose</th>{% endif %}<th>Route</th>
-          <th>Frequency</th><th>Timing</th><th>Duration</th></tr>
+      {% if has_dose %}
+      <tr><th width="27%">Drug</th><th width="14%">Strength</th><th width="9%">Dose</th>
+          <th width="8%">Route</th><th width="13%">Frequency</th><th width="14%">Timing</th>
+          <th width="15%">Duration</th></tr>
+      {% else %}
+      <tr><th width="30%">Drug</th><th width="16%">Strength</th><th width="9%">Route</th>
+          <th width="14%">Frequency</th><th width="15%">Timing</th><th width="16%">Duration</th></tr>
+      {% endif %}
     </thead>
     {% for it in s.items %}
     <tbody>
@@ -157,12 +163,12 @@
           {% endif %}
           {% if it.instruction_bn %}<div class="instr bn">{{ it.instruction_bn }}</div>{% endif %}
         </td>
-        <td>{{ it.strength|soft_breaks }}</td>
-        {% if has_dose %}<td>{{ it.dose }}</td>{% endif %}
-        <td>{{ it.route }}</td>
-        <td>{{ it.frequency }}</td>
-        <td>{{ it.timing }}</td>
-        <td>{{ it.duration }}</td>
+        <td>{% if it.strength %}{{ it.strength|soft_breaks }}{% else %}&nbsp;{% endif %}</td>
+        {% if has_dose %}<td>{{ it.dose|default:"&nbsp;" }}</td>{% endif %}
+        <td>{{ it.route|default:"&nbsp;" }}</td>
+        <td>{{ it.frequency|default:"&nbsp;" }}</td>
+        <td>{{ it.timing|default:"&nbsp;" }}</td>
+        <td>{{ it.duration|default:"&nbsp;" }}</td>
       </tr>
       {% if it.taper_notes %}
       <tr class="taper-row">

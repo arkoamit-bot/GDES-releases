@@ -10,7 +10,7 @@ from ._common import (  # noqa: F401
     Patient,
     Prescription,
     PrescriptionItem,
-    TAPER_PRESETS,
+    TaperTemplate,
     _clip,
     get_object_or_404,
     is_systemic_steroid,
@@ -318,8 +318,9 @@ def prescription_create(request, pk):
         "advice_templates": list(
             AdviceTemplate.objects.filter(is_active=True)
             .values("title", "body")),
-        "taper_presets": [{"label": p.label, "text": p.text}
-                          for p in TAPER_PRESETS],
+        "taper_presets": list(
+            TaperTemplate.objects.filter(is_active=True)
+            .values("title", "body")),
         "record_comorbidities": record_items,
         "comorbidity_options": comorbidity_options,
         "prefill_comorbid": prefill_comorbid, "comorbid_extra": comorbid_extra,

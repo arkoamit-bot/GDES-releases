@@ -188,8 +188,8 @@
                   <span class="help" style="margin:0;font-size:12px;color:#92400e">Do not stop a systemic steroid suddenly — write the step-down the patient follows.</span>
                 </div>
                 <div class="rx-taper-fields"{% if not r.taper %} style="display:none"{% endif %}>
-                  <div style="display:flex;align-items:center;gap:6px;margin-bottom:6px">
-                    <label for="taper-preset-{{ r.i }}" style="font-size:12px;color:#92400e;margin:0">Start from:</label>
+                  <div class="taper-preset-box" style="display:flex;align-items:center;gap:6px;margin-bottom:6px">
+                    <label for="taper-preset-{{ r.i }}" style="font-size:12px;color:#92400e;margin:0">Insert template:</label>
                     <select id="taper-preset-{{ r.i }}" class="taper-preset" data-row="{{ r.i }}" style="min-width:280px">
                       <option value="">— choose a taper template —</option>
                     </select>
@@ -197,7 +197,7 @@
                   <textarea name="taper_{{ r.i }}" class="taper-inp" data-row="{{ r.i }}" rows="2"
                             style="width:100%;font-size:13px"
                             placeholder="e.g. 40 mg 1+0+0 × 1 wk → 20 mg 1+0+0 × 1 wk → 10 mg 1+0+0 × 1 wk → 5 mg 1+0+0 × 5 days → stop. Do not stop suddenly.">{{ r.taper|default:'' }}</textarea>
-                  <div class="help" style="margin-top:4px">Templates are starting points — edit them to the actual dose and duration for this patient. This text prints on the slip.</div>
+                  <div class="help" style="margin-top:4px">Templates are starting points — edit them to the actual dose and duration for this patient. This text prints on the slip. Build reusable ones in <b>Admin → Prescriptions → Taper templates</b>; selecting one appends it here.</div>
                 </div>
               </div>
             </td>
@@ -512,14 +512,17 @@
     });
   });
 
+  // Taper templates (Admin -> Prescriptions -> Taper templates). Like advice
+  // templates, a pick appends, so a ladder and counselling can be combined.
   document.querySelectorAll('.taper-preset').forEach(function(sel){
-    sel.appendChild(opt('', '— choose a taper template —'));
-    TAPERS.forEach(function(p, i){ sel.appendChild(opt(String(i), p.label)); });
+    if (!TAPERS.length){ sel.closest('.taper-preset-box').style.display = 'none'; return; }
+    TAPERS.forEach(function(p, i){ sel.appendChild(opt(String(i), p.title)); });
     sel.addEventListener('change', function(){
       if (this.value === '') return;
       var t = taperParts(this.getAttribute('data-row'));
       if (!t) return;
-      t.text.value = TAPERS[+this.value].text;
+      var body = TAPERS[+this.value].body;
+      t.text.value = t.text.value.trim() ? t.text.value.replace(/\s*$/, '') + '\n' + body : body;
       t.box.checked = true;
       t.fields.style.display = '';
       this.value = '';

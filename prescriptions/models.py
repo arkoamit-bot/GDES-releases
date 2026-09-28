@@ -265,3 +265,21 @@ class AdviceTemplate(models.Model):
 
     def __str__(self):
         return self.title
+
+
+class TaperTemplate(models.Model):
+    """Reusable steroid step-down text for a medication row's taper plan,
+    managed like AdviceTemplate. Always an editable starting point: the
+    clinician adjusts it to the patient before it prints."""
+    title = models.CharField(max_length=100, unique=True,
+                             help_text="Heading shown in the taper dropdown.")
+    body = models.TextField(help_text="The step-down text inserted into the taper plan.")
+    is_active = models.BooleanField(default=True)
+    sort_order = models.PositiveSmallIntegerField(default=0)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["sort_order", "title"]
+
+    def __str__(self):
+        return self.title

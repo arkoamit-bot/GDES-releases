@@ -8,8 +8,9 @@ has to carry the step-down plan, not leave it in the prescriber's head.
 
 Design rules, deliberately conservative:
 
-*   The SCHEDULE is always clinician-authored. `TAPER_PRESETS` are editable
-    starting points, never an auto-computed dose ladder — taper steps depend on
+*   The SCHEDULE is always clinician-authored. Taper templates
+    (`prescriptions.TaperTemplate`, managed in Admin) are editable starting
+    points, never an auto-computed dose ladder — taper steps depend on
     indication, dose, duration and prior exposure, so the prescriber stays in
     control and the printed text is always something a human approved.
 *   Only SYSTEMIC steroids are flagged. Many formulary rows are
@@ -21,7 +22,6 @@ Design rules, deliberately conservative:
 from __future__ import annotations
 
 import re
-from dataclasses import dataclass
 
 from treatments.models import DrugClass
 
@@ -32,45 +32,6 @@ SYSTEMIC_STEROID_ROUTES = frozenset({"PO", "IV", "IM", "SC"})
 # Rows whose generic name joins agents with "+" are combination products —
 # fixed-ratio drops/creams, not a single titratable steroid.
 _COMBINATION = re.compile(r"\s*\+\s*")
-
-
-@dataclass(frozen=True)
-class TaperPreset:
-    label: str
-    text: str
-
-
-# Editable starting points. Each one states the rule it encodes and reminds the
-# prescriber to adjust it, so a printed slip never implies an auto-generated
-# dose ladder.
-TAPER_PRESETS: tuple[TaperPreset, ...] = (
-    TaperPreset(
-        label="Short course (up to 3 weeks) — no taper needed",
-        text="No taper needed — short course. Stop when the course is finished. "
-             "If symptoms return, do not restart without review.",
-    ),
-    TaperPreset(
-        label="Standard course — step down to zero",
-        text="TAPER BEFORE STOPPING. Reduce the dose step by step as advised "
-             "(commonly by one tablet every 5–7 days) until the course is "
-             "finished. Do not stop this steroid suddenly.",
-    ),
-    TaperPreset(
-        label="Long course / previous long steroid use",
-        text="TAPER SLOWLY. Reduce the dose by about 25% every 1–2 weeks, then "
-             "by the smallest tablet every 5–7 days, until it is finished. "
-             "Do not stop suddenly — long courses can suppress the adrenal "
-             "glands. Carry a steroid card and tell any doctor you are on "
-             "long-term steroids.",
-    ),
-    TaperPreset(
-        label="Adrenal-suppression counselling",
-        text="Do not stop this steroid suddenly. Long courses can suppress the "
-             "adrenal glands, so the dose must be reduced slowly as advised. "
-             "Carry a steroid card and mention it before any surgery, illness "
-             "or vomiting.",
-    ),
-)
 
 
 def is_systemic_steroid(drug) -> bool:
