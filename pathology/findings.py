@@ -98,8 +98,14 @@ SECTIONS: dict[str, tuple[str, list[tuple[str, str]]]] = {
 }
 
 SECTION_CHOICES = [(key, label) for key, (label, _codes) in SECTIONS.items()]
-CODE_CHOICES = sorted({(c, lbl) for _s, (_l, codes) in SECTIONS.items() for c, lbl in codes},
-                      key=lambda kv: kv[0])
+# One entry per code, first label in section order. A set of (code, label)
+# kept "other" twice with different labels, and their order followed string
+# hashing, so makemigrations saw a change on some runs.
+_code_labels: dict[str, str] = {}
+for _s, (_l, _codes) in SECTIONS.items():
+    for _c, _lbl in _codes:
+        _code_labels.setdefault(_c, _lbl)
+CODE_CHOICES = sorted(_code_labels.items())
 
 IF_MARKERS = [
     ("IgG", "IgG"), ("IgA", "IgA"), ("IgM", "IgM"), ("C3", "C3"), ("C1q", "C1q"),
