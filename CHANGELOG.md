@@ -2,6 +2,43 @@
 
 ## Latest Changes (2026-09-29)
 
+cc915b4 Bundle csp and django_ratelimit in the desktop build
+ab53588 Release 7.4.0
+e2583c4 docs: update changelog [skip ci]
+cc2787a Keep the pathology projection hook connected in production
+36869d8 Link biopsy facts to one owner; carry the diagnosis into the next Rx
+ffd744b Let the second clinic LAN (192.168.10.0/24) reach GDES
+d661281 Fit the printed Rx to A4; admin-managed steroid taper templates
+085f760 Make pathology finding-code choices deterministic
+4fb0c11 Make the Tests workflow pass on Linux CI
+9a02f0f Fix the two lint failures on the pull request
+fe6971d Add a clinic-LAN server profile for Windows, beside the DKD registry
+54fec85 Enlarge the printed prescription and print it in English
+d463eb1 Link repeated clinical facts to one owner; structured renal histopathology
+56f8071 Restore the CKD-EPI 2021 contract in the local eGFR implementation
+b820265 Track the exports app and add the 2026-09-27 entry-linkage review
+e004959 test: add V10 predictive intelligence tests (Sprints 7-12)
+0ffdd60 fix: make V10 prediction functions return empty forecasts instead of raising on unknown patient
+98b86ee feat: desktop pilot hardening — searchable drug picker, build self-check, health endpoint guard
+779f57b Close registry security holes, fix clinical logic, widen strength fields
+0908342 Refresh the drug database from MedEx, and keep it refreshed weekly
+20b56d1 Fix app startup crash: gdes_core missing — add local CKD-EPI 2021 fallback
+77dffa1 Add BDDrugBank importer for DrugMaster formulary enrichment
+a09d3ba Make the reasoning and traceability panels useful
+d3de657 Bundle gdes-core in the desktop build
+afe5840 Record medication once; stop sending a drug history to Vera as allergies
+aba6e08 Expose exposure -> outcome output; stop the same exposure counting twice
+5be4978 Fix PowerShell scripts that could not parse on PS 5.1
+69a7556 Remove OneDrive conflict copies; guard against both device suffixes
+c07149c Fix the update package: 7.3.11 shipped 101 MB of junk and a missing app
+91f9b7d chore: bump version to 7.3.11
+
+---
+
+# Changelog
+
+## Latest Changes (2026-09-29)
+
 cc2787a Keep the pathology projection hook connected in production
 36869d8 Link biopsy facts to one owner; carry the diagnosis into the next Rx
 ffd744b Let the second clinic LAN (192.168.10.0/24) reach GDES
