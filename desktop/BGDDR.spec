@@ -134,7 +134,37 @@ THIRD_PARTY = [
     "pyreadstat", "pandas", "numpy", "dateutil", "pytz",
     # Background tasks — Celery's Django fixup & kombuserialisation.
     "celery", "kombu", "billiard", "vine",
+    # Security headers (INSTALLED_APPS + MIDDLEWARE) and login rate limiting.
+    # Missing from the 7.4.0 build candidate: Django could not start at all.
+    "csp", "django_ratelimit",
 ]
+
+# --- Build-time guard -------------------------------------------------------
+# Every third-party package named in settings (INSTALLED_APPS, MIDDLEWARE,
+# backends...) must be bundled, or Django cannot start. The self-check caught
+# csp / django_ratelimit only after a full build; fail here instead.
+def _check_settings_packages_are_bundled():
+    import ast
+    import importlib.util
+    import sys as _sys
+    tree = ast.parse((PROJECT / "bgddr" / "settings.py").read_text(encoding="utf-8"))
+    roots = set()
+    for node in ast.walk(tree):
+        value = getattr(node, "value", None)
+        dotted = r"[a-z_][a-z0-9_]*(\.[A-Za-z_][A-Za-z0-9_]*)+"
+        if (isinstance(node, ast.Constant) and isinstance(value, str)
+                and _re_settings.fullmatch(dotted, value)):
+            roots.add(value.split(".")[0])
+    stdlib = set(getattr(_sys, "stdlib_module_names", ()))
+    missing = sorted(r for r in roots
+                     if r not in THIRD_PARTY and r not in LOCAL_APPS and r not in stdlib
+                     and r != "bgddr" and importlib.util.find_spec(r) is not None)
+    if missing:
+        raise SystemExit(
+            f"BGDDR.spec: settings.py uses {missing}, which are not in THIRD_PARTY. "
+            "Add them, or the packaged app cannot start.")
+import re as _re_settings
+_check_settings_packages_are_bundled()
 
 # --- Build-time guard -------------------------------------------------------
 # Every module that bgddr/urls.py pulls in via include("<mod>.urls") MUST be in
