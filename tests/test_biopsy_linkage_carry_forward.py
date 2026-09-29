@@ -371,3 +371,22 @@ class TestDiagnosisCarryForward:
         assert render_prescription_html(old) == old_html
         patient.refresh_from_db()
         assert patient.primary_diagnosis != "FSGS - secondary/adaptive"
+
+
+# --- Projection wiring --------------------------------------------------------
+
+def test_projection_receivers_cannot_be_garbage_collected():
+    """The receiver was a closure inside ready(), held only weakly: on the
+    clinic server it was collected and no biopsy ever updated the patient's
+    pathology summary. It must be a module-level, strongly held receiver."""
+    import gc
+    from django.db.models.signals import post_delete, post_save
+    from pathology.apps import on_pathology_change
+    from pathology.models import Biopsy, GNDiagnosis, IgANScore, LupusPathology
+    gc.collect()
+    for signal in (post_save, post_delete):
+        for model in (Biopsy, GNDiagnosis, IgANScore, LupusPathology):
+            live = signal._live_receivers(model)
+            live = live[0] if isinstance(live, tuple) else live
+            assert on_pathology_change in live, (signal, model)
+            assert not any("<locals>" in getattr(r, "__qualname__", "") for r in live)

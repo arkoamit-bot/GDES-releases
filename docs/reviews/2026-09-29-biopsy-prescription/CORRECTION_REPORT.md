@@ -67,6 +67,19 @@ Prescription:
 - Finalizing prints the accepted diagnosis; older prescriptions' text, hash
   and reprint are unchanged (tested). Medication carry-forward is unchanged.
 
+## Found while deploying: the pathology summary never updated on the server
+
+The inventory on the clinic server showed patient BGD-00001's pathology
+summary blank although both biopsies say "Lupus nephritis class III". The
+projection hook was a function defined inside `PathologyConfig.ready()` and
+connected with Django's default weak reference; in the server process it was
+garbage-collected, so **no biopsy save on the server ever re-projected the
+patient summary** (the audit log has no projection write at all). Locally the
+closure happened to survive, so tests passed. Fixed: a module-level receiver,
+connected with `weak=False` (`pathology/apps.py`), and a regression test that
+fails on the old wiring. After deploying, the affected patients were
+re-projected with the existing `project_pathology()` service.
+
 ## Legacy data
 
 `manage.py reconcile_linked_facts` has a new section,
