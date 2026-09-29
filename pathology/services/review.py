@@ -108,9 +108,12 @@ def _finalize(biopsy):
         biopsy.reviews.update(is_final=False)
         PathologyReview.objects.filter(pk=read.pk).update(is_final=True)
 
-        GNDiagnosis.objects.update_or_create(
+        dx_obj, _ = GNDiagnosis.objects.update_or_create(
             biopsy=biopsy,
             defaults=dict(diagnosis=read.diagnosis, broad_group=read.broad_group))
+        # A read whose diagnosis states primary/secondary sets it on the one
+        # owner, so an earlier read's value is not left contradicting it.
+        dxrules.sync_stated_primary_secondary(dx_obj)
         if any(getattr(read, f) is not None for f in ("mest_m", "mest_e", "mest_s", "mest_t", "mest_c")):
             IgANScore.objects.update_or_create(
                 biopsy=biopsy,
@@ -130,4 +133,5 @@ def _finalize(biopsy):
             if variant:
                 FSGSPathology.objects.update_or_create(
                     biopsy=biopsy, defaults=dict(variant=variant))
+        dxrules.project_fsgs_panel(biopsy)
         request_projection(biopsy.patient_id)

@@ -74,6 +74,7 @@ def prescription_create(request, pk):
         messages.error(request, "Record a follow-up visit first — a prescription belongs to a visit.")
         return redirect("clinic:followup", pk=patient.pk)
 
+    bound = None   # what the clinician typed, when a POST is shown again
     if request.method == "POST":
         valid_drug_ids = set(DrugMaster.objects.values_list("id", flat=True))
         rows = []
@@ -84,9 +85,13 @@ def prescription_create(request, pk):
                 continue
             rows.append(i)
         if not rows:
+            # Shown again with the clinician's entries, not re-defaulted: an
+            # intentionally cleared diagnosis stays cleared.
             messages.error(request, "Add at least one medication.")
-            return redirect("clinic:prescription", pk=patient.pk)
+            bound = {"diagnosis": (request.POST.get("diagnosis_text") or "").strip(),
+                     "advice": (request.POST.get("advice") or "").strip()}
 
+    if request.method == "POST" and bound is None:
         f = PrescriptionItem._meta.get_field
         with transaction.atomic():
             last = encounter.prescriptions.aggregate(m=Max("version"))["m"] or 0
@@ -175,6 +180,23 @@ def prescription_create(request, pk):
     else:
         default_next, next_selected = suggested_next_visit().isoformat(), False
     from patients import choices
+    from prescriptions.services.diagnosis_prefill import diagnosis_prefill
+
+    # Diagnosis: the last finalized prescription's, else the working diagnosis
+    # (see the service). A re-shown POST keeps what was typed.
+    dx_prefill = diagnosis_prefill(patient, encounter)
+    if bound is not None:
+        default_diagnosis, dx_source_label = bound["diagnosis"], ""
+    else:
+        default_diagnosis, dx_source_label = dx_prefill.value, dx_prefill.source_label
+    choice_values = {v for v, _l in choices.SPECIFIC_GN_DIAGNOSIS}
+    # A legacy, custom or combined diagnosis is offered as itself rather than
+    # lost to a dropdown mismatch.
+    diagnosis_choices = list(choices.SPECIFIC_GN_DIAGNOSIS)
+    extra_dx = [v for v in [default_diagnosis] + [v for _l, v in dx_prefill.also_on_record]
+                if v and v not in choice_values]
+    for v in dict.fromkeys(extra_dx):
+        diagnosis_choices.insert(0, (v, f"{v} (as recorded)"))
 
     # Carry-forward: pre-fill rows from the patient's most recent prescription so
     # the FULL regimen is preserved; the clinician edits / removes / adds before
@@ -304,14 +326,18 @@ def prescription_create(request, pk):
         "drugs": drugs, "drug_groups": drug_groups,
         "rows_data": rows_data, "drug_data": drug_data,
         "timings": PrescriptionItem.Timing.choices, "dose_units": DOSE_UNITS,
-        "default_diagnosis": patient.primary_diagnosis or "",
-        "diagnosis_choices": choices.SPECIFIC_GN_DIAGNOSIS,
+        "default_diagnosis": default_diagnosis,
+        "diagnosis_choices": diagnosis_choices,
+        "diagnosis_source_label": dx_source_label,
+        "diagnosis_newer_draft": dx_prefill.newer_draft if bound is None else None,
+        "diagnosis_also_on_record": dx_prefill.also_on_record,
         "lab_tests": lab_tests,
         "default_next_visit": default_next, "next_visit_is_selected": next_selected,
         "prefill_invest": prefill_invest, "prefill_invest_text": prefill_invest_text,
         "outstanding_orders": outstanding,
         "outstanding_test_ids": {it.test_id for it in outstanding},
-        "prefill_advice": prev.advice if prev else "",
+        "prefill_advice": (bound["advice"] if bound is not None
+                           else (prev.advice if prev else "")),
         "carried_count": len(carried), "initial_visible": initial_visible,
         "patient_egfr": (float(patient.latest_egfr)
                          if patient.latest_egfr is not None else None),

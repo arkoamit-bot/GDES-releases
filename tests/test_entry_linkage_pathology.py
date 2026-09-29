@@ -168,12 +168,17 @@ class TestReviewFinalization:
 
 class TestQualifiers:
     def test_fsgs_contradiction_is_rejected(self, patient, signed_in):
+        # Primary/secondary has one control since 2026-09-29; a page opened
+        # before that still sends the panel's copy, which must agree.
         resp = _biopsy(signed_in, patient, **{"dx-diagnosis": "FSGS - primary",
                                               "dx-primary_secondary": "primary",
                                               "fsgs-primary_secondary": "secondary"})
         assert resp.status_code == 200
         assert not patient.biopsies.exists()
-        assert "states primary" in resp.content.decode()
+        assert "recorded once" in resp.content.decode()
+        resp = _biopsy(signed_in, patient, **{"dx-diagnosis": "FSGS - primary",
+                                              "dx-primary_secondary": "secondary"})
+        assert resp.status_code == 200 and "states primary" in resp.content.decode()
 
     def test_fsgs_variant_contradiction_is_rejected(self, patient, signed_in):
         resp = _biopsy(signed_in, patient, **{"dx-diagnosis": "FSGS - collapsing variant",
@@ -182,10 +187,12 @@ class TestQualifiers:
 
     def test_diagnosis_prefills_qualifiers(self, patient, signed_in):
         assert _biopsy(signed_in, patient, **{"dx-diagnosis": "FSGS - collapsing variant",
-                                              "fsgs-primary_secondary": "primary"}).status_code == 302
+                                              "dx-primary_secondary": "primary",
+                                              "fsgs-variant": "collapsing"}).status_code == 302
         b = patient.biopsies.get()
         assert b.fsgs.variant == "collapsing"
         assert b.diagnosis.primary_secondary == "primary"
+        assert b.fsgs.primary_secondary == "primary"   # projected from the one owner
 
     def test_unrelated_score_panel_is_not_attached(self, patient, signed_in):
         resp = _biopsy(signed_in, patient, **{"dx-diagnosis": "IgA nephropathy",

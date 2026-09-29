@@ -176,6 +176,31 @@ class BiopsySerializer(serializers.ModelSerializer):
         fields = "__all__"
         read_only_fields = ["review_status"]
 
+    def validate(self, attrs):
+        """The same cross-field rules as the biopsy form (pathology.consistency),
+        against the stored diagnosis and current report when they exist."""
+        from pathology.consistency import crescent_errors, result_category_errors
+        from pathology.services.report import current_report
+        inst = self.instance
+
+        def value(name):
+            return attrs[name] if name in attrs else getattr(inst, name, None)
+
+        report = current_report(inst) if inst else None
+        dx = getattr(getattr(inst, "diagnosis", None), "diagnosis", "") if inst else ""
+        problems = (
+            crescent_errors(value("crescents_present"), value("crescent_pct"),
+                            count=getattr(report, "crescentic_glomeruli", None))
+            + result_category_errors(value("result_category") or "", dx,
+                                     value("adequacy") or "",
+                                     report_status=getattr(report, "status", "")))
+        errors = {}
+        for _target, field, msg in problems:
+            errors.setdefault(field if field in self.fields else "non_field_errors", []).append(msg)
+        if errors:
+            raise serializers.ValidationError(errors)
+        return attrs
+
 
 class PathologyFindingSerializer(serializers.Serializer):
     id = serializers.IntegerField(read_only=True)

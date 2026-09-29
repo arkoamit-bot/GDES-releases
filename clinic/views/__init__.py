@@ -52,9 +52,9 @@ from .encounter_views import (  # noqa: F401
 )
 from .clinical_views import (  # noqa: F401
     adverse_event_create,
-    _SCORE_HINTS,
     _reconcile_lupus_class,
-    _reconcile_fsgs,
+    _reconcile_qualifiers,
+    _apply_consistency,
     _attach_report_errors,
     _biopsy_summary_flags,
     biopsy_create,

@@ -152,39 +152,74 @@ def check_panels(diagnosis: str, active_panels, *, additional=(), override_reaso
     return errors
 
 
-def reconcile_fsgs(diagnosis: str, dx_primary_secondary: str,
-                   panel_primary_secondary: str, panel_variant: str):
-    """Return (primary_secondary, variant, errors) for an FSGS biopsy.
+def reconcile_qualifiers(diagnosis: str, dx_primary_secondary: str, panel_variant: str = ""):
+    """Return (primary_secondary, variant, errors) for a biopsy's diagnosis.
 
-    errors maps a form ("dx" | "fsgs") and field to a message. Blank values are
-    prefilled from the diagnosis; contradictions are never resolved silently.
+    Primary/secondary has ONE owner, GNDiagnosis.primary_secondary; a
+    diagnosis that states it ("FSGS - primary", "Membranous nephropathy -
+    secondary/associated") must agree with it, and a blank is filled from the
+    diagnosis. The FSGS variant is asked on the FSGS panel only for a
+    diagnosis that does not state it. "unknown" and the genetic FSGS label are
+    never forced into primary or secondary. errors maps (form, field) -> message.
     """
     q = qualifiers(diagnosis)
     errors: dict[tuple[str, str], str] = {}
     implied_ps = q.get("primary_secondary", "")
     implied_variant = q.get("variant", "")
-
-    def stated(v):
-        return v if v and v != "unknown" else ""
-
-    dx_ps, panel_ps = stated(dx_primary_secondary), stated(panel_primary_secondary)
+    dx_ps = dx_primary_secondary if dx_primary_secondary not in ("", "unknown") else ""
     if implied_ps and dx_ps and dx_ps != implied_ps:
         errors[("dx", "primary_secondary")] = (
             f"The diagnosis '{diagnosis}' states {implied_ps}; this field says {dx_ps}.")
-    if implied_ps and panel_ps and panel_ps != implied_ps:
-        errors[("fsgs", "primary_secondary")] = (
-            f"The diagnosis '{diagnosis}' states {implied_ps}; the FSGS panel says {panel_ps}.")
-    if dx_ps and panel_ps and dx_ps != panel_ps and not errors:
-        errors[("fsgs", "primary_secondary")] = (
-            f"Primary/secondary is stated twice and disagrees ({dx_ps} vs {panel_ps}).")
     if implied_variant and panel_variant and panel_variant != implied_variant:
         errors[("fsgs", "variant")] = (
             f"The diagnosis '{diagnosis}' states the {implied_variant} variant; "
             f"the FSGS panel says {panel_variant}.")
-
-    ps = implied_ps or dx_ps or panel_ps or (dx_primary_secondary or panel_primary_secondary or "")
+    ps = implied_ps or dx_primary_secondary or ""
     variant = implied_variant or panel_variant or ""
     return ps, variant, errors
+
+
+def project_fsgs_panel(biopsy):
+    """Write the canonical primary/secondary (the diagnosis record's, or the
+    one its label states) onto the FSGS panel, which keeps the column only
+    for older readers. Nothing edits the panel's copy directly."""
+    from .models import FSGSPathology, GNDiagnosis
+    dx = GNDiagnosis.objects.filter(biopsy=biopsy).first()
+    if dx is None:
+        return
+    ps = qualifiers(dx.diagnosis).get("primary_secondary", "") or dx.primary_secondary
+    FSGSPathology.objects.filter(biopsy=biopsy).exclude(primary_secondary=ps).update(
+        primary_secondary=ps)
+
+
+def sync_stated_primary_secondary(dx_obj):
+    """After a diagnosis change (amendment, review): a label that states
+    primary/secondary sets it. Returns (old, new) when it changed, else None,
+    so the caller can say so."""
+    implied = qualifiers(dx_obj.diagnosis).get("primary_secondary", "")
+    if implied and dx_obj.primary_secondary != implied:
+        old = dx_obj.primary_secondary
+        dx_obj.primary_secondary = implied
+        dx_obj.save(update_fields=["primary_secondary"])
+        return old, implied
+    return None
+
+
+def qualifier_table() -> dict[str, dict[str, str]]:
+    """Every diagnosis choice -> what its label states (family, score panel,
+    primary/secondary, FSGS variant, ISN/RPS class), for the entry form to
+    show derived values read-only. Built from QUALIFIERS: no substring match."""
+    from patients import choices
+    panel_for = {fam: key for key, fam in PANEL_FAMILY.items()}
+    out = {}
+    for value, _label in choices.SPECIFIC_GN_DIAGNOSIS:
+        q = qualifiers(value)
+        row = {k: v for k, v in q.items() if k in ("family", "primary_secondary",
+                                                  "variant", "isn_rps_class")}
+        if panel_for.get(q.get("family", "")):
+            row["panel"] = panel_for[q["family"]]
+        out[value] = row
+    return out
 
 
 def effective_qualifiers(biopsy) -> dict[str, str]:
@@ -196,9 +231,11 @@ def effective_qualifiers(biopsy) -> dict[str, str]:
     fsgs = getattr(biopsy, "fsgs", None) if _has(biopsy, "fsgs") else None
     lupus = getattr(biopsy, "lupus", None) if _has(biopsy, "lupus") else None
     out["variant"] = (fsgs.variant if fsgs and fsgs.variant else q.get("variant", ""))
+    # Primary/secondary is owned by the diagnosis record; the FSGS panel's
+    # column is a projection of it and is read only for rows saved earlier.
     out["primary_secondary"] = (
-        (dx.primary_secondary if dx and dx.primary_secondary else "")
-        or q.get("primary_secondary", "")
+        q.get("primary_secondary", "")
+        or (dx.primary_secondary if dx and dx.primary_secondary else "")
         or (fsgs.primary_secondary if fsgs else ""))
     out["isn_rps_class"] = (lupus_rules.class_from_diagnosis(diagnosis)
                             or (lupus.isn_rps_class if lupus else ""))

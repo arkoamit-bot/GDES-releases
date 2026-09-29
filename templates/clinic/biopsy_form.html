@@ -162,11 +162,14 @@
         {% if key == "igan" %}Oxford MEST-C score (IgA nephropathy)
         {% elif key == "lupus" %}Lupus nephritis — ISN/RPS class &amp; indices
         <span id="isn-derived-note" class="help" style="display:none;font-weight:400;color:#4f46e5">— class carried from the diagnosis</span>
-        {% elif key == "fsgs" %}FSGS — primary/secondary &amp; variant
+        {% elif key == "fsgs" %}FSGS — variant
+        <span id="variant-derived-note" class="help" style="display:none;font-weight:400;color:#4f46e5">— variant carried from the diagnosis</span>
         {% elif key == "mn" %}Membranous — PLA2R/THSD7A &amp; stage{% endif %}
         <span class="help" style="font-weight:400">— optional, fill only if relevant</span>
       </summary>
       {% if form.non_field_errors %}<div class="errs">{{ form.non_field_errors|striptags }}</div>{% endif %}
+      {% if key == "igan" %}<div class="help" id="oxford-evidence" style="margin-top:8px"></div>{% endif %}
+      {% if key == "fsgs" %}<div class="help" style="margin-top:8px">Primary/secondary is recorded once, in the Diagnosis section above.</div>{% endif %}
       <div class="cols2" style="margin-top:10px">
         {% for f in form %}{% include "clinic/_field.html" %}{% endfor %}
       </div>
@@ -181,7 +184,7 @@
   <input type="hidden" name="kind" value="{{ mode }}">
 </form>
 
-{{ score_hints|json_script:"score-hints" }}
+{{ qualifier_table|json_script:"qualifier-table" }}
 <script>
   (function () {
     // --- Repeatable findings ------------------------------------------------
@@ -230,40 +233,95 @@
       });
     });
 
-    // --- Score panels + ISN/RPS class --------------------------------------
-    var hints = JSON.parse(document.getElementById('score-hints').textContent);
-    var sel = document.getElementById('id_dx-diagnosis');
-    if (!sel) return;
-    var isn = document.getElementById('id_lupus-isn_rps_class');
-    function syncLupusClass() {
-      if (!isn) return;
-      var m = /lupus nephritis\s+class\s+([IV]+(?:\s*\+\s*[IV]+)?)\s*$/i.exec(sel.value || '');
-      var note = document.getElementById('isn-derived-note');
-      if (m) {
-        isn.value = m[1].replace(/\s+/g, '').toUpperCase();
-        isn.disabled = true;
+    // --- What the diagnosis states (explicit table from the server) --------
+    // A qualifier stated by the diagnosis label is shown read-only here and
+    // is never asked a second time; the server checks the same table.
+    var TABLE = JSON.parse(document.getElementById('qualifier-table').textContent);
+    function $(id) { return document.getElementById(id); }
+    var sel = $('id_dx-diagnosis');
+    var extra = $('id_rp-additional_diagnoses');
+    var locked = [];
+    function lock(field, value, noteId) {
+      var note = noteId ? $(noteId) : null;
+      if (!field) return;
+      if (value) {
+        field.value = value; field.disabled = true; locked.push(field);
         if (note) note.style.display = '';
       } else {
-        isn.disabled = false;
+        field.disabled = false;
         if (note) note.style.display = 'none';
       }
     }
-    // A disabled select is not submitted, so re-enable it just before submit.
-    var form = sel.closest('form');
-    if (form) form.addEventListener('submit', function () {
-      if (isn) isn.disabled = false;
-    });
-    function sync() {
-      var v = (sel.value || '').toLowerCase();
-      Object.keys(hints).forEach(function (key) {
-        var match = hints[key].some(function (s) { return v.indexOf(s) !== -1; });
-        var block = document.querySelector('details[data-score="' + key + '"]');
-        if (block && match) block.open = true;
+    function syncDiagnosis() {
+      if (!sel) return;
+      var row = TABLE[sel.value] || {};
+      locked = [];
+      lock($('id_dx-primary_secondary'), row.primary_secondary || '', 'ps-derived-note');
+      lock($('id_lupus-isn_rps_class'), row.isn_rps_class || '', 'isn-derived-note');
+      lock($('id_fsgs-variant'), row.variant || '', 'variant-derived-note');
+      // Open the score panels of the diagnosis and of any coexisting ones.
+      var picked = [sel.value];
+      if (extra) Array.prototype.forEach.call(extra.selectedOptions, function (o) { picked.push(o.value); });
+      picked.forEach(function (d) {
+        var panel = (TABLE[d] || {}).panel;
+        var block = panel && document.querySelector('details[data-score="' + panel + '"]');
+        if (block) block.open = true;
       });
-      syncLupusClass();
     }
-    sel.addEventListener('change', sync);
-    sync();
+    var ps = $('id_dx-primary_secondary');
+    if (ps && !$('ps-derived-note')) {
+      var n = document.createElement('div');
+      n.id = 'ps-derived-note'; n.className = 'help'; n.style.display = 'none';
+      n.textContent = 'Stated by the diagnosis above.';
+      ps.parentNode.appendChild(n);
+    }
+    // A disabled field is not submitted: re-enable just before submit (the
+    // server re-derives and checks the value anyway).
+    var form = $('biopsy-form');
+    if (form) form.addEventListener('submit', function () {
+      locked.forEach(function (f) { f.disabled = false; });
+    });
+    if (sel) sel.addEventListener('change', syncDiagnosis);
+    if (extra) extra.addEventListener('change', syncDiagnosis);
+    syncDiagnosis();
+
+    // --- Crescents / Oxford evidence -----------------------------------------
+    // Shown next to Oxford MEST-C so the score is read against the recorded
+    // lesions. No score is computed from them.
+    var cp = $('id_bx-crescents_present'), cpct = $('id_bx-crescent_pct');
+    var ccount = $('id_rp-crescentic_glomeruli');
+    var ifta = $('id_bx-ifta_pct'), gs = $('id_bx-global_sclerosis_pct');
+    var ev = $('oxford-evidence');
+    var hint = document.createElement('div');
+    hint.className = 'errs'; hint.style.display = 'none';
+    if (cpct) cpct.parentNode.appendChild(hint);
+    function stateLabel() {
+      if (!cp) return '';
+      return {'true': 'present', 'false': 'absent'}[cp.value] || 'not assessed';
+    }
+    function syncLesions() {
+      var pct = cpct && cpct.value !== '' ? parseFloat(cpct.value) : null;
+      var n = ccount && ccount.value !== '' ? parseInt(ccount.value, 10) : null;
+      var msg = '';
+      if (pct !== null && pct > 0 && cp && cp.value !== 'true') {
+        msg = pct + '% crescents recorded but crescents are ' + stateLabel() + ' — set Crescents to Present or correct the percentage.';
+      } else if (n !== null && n > 0 && cp && cp.value === 'false') {
+        msg = n + ' crescentic glomeruli counted but crescents are marked absent.';
+      } else if (cp && cp.value === 'true' && pct === 0) {
+        msg = 'Crescents are marked present but the percentage is 0 — leave it blank if not reported.';
+      }
+      hint.textContent = msg; hint.style.display = msg ? '' : 'none';
+      if (ev) {
+        var parts = ['Crescents: ' + stateLabel() + (pct !== null ? ' (' + pct + '%)' : '') + (n !== null ? ', ' + n + ' crescentic glomeruli' : '')];
+        if (ifta && ifta.value !== '') parts.push('IFTA ' + ifta.value + '%');
+        if (gs && gs.value !== '') parts.push('global sclerosis ' + gs.value + '% (Oxford S is segmental sclerosis, a different lesion)');
+        ev.textContent = 'Recorded above — ' + parts.join(' · ') + '.';
+      }
+    }
+    [cp, cpct, ccount, ifta, gs].forEach(function (el) {
+      if (el) { el.addEventListener('change', syncLesions); el.addEventListener('input', syncLesions); }
+    });
+    syncLesions();
   })();
 </script>
 {% endblock %}

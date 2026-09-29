@@ -41,16 +41,6 @@ def adverse_event_create(request, pk):
                   {"active": "patients", "form": form, "patient": patient})
 
 
-# Diagnosis value (GNDiagnosis.diagnosis) → which disease-specific score block
-# to offer/save. Substring match keeps it robust to the exact choice codes.
-_SCORE_HINTS = {
-    "igan": ("iga",),
-    "lupus": ("lupus", "ln"),
-    "fsgs": ("fsgs",),
-    "mn": ("membranous", "mn"),
-}
-
-
 def _reconcile_lupus_class(dx_form, lupus_form):
     """Keep the ISN/RPS class consistent between the diagnosis and the panel.
 
@@ -87,23 +77,38 @@ def _reconcile_lupus_class(dx_form, lupus_form):
     return True
 
 
-def _reconcile_fsgs(dx_form, fsgs_form, fsgs_active):
-    """Primary/secondary and variant are stated by some FSGS diagnoses and
-    asked again on the diagnosis and the FSGS panel. Prefill blanks from the
-    diagnosis; report contradictions instead of saving them."""
+def _reconcile_qualifiers(dx_form, fsgs_form, fsgs_active, legacy_panel_ps=""):
+    """Primary/secondary is owned by the diagnosis record (the FSGS panel no
+    longer asks it); a diagnosis that states it, or the FSGS variant, must
+    agree. Blanks are filled from the diagnosis; contradictions are reported.
+
+    `legacy_panel_ps` is the old panel field, still sent by a page opened
+    before the change: it fills a blank and must otherwise agree -- it is
+    never dropped silently."""
     from pathology import diagnosis as dxrules
 
     if not dx_form.is_valid():
         return True
     diagnosis = dx_form.cleaned_data.get("diagnosis") or ""
-    if dxrules.family(diagnosis) != dxrules.FSGS and not fsgs_active:
-        return True
     dx_ps = dx_form.cleaned_data.get("primary_secondary") or ""
-    panel_ps = panel_variant = ""
+    legacy = legacy_panel_ps if legacy_panel_ps not in ("", "unknown") else ""
+    if legacy:
+        stated = dxrules.qualifiers(diagnosis).get("primary_secondary", "")
+        current = stated or (dx_ps if dx_ps != "unknown" else "")
+        if current and legacy != current:
+            dx_form.add_error("primary_secondary",
+                              f"Primary/secondary was also sent as {legacy} from the FSGS "
+                              f"panel, but it is {current} here. It is recorded once, "
+                              "in this field: choose one.")
+            return False
+        if not dx_ps:
+            dx_ps = legacy
+            dx_form.cleaned_data["primary_secondary"] = legacy
+            dx_form.instance.primary_secondary = legacy
+    panel_variant = ""
     if fsgs_active and fsgs_form.is_valid():
-        panel_ps = fsgs_form.cleaned_data.get("primary_secondary") or ""
         panel_variant = fsgs_form.cleaned_data.get("variant") or ""
-    ps, variant, errors = dxrules.reconcile_fsgs(diagnosis, dx_ps, panel_ps, panel_variant)
+    ps, variant, errors = dxrules.reconcile_qualifiers(diagnosis, dx_ps, panel_variant)
     for (form_key, field), msg in errors.items():
         (dx_form if form_key == "dx" else fsgs_form).add_error(field, msg)
     if errors:
@@ -111,12 +116,18 @@ def _reconcile_fsgs(dx_form, fsgs_form, fsgs_active):
     if ps and not dx_ps:
         dx_form.cleaned_data["primary_secondary"] = ps
         dx_form.instance.primary_secondary = ps
-    if fsgs_active and fsgs_form.is_valid():
-        if ps and not panel_ps:
-            fsgs_form.instance.primary_secondary = ps
-        if variant and not panel_variant:
-            fsgs_form.instance.variant = variant
+    if fsgs_active and fsgs_form.is_valid() and variant and not panel_variant:
+        fsgs_form.instance.variant = variant
     return True
+
+
+def _apply_consistency(problems, forms_by_target):
+    """Attach pathology.consistency results to the form that owns each field.
+    Returns True when there were none."""
+    for target, field, msg in problems:
+        form = forms_by_target.get(target) or forms_by_target["bx"]
+        form.add_error(field if field in form.fields else None, msg)
+    return not problems
 
 
 def _attach_report_errors(errors, report_form, formset, index, fallback_form):
@@ -149,6 +160,7 @@ def biopsy_create(request, pk):
     New biopsies enter the central-review workflow as 'pending'."""
     from django.db import transaction
 
+    from pathology import consistency
     from pathology import diagnosis as dxrules
     from pathology.models import PathologyReport
     from pathology.services.projection import deferred_projection
@@ -193,9 +205,27 @@ def biopsy_create(request, pk):
         # The ISN/RPS class is stated once: the diagnosis and the lupus panel
         # must agree, and a contradiction is reported rather than resolved.
         ok = _reconcile_lupus_class(dx, scores["lupus"]) and ok
-        ok = _reconcile_fsgs(dx, scores["fsgs"], "fsgs" in active) and ok
+        ok = _reconcile_qualifiers(dx, scores["fsgs"], "fsgs" in active,
+                                   legacy_panel_ps=request.POST.get("fsgs-primary_secondary", "")) and ok
         if dx.is_valid():
             diagnosis = dx.cleaned_data.get("diagnosis") or ""
+
+        # Crescents, Oxford C and the result category are related facts
+        # entered in different blocks; a contradiction is not saved.
+        if bx.is_valid() and rp.is_valid():
+            igan = active.get("igan")
+            oxford_c = (igan.cleaned_data.get("C")
+                        if igan is not None and igan.is_valid() else None)
+            ok = _apply_consistency(
+                consistency.crescent_errors(
+                    bx.cleaned_data.get("crescents_present"),
+                    bx.cleaned_data.get("crescent_pct"),
+                    count=rp.cleaned_data.get("crescentic_glomeruli"), oxford_c=oxford_c)
+                + consistency.result_category_errors(
+                    bx.cleaned_data.get("result_category"), diagnosis,
+                    bx.cleaned_data.get("adequacy"),
+                    report_status=rp.cleaned_data.get("status")),
+                {"bx": bx, "rp": rp, "dx": dx, "igan": scores["igan"]}) and ok
 
         # A score panel outside the diagnosis family is not silently attached.
         if rp.is_valid():
@@ -238,6 +268,7 @@ def biopsy_create(request, pk):
                     obj = f.save(commit=False)
                     obj.biopsy = biopsy
                     obj.save()
+                dxrules.project_fsgs_panel(biopsy)
                 save_report(biopsy, data=data, findings=findings,
                             user=request.user if request.user.is_authenticated else None)
             patient.refresh_from_db()
@@ -270,9 +301,14 @@ def biopsy_create(request, pk):
     return render(request, "clinic/biopsy_form.html", {
         "active": "patients", "patient": patient,
         "bx": bx, "dx": dx, "rp": rp, "fs": fs, "scores": scores,
-        "score_hints": _SCORE_HINTS, "sections": _finding_sections(),
+        "qualifier_table": _qualifier_table(), "sections": _finding_sections(),
         "mode": "create",
     })
+
+
+def _qualifier_table():
+    from pathology import diagnosis as dxrules
+    return dxrules.qualifier_table()
 
 
 def _finding_sections():
@@ -331,6 +367,8 @@ def biopsy_amend(request, pk, bid):
     why. A repeat biopsy is a new biopsy, not an amendment."""
     from django.db import transaction
 
+    from pathology import consistency
+    from pathology import diagnosis as dxrules
     from pathology.models import Biopsy, GNDiagnosis
     from pathology.services.projection import FINAL_STATUSES, deferred_projection
     from pathology.services.report import (ReportInvalid, amend_report,
@@ -369,6 +407,19 @@ def biopsy_amend(request, pk, bid):
         if not reason:
             messages.error(request, "State why the report is being amended.")
             ok = False
+        if bx.is_valid() and rp.is_valid():
+            adopted_dx = (new_dx if new_dx and biopsy.review_status not in FINAL_STATUSES
+                          else initial_dx)
+            score = getattr(biopsy, "igan_score", None) if hasattr(biopsy, "igan_score") else None
+            ok = _apply_consistency(
+                consistency.crescent_errors(
+                    bx.cleaned_data.get("crescents_present"), bx.cleaned_data.get("crescent_pct"),
+                    count=rp.cleaned_data.get("crescentic_glomeruli"),
+                    oxford_c=score.C if score else None)
+                + consistency.result_category_errors(
+                    bx.cleaned_data.get("result_category"), adopted_dx,
+                    bx.cleaned_data.get("adequacy"), report_status=rp.cleaned_data.get("status")),
+                {"bx": bx, "rp": rp}) and ok
         if ok:
             findings, index = findings_from_formset(fs)
             data = rp.report_data()
@@ -389,13 +440,19 @@ def biopsy_amend(request, pk, bid):
                     # diagnosis only while no reviewed read is final.
                     if new_dx and biopsy.review_status not in FINAL_STATUSES:
                         with acting_as(user, reason=f"Pathology report {kind}: {reason}"[:240]):
-                            GNDiagnosis.objects.update_or_create(
+                            dx_obj, _ = GNDiagnosis.objects.update_or_create(
                                 biopsy=biopsy, defaults={"diagnosis": new_dx})
+                            changed = dxrules.sync_stated_primary_secondary(dx_obj)
+                        if changed:
+                            warnings.append(
+                                f"Primary/secondary is now {changed[1]}, as the amended "
+                                f"diagnosis states (was {changed[0] or 'blank'}).")
                     elif new_dx and new_dx != initial_dx:
                         warnings.append(
                             "This biopsy has a finalized review, so the adopted diagnosis "
                             "is unchanged. The amended conclusion is on the report; submit "
                             "a review read to change the adopted diagnosis.")
+                    dxrules.project_fsgs_panel(biopsy)
             except ReportInvalid as exc:
                 _attach_report_errors(exc.errors, rp, fs, index, bx)
             else:
@@ -407,7 +464,7 @@ def biopsy_amend(request, pk, bid):
     return render(request, "clinic/biopsy_form.html", {
         "active": "patients", "patient": patient, "biopsy": biopsy,
         "bx": bx, "rp": rp, "fs": fs, "scores": {}, "dx": None,
-        "score_hints": _SCORE_HINTS, "sections": _finding_sections(),
+        "qualifier_table": _qualifier_table(), "sections": _finding_sections(),
         "mode": kind, "report": report, "reason": reason,
         "conclusion_choices": conclusion.choices,
         "conclusion_value": request.POST.get("primary_diagnosis",

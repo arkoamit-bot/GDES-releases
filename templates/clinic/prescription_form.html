@@ -36,6 +36,17 @@
             <option value="{{ val }}" {% if val == default_diagnosis %}selected{% endif %}>{{ label }}</option>
             {% endfor %}
           </select>
+          {% if diagnosis_source_label %}<div class="help" id="dx-source" style="margin-top:4px"><i class="fas fa-link"></i> {{ diagnosis_source_label }} — edit if it has changed.</div>{% endif %}
+          {% if diagnosis_newer_draft %}
+          <div class="help" style="margin-top:4px;color:#92400e">
+            A newer draft ({{ diagnosis_newer_draft.encounter.encounter_date|date:"d M Y" }}, v{{ diagnosis_newer_draft.version }}{% if diagnosis_newer_draft.diagnosis_text %}, diagnosis “{{ diagnosis_newer_draft.diagnosis_text }}”{% endif %}) was saved but not finalized.
+            <a href="{% url 'prescriptions:preview' diagnosis_newer_draft.pk %}" style="color:#4f46e5">Resume that draft</a> instead of starting a new one.
+          </div>
+          {% endif %}
+          {% for label, value in diagnosis_also_on_record %}
+          <div class="help" style="margin-top:4px">{{ label }}: <b>{{ value }}</b>
+            <button type="button" class="btn ghost sm dx-use" data-value="{{ value }}" style="padding:1px 8px;margin-left:4px">Use this</button></div>
+          {% endfor %}
           <div style="margin-top:10px">
             <label style="display:block;margin-bottom:4px">Comorbidities to print
               <span class="help" style="display:inline;margin:0">— ticked from the patient record; unticking only leaves it off this slip.
@@ -538,6 +549,26 @@
   document.querySelectorAll('.drug-select').forEach(function(sel){
     if (sel.value) syncTaperRow(sel.getAttribute('data-row'));
   });
+
+  // ---- Diagnosis: carried text is only a starting point ---------------------
+  // "Use this" puts another recorded diagnosis in the box; nothing is changed
+  // at its source. Any edit clears the "carried from" label.
+  var dxSel = document.getElementById('diagnosis');
+  var dxSource = document.getElementById('dx-source');
+  if (dxSel){
+    dxSel.addEventListener('change', function(){ if (dxSource) dxSource.style.display = 'none'; });
+    document.querySelectorAll('.dx-use').forEach(function(btn){
+      btn.addEventListener('click', function(){
+        var v = this.getAttribute('data-value');
+        if (!Array.prototype.some.call(dxSel.options, function(o){ return o.value === v; })){
+          var o = document.createElement('option'); o.value = v; o.textContent = v + ' (as recorded)';
+          dxSel.insertBefore(o, dxSel.options[1] || null);
+        }
+        dxSel.value = v;
+        dxSel.dispatchEvent(new Event('change', {bubbles: true}));
+      });
+    });
+  }
 
   // ---- Advice templates: paste a pre-written snippet into the advice field -
   var advSel = document.getElementById('advice-template-sel');

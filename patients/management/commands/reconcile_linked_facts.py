@@ -137,6 +137,53 @@ class Command(BaseCommand):
                  "note": "old default False; cannot be distinguished from 'not assessed' -- left as stored"}
                 for f, n in out.items()]
 
+    def biopsy_conflicts(self):
+        """Stored contradictions the entry form now refuses (2026-09-29).
+        Report only: the original values are kept for review, never
+        overwritten by a precedence rule."""
+        from pathology import consistency
+        from pathology import diagnosis as dxrules
+        from pathology.models import Biopsy
+        from pathology.services.report import current_report
+        rows = []
+        qs = Biopsy.objects.select_related("patient").order_by("pk")
+        for b in qs:
+            problems = []
+            for name in ("global_sclerosis_pct", "ifta_pct", "crescent_pct"):
+                v = getattr(b, name)
+                if v is not None and not (0 <= v <= 100):
+                    problems.append(f"{name}={v} is outside 0-100")
+            rep = current_report(b)
+            dx = getattr(b, "diagnosis", None) if hasattr(b, "diagnosis") else None
+            score = getattr(b, "igan_score", None) if hasattr(b, "igan_score") else None
+            fsgs = getattr(b, "fsgs", None) if hasattr(b, "fsgs") else None
+            for _t, field, msg in (
+                    consistency.crescent_errors(
+                        b.crescents_present, b.crescent_pct,
+                        count=getattr(rep, "crescentic_glomeruli", None),
+                        oxford_c=score.C if score else None)
+                    + consistency.result_category_errors(
+                        b.result_category, dx.diagnosis if dx else "", b.adequacy,
+                        report_status=getattr(rep, "status", ""))):
+                problems.append(f"{field}: {msg}")
+            if dx:
+                q = dxrules.qualifiers(dx.diagnosis)
+                stated = q.get("primary_secondary", "")
+                if stated and dx.primary_secondary not in ("", "unknown", stated):
+                    problems.append(f"diagnosis '{dx.diagnosis}' states {stated}; "
+                                    f"primary_secondary={dx.primary_secondary}")
+                if fsgs and fsgs.primary_secondary and dx.primary_secondary and                         fsgs.primary_secondary != dx.primary_secondary:
+                    problems.append(f"FSGS panel primary_secondary={fsgs.primary_secondary} "
+                                    f"vs diagnosis record {dx.primary_secondary}")
+                if fsgs and q.get("variant") and fsgs.variant and fsgs.variant != q["variant"]:
+                    problems.append(f"diagnosis states the {q['variant']} variant; "
+                                    f"FSGS panel variant={fsgs.variant}")
+            if problems:
+                rows.append({"patient": b.patient.patient_id, "biopsy_pk": b.pk,
+                             "biopsy_date": b.biopsy_date, "problems": problems,
+                             "action": "review; values left as stored"})
+        return rows
+
     def hba1c(self, apply):
         import datetime as dt
 
@@ -271,6 +318,7 @@ class Command(BaseCommand):
             "pathology_projection": self.pathology(apply),
             "biopsy_legacy_if_em": self.biopsy_scalars(apply),
             "biopsy_legacy_false_lesions": self.lesion_booleans(),
+            "biopsy_conflicting_values": self.biopsy_conflicts(),
             "baseline_hba1c": self.hba1c(apply),
             "lab_possible_duplicates": self.lab_duplicates(),
             "egfr_defective_fallback": self.egfr_fallback(),

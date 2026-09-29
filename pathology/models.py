@@ -128,6 +128,21 @@ class Biopsy(models.Model):
     def __str__(self):
         return f"Biopsy {self.patient.patient_id} @ {self.biopsy_date}"
 
+    def clean(self):
+        """The rules that need only this row (admin, every ModelForm). Rules
+        involving the diagnosis, report counts or Oxford C run where those are
+        known: pathology.consistency, called by the views and the API."""
+        from .consistency import crescent_errors, result_category_errors
+        errors = {}
+        for _target, field, msg in (
+                crescent_errors(self.crescents_present, self.crescent_pct)
+                + result_category_errors(self.result_category, "", self.adequacy)):
+            if field == "result_category" and self.result_category == "positive":
+                continue  # needs the diagnosis; checked with it by the callers
+            errors.setdefault(field, []).append(msg)
+        if errors:
+            raise ValidationError(errors)
+
 
 class GNDiagnosis(models.Model):
     class PrimarySecondary(models.TextChoices):

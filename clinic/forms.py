@@ -639,9 +639,11 @@ class LupusPathologyForm(forms.ModelForm):
 
 
 class FSGSPathologyForm(forms.ModelForm):
+    """Variant only. Primary/secondary is asked once, on the diagnosis; the
+    panel's column is written from there (pathology.diagnosis.project_fsgs_panel)."""
     class Meta:
         model = FSGSPathology
-        exclude = ["biopsy"]
+        exclude = ["biopsy", "primary_secondary"]
 
 
 class MembranousPathologyForm(forms.ModelForm):

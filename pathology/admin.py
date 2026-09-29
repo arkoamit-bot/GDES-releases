@@ -39,6 +39,8 @@ class LupusInline(admin.StackedInline):
 class FSGSInline(admin.StackedInline):
     model = FSGSPathology
     extra = 0
+    # Written from the diagnosis record's primary/secondary, never edited here.
+    readonly_fields = ("primary_secondary",)
 
 
 class MembranousInline(admin.StackedInline):
