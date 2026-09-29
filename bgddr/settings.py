@@ -8,6 +8,17 @@ for the materialized-view analytics layer and pgaudit).
 import os
 from pathlib import Path
 
+import django
+from packaging.version import Version
+
+try:
+    # Celery is optional: the single-user desktop build ships without a
+    # broker, and settings must stay importable there. The numeric fallback
+    # below is only used when celery is absent.
+    from celery.schedules import crontab
+except ImportError:  # pragma: no cover - desktop build without celery
+    crontab = None
+
 BASE_DIR = Path(__file__).resolve().parent.parent
 
 # Security-critical settings are read from the environment. The dev defaults keep
@@ -117,6 +128,8 @@ INSTALLED_APPS = [
     "followup",
     # V8 — Field Error Reporting & Continuous Improvement
     "feedback",
+    # Phase 6 — Clinical Evidence Intelligence (CEI)
+    "clinical_evidence",
     # Security hardening
     "csp",
 ]
@@ -230,17 +243,17 @@ else:
             # briefly touches the file. Connection-level only — ignored on Postgres.
             # WAL journal mode makes the local db file far more resilient to
             # corruption from an unclean shutdown/crash (the scenario the backup
-            # strategy protects against). Django 5.1+ runs OPTIONS["init_command"]
-            # on each new connection; the PRAGMA is persistent and idempotent.
+            # strategy protects against). Django 5.1+ supports OPTIONS["init_command"]
+            # which runs the PRAGMA on each new connection; the PRAGMA is persistent
+            # and idempotent. On Django 5.0 we omit it (fall back to default journal).
             "OPTIONS": {
-                    "timeout": 30,
-                    # NOTE: init_command PRAGMA journal_mode=WAL; was removed
-                    # because Django 5.0's SQLite backend does not support it
-                    # (added in Django 5.1). WAL mode is still active if the
-                    # db was created with it, but is not enforced per-connection.
-                },
+                "timeout": 30,
+            },
         }
     }
+    _opts = DATABASES["default"]["OPTIONS"]
+    if Version(django.get_version()) >= Version("5.1"):
+        _opts["init_command"] = "PRAGMA journal_mode=WAL;"
 
 AUTH_PASSWORD_VALIDATORS = [
     {"NAME": "django.contrib.auth.password_validation.UserAttributeSimilarityValidator"},
@@ -275,12 +288,41 @@ PRESCRIPTION_PDF_DIR = MEDIA_ROOT / "prescriptions"
 # never invoked automatically. Enable with GDES_AI_ONLINE_EVIDENCE=1.
 AI_ONLINE_EVIDENCE_ENABLED = os.environ.get("GDES_AI_ONLINE_EVIDENCE", "0") == "1"
 
+# Vera Health Clinical AI Integration
+# Set VERAHEALTH_API_KEY for the enterprise API (api.verahealth.ai).
+# Alternatively, configure Vera Web credentials via ProviderConfiguration.
+VERA_API_BASE_URL = os.environ.get("VERA_API_BASE_URL", "")
+VERAHEALTH_API_KEY = os.environ.get("VERAHEALTH_API_KEY", "")
+VERAHEALTH_MODEL = os.environ.get("VERAHEALTH_MODEL", "vera-clinical-1")
+
 BACKUP_CONFIG = {
     "directory": str(BACKUPS_DIR),
     "max_backups": int(os.environ.get("BGDDR_MAX_BACKUPS", "60")),
     "interval_hours": int(os.environ.get("BGDDR_BACKUP_INTERVAL_HOURS", "6")),
     # P1-1 tiered ZIP retention (newest N kept per tier).
     "tiers": {"Daily": 7, "Weekly": 8, "Monthly": 12},
+}
+
+# --- Drug catalogue auto-update (medex.com.bd/brands) ------------------------
+# A full refresh walks ~848 catalogue pages at 0.4s each (~6 min of traffic),
+# and the catalogue changes slowly, so the default is weekly. Every knob is
+# env-overridable so a deployment can retune without a code change.
+#
+# `min_row_ratio` is the safety gate: a scrape that returns far fewer rows
+# than the last good run means MedEx changed its markup, the site is serving
+# a partial page, or the run was cut short. Rather than import a truncated
+# catalogue, the run is rejected and the database is left alone.
+DRUG_SYNC_CONFIG = {
+    "enabled": os.environ.get("BGDDR_DRUG_SYNC_ENABLED", "1") == "1",
+    # 168h = weekly. 0 disables the interval check (manual/--force only).
+    "interval_hours": int(os.environ.get("BGDDR_DRUG_SYNC_INTERVAL_HOURS", "168")),
+    "delay": float(os.environ.get("BGDDR_DRUG_SYNC_DELAY", "0.4")),
+    # Reject a scrape below this fraction of the last good row count.
+    "min_row_ratio": float(os.environ.get("BGDDR_DRUG_SYNC_MIN_ROW_RATIO", "0.5")),
+    # Take a DB backup before an unattended (scheduled) import.
+    "backup_before_import": os.environ.get(
+        "BGDDR_DRUG_SYNC_BACKUP", "1") == "1",
+    "csv_path": str(IMPORTS_DIR / "medex_brands.csv"),
 }
 
 # Default output folder for `export_dataset` / UI exports.
@@ -370,6 +412,17 @@ CELERY_BEAT_SCHEDULE = {
     "detect-lab-trends": {
         "task": "labs.tasks.detect_lab_trends",
         "schedule": 21600,  # every 6 hours
+    },
+    # Drug catalogue refresh. Weekly: the MedEx catalogue is ~848 pages and
+    # changes slowly, so this costs ~6 min of traffic per week. The task
+    # itself re-checks DRUG_SYNC_CONFIG and no-ops when not due, so a beat
+    # that fires early is harmless.
+    "sync-medex-drugs": {
+        "task": "prescriptions.tasks.sync_medex_drugs",
+        # Mon 03:17 Asia/Dhaka. Falls back to a plain 7-day interval where
+        # celery isn't installed.
+        "schedule": (crontab(hour=3, minute=17, day_of_week=1)
+                     if crontab else 604800),
     },
 }
 

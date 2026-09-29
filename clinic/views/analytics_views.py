@@ -1,13 +1,29 @@
-"""Analytics, export, quality assessment, and advanced statistics views."""
+"""Analytics, export, quality assessment, and advanced statistics views.
+"""
 from __future__ import annotations
 
-from django.contrib import messages
-from django.shortcuts import get_object_or_404, redirect, render
+from ._common import (  # noqa: F401
+    LOGIN,
+    Patient,
+    get_object_or_404,
+    login_required,
+    messages,
+    redirect,
+    render,
+)
 
-from ._common import LOGIN, Patient, login_required
 
+@login_required(login_url=LOGIN)
+def outcome_recompute(request, pk):
+    patient = get_object_or_404(Patient, pk=pk)
+    try:
+        from analytics.services.outcomes import compute_patient_outcome
+        compute_patient_outcome(patient)
+        messages.success(request, "Outcomes recomputed from current data.")
+    except Exception as exc:  # pragma: no cover - defensive
+        messages.error(request, f"Could not compute outcomes: {exc}")
+    return redirect("clinic:patient_detail", pk=patient.pk)
 
-# --- Quality assessment (workflow steps 6-7) ---------------------------------
 
 @login_required(login_url=LOGIN)
 def quality_page(request):
@@ -30,16 +46,36 @@ def quality_page(request):
     return render(request, "clinic/quality.html", ctx)
 
 
-# --- Analytics & Export landing pages ----------------------------------------
+def _drug_group_options():
+    """"drug:<class>" options for the exposure -> outcome comparison.
+
+    Only classes a patient is actually exposed to are offered: an option that
+    splits the cohort into "everyone" vs "nobody" produces an empty comparison
+    and looks like a broken page.
+    """
+    try:
+        from treatments.models import TreatmentExposure
+        classes = (TreatmentExposure.objects
+                   .exclude(drug__drug_class="")
+                   .values_list("drug__drug_class", flat=True)
+                   .distinct())
+        return [f"drug:{c}" for c in sorted(set(classes)) if c]
+    except Exception:  # pragma: no cover - DB not ready
+        return []
+
 
 @login_required(login_url=LOGIN)
 def analytics_page(request):
-    """Cohort analytics rendered as tables."""
+    """Cohort analytics rendered as tables (not raw JSON). Each computation is
+    guarded so sparse data shows a friendly note instead of erroring the page."""
     group_by = request.GET.get("group_by", "diagnosis")
     endpoint = request.GET.get("endpoint", "composite_kidney_event")
     ctx = {
         "active": "analytics", "group_by": group_by, "endpoint": endpoint,
-        "group_options": ["diabetes", "diagnosis", "cohort"],
+        # Exposure -> outcome: cohort.split_patients has always supported
+        # "drug:<class>" (ever-exposed vs never-exposed), but the option was
+        # never offered here, so the analysis was unreachable from the app.
+        "group_options": ["diabetes", "diagnosis", "cohort"] + _drug_group_options(),
         "endpoint_options": [
             "composite_kidney_event", "eskd", "death",
             "sustained_40_decline", "sustained_50_decline",
@@ -49,6 +85,7 @@ def analytics_page(request):
     }
     qs = Patient.objects.all()
 
+    # Per-group baseline/outcome counts — generic table (column-agnostic).
     try:
         from analytics.services.cohort import cohort_summary
         rows = cohort_summary(qs, group_by) or []
@@ -58,6 +95,7 @@ def analytics_page(request):
     except Exception as exc:
         ctx["summary_error"] = str(exc)
 
+    # Kaplan–Meier group summary + log-rank.
     try:
         from analytics.services.cohort import cohort_survival
         cohort = cohort_survival(qs, group_by, endpoint)
@@ -78,22 +116,6 @@ def export_page(request):
                   {"active": "export", "studies": list(studies)})
 
 
-# --- Outcomes ---------------------------------------------------------------
-
-@login_required(login_url=LOGIN)
-def outcome_recompute(request, pk):
-    patient = get_object_or_404(Patient, pk=pk)
-    try:
-        from analytics.services.outcomes import compute_patient_outcome
-        compute_patient_outcome(patient)
-        messages.success(request, "Outcomes recomputed from current data.")
-    except Exception as exc:
-        messages.error(request, f"Could not compute outcomes: {exc}")
-    return redirect("clinic:patient_detail", pk=patient.pk)
-
-
-# --- Advanced analytics results (HTML wrappers for JSON endpoints) ----------
-
 @login_required(login_url=LOGIN)
 def cox_results(request):
     """Multivariable Cox PH rendered as a table instead of raw JSON."""
@@ -112,6 +134,7 @@ def cox_results(request):
     try:
         from analytics.services.cohort import cox_regression
         result, meta = cox_regression(Patient.objects.all(), covariates, endpoint)
+        # Merge meta into result for easy template access
         ctx["result"] = {**result, **meta}
     except ValueError as exc:
         ctx["error"] = str(exc)
@@ -122,13 +145,14 @@ def cox_results(request):
 
 @login_required(login_url=LOGIN)
 def egfr_slope_results(request):
-    """Linear mixed-effects eGFR slope per group."""
+    """Linear mixed-effects eGFR slope per group, rendered as a table."""
     group_by = request.GET.get("group_by", "diabetes")
     ctx = {"active": "analytics", "group_by": group_by,
            "group_options": ["diabetes", "diagnosis", "cohort"]}
     try:
         from analytics.services.cohort import cohort_egfr_slope
         data = cohort_egfr_slope(Patient.objects.all(), group_by)
+        # Reshape flat dict into rows list for the template
         if data and "groups" in data:
             rows = []
             for g in data["groups"]:
@@ -155,7 +179,7 @@ def egfr_slope_results(request):
 
 @login_required(login_url=LOGIN)
 def cif_results(request):
-    """Competing-risks CIF at a specified timepoint."""
+    """Competing-risks CIF at a specified timepoint, rendered as a table."""
     group_by = request.GET.get("group_by", "diabetes")
     try:
         at_days = int(request.GET.get("at_days", 365))
@@ -166,6 +190,7 @@ def cif_results(request):
     try:
         from analytics.services.cohort import cohort_competing_risks
         data = cohort_competing_risks(Patient.objects.all(), group_by, at_days=at_days)
+        # Build rows list with dynamic CIF key
         cif_key = f"cif_at_{at_days}d"
         rows = []
         for g in data.get("groups", []):

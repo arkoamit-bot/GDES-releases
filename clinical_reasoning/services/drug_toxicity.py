@@ -16,6 +16,7 @@ from datetime import timedelta
 from typing import Any
 
 from django.utils import timezone
+from .audit import audit_drug_toxicity
 
 logger = logging.getLogger(__name__)
 
@@ -238,12 +239,17 @@ def detect_drug_toxicity(patient) -> DrugToxicityReport:
     alerts.sort(key=lambda a: _severity_order(a.severity))
     summary = _build_toxicity_summary(alerts, current_meds)
 
-    return DrugToxicityReport(
+    _tox_report = DrugToxicityReport(
         patient_id=patient.patient_id,
         alerts=alerts,
         current_medications=current_meds,
         summary=summary,
     )
+
+    # Record recommendation in audit trail
+    audit_drug_toxicity(patient, _tox_report)
+
+    return _tox_report
 
 
 def _get_current_medications(patient) -> list[dict]:

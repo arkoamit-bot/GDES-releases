@@ -3,11 +3,16 @@ recommendation feedback, safety, pathology, biomarkers.
 """
 from __future__ import annotations
 
-from django.contrib import messages
-from django.db.models import Q
-from django.shortcuts import get_object_or_404, redirect, render
-
-from ._common import LOGIN, Patient, _safe_call, login_required
+from ._common import (  # noqa: F401
+    LOGIN,
+    Patient,
+    Q,
+    get_object_or_404,
+    login_required,
+    messages,
+    redirect,
+    render,
+)
 
 
 @login_required(login_url=LOGIN)
@@ -34,6 +39,7 @@ def studies_page(request):
 def drug_intelligence_page(request):
     """Drug Intelligence — browsable disease-independent clinical drug knowledge."""
     from knowledge.models import DrugIntelligence
+
     q = (request.GET.get("q") or "").strip()
     drugs = DrugIntelligence.objects.filter(is_active=True)
     if q:
@@ -50,6 +56,7 @@ def drug_intelligence_page(request):
 def drug_intelligence_detail(request, drug_id):
     """Full drug monograph."""
     from knowledge.models import DrugIntelligence
+
     drug = get_object_or_404(DrugIntelligence, pk=drug_id, is_active=True)
     return render(request, "clinic/drug_intelligence_detail.html", {
         "active": "drugs", "drug": drug,
@@ -58,7 +65,9 @@ def drug_intelligence_detail(request, drug_id):
 
 @login_required(login_url=LOGIN)
 def recommendation_feedback(request, pk):
-    """V8 Layer 10 — capture a nephrologist's Accept/Modify/Reject."""
+    """V8 Layer 10 — capture a nephrologist's Accept/Modify/Reject on a CDS
+    recommendation as structured learning data. NEVER auto-applied to the
+    production knowledge base (governance: expert review required)."""
     patient = get_object_or_404(Patient, pk=pk)
     if request.method == "POST":
         from feedback.models import WorkflowFeedback

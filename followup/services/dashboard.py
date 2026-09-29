@@ -186,8 +186,18 @@ def _recent_events(as_of, since, event_type):
 
 
 def _recent_aki(as_of, since):
-    """Patients with recent AKI (from clinical events)."""
-    return _recent_events(as_of, since, "hard_kidney_endpoint")
+    """Patients with recent hard kidney events (ESKD, dialysis, transplant)."""
+    from encounters.models import ClinicalEvent
+    from patients.models import Patient
+    kidney_types = ClinicalEvent.HARD_KIDNEY
+    patients = Patient.objects.filter(
+        events__event_type__in=kidney_types,
+        events__event_date__gte=since,
+    ).distinct()
+    return [
+        {"patient_id": p.patient_id, "name": p.name}
+        for p in patients
+    ]
 
 
 def _rapid_egfr_decline(as_of, since):

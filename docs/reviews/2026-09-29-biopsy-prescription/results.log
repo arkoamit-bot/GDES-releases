@@ -1,0 +1,134 @@
+DIAGNOSIS_PREFILL: IgA nephropathy
+FFSGS_CONFLICT: 302 saved_biopsies= 1
+FCRESCENT_CONFLICT: 302 [(False, Decimal('25.0'))]
+FPERCENT_RANGE: 302 [(Decimal('150.0'), Decimal('120.0'))]
+FLoaded 10 deterministic test rules.
+2026-09-29 00:55:13,488 INFO clinical_reasoning.services.engine: No rule criteria matched for patient BGD-LN-10 across 9 disease(s) with ACTIVE rules — differential empty; this is a data-completeness signal, not a knowledge-base fault.
+2026-09-29 00:55:13,605 INFO clinical_reasoning.event_handlers: Recomputed profile for patient BGD-LN-10 after patient.registered
+2026-09-29 00:55:13,995 INFO clinical_reasoning.services.engine: No rule criteria matched for patient BGD-LN-11 across 9 disease(s) with ACTIVE rules — differential empty; this is a data-completeness signal, not a knowledge-base fault.
+2026-09-29 00:55:14,000 INFO clinical_reasoning.event_handlers: Recomputed profile for patient BGD-LN-11 after patient.registered
+2026-09-29 00:55:14,012 INFO clinical_reasoning.services.engine: No rule criteria matched for patient BGD-LN-11 across 9 disease(s) with ACTIVE rules — differential empty; this is a data-completeness signal, not a knowledge-base fault.
+2026-09-29 00:55:14,024 INFO clinical_reasoning.event_handlers: Recomputed profile for patient BGD-LN-11 after biopsy.created
+2026-09-29 00:55:14,048 INFO clinical_reasoning.event_handlers: Recomputed profile for patient BGD-LN-11 after patient.updated
+2026-09-29 00:55:14,406 INFO clinical_reasoning.services.engine: No rule criteria matched for patient BGD-LN-12 across 9 disease(s) with ACTIVE rules — differential empty; this is a data-completeness signal, not a knowledge-base fault.
+2026-09-29 00:55:14,406 INFO clinical_reasoning.event_handlers: Recomputed profile for patient BGD-LN-12 after patient.registered
+2026-09-29 00:55:14,429 INFO clinical_reasoning.services.engine: No rule criteria matched for patient BGD-LN-12 across 9 disease(s) with ACTIVE rules — differential empty; this is a data-completeness signal, not a knowledge-base fault.
+2026-09-29 00:55:14,436 INFO clinical_reasoning.event_handlers: Recomputed profile for patient BGD-LN-12 after biopsy.created
+2026-09-29 00:55:14,464 INFO clinical_reasoning.event_handlers: Recomputed profile for patient BGD-LN-12 after patient.updated
+2026-09-29 00:55:14,768 INFO clinical_reasoning.services.engine: No rule criteria matched for patient BGD-LN-13 across 9 disease(s) with ACTIVE rules — differential empty; this is a data-completeness signal, not a knowledge-base fault.
+2026-09-29 00:55:14,787 INFO clinical_reasoning.event_handlers: Recomputed profile for patient BGD-LN-13 after patient.registered
+2026-09-29 00:55:14,799 INFO clinical_reasoning.services.engine: No rule criteria matched for patient BGD-LN-13 across 9 disease(s) with ACTIVE rules — differential empty; this is a data-completeness signal, not a knowledge-base fault.
+2026-09-29 00:55:14,803 INFO clinical_reasoning.event_handlers: Recomputed profile for patient BGD-LN-13 after biopsy.created
+2026-09-29 00:55:14,841 INFO clinical_reasoning.event_handlers: Recomputed profile for patient BGD-LN-13 after patient.updated
+2026-09-29 00:55:15,154 INFO clinical_reasoning.services.engine: No rule criteria matched for patient BGD-LN-14 across 9 disease(s) with ACTIVE rules — differential empty; this is a data-completeness signal, not a knowledge-base fault.
+2026-09-29 00:55:15,156 INFO clinical_reasoning.event_handlers: Recomputed profile for patient BGD-LN-14 after patient.registered
+2026-09-29 00:55:15,174 INFO clinical_reasoning.services.engine: No rule criteria matched for patient BGD-LN-14 across 9 disease(s) with ACTIVE rules — differential empty; this is a data-completeness signal, not a knowledge-base fault.
+2026-09-29 00:55:15,182 INFO clinical_reasoning.event_handlers: Recomputed profile for patient BGD-LN-14 after biopsy.created
+2026-09-29 00:55:15,203 INFO clinical_reasoning.event_handlers: Recomputed profile for patient BGD-LN-14 after patient.updated
+........................
+================================== FAILURES ===================================
+__________ test_previous_prescription_diagnosis_prefills_next_entry ___________
+
+patient = <Patient: REVIEW-29-SYNTHETIC — Synthetic>
+signed_in = <django.test.client.Client object at 0x000001BE25328550>
+
+    def test_previous_prescription_diagnosis_prefills_next_entry(patient, signed_in):
+        from encounters.models import ClinicalEncounter
+        from prescriptions.models import Prescription
+        patient.primary_diagnosis = "IgA nephropathy"
+        patient.save()
+        encounter = ClinicalEncounter.objects.create(patient=patient, encounter_date=DAY)
+        Prescription.objects.create(encounter=encounter, diagnosis_text="FSGS - primary",
+                                    status=Prescription.Status.FINAL)
+        response = signed_in.get(reverse("clinic:prescription", args=[patient.pk]))
+        assert response.status_code == 200
+        print("DIAGNOSIS_PREFILL:", response.context["default_diagnosis"])
+>       assert response.context["default_diagnosis"] == "FSGS - primary"
+E       AssertionError: assert 'IgA nephropathy' == 'FSGS - primary'
+E         
+E         - FSGS - primary
+E         + IgA nephropathy
+
+docs\reviews\2026-09-29-biopsy-prescription\probes.py:44: AssertionError
+____________ test_fsgs_duplicate_primary_secondary_cannot_conflict ____________
+
+patient = <Patient: REVIEW-29-SYNTHETIC — Synthetic>
+signed_in = <django.test.client.Client object at 0x000001BE269BB490>
+
+    def test_fsgs_duplicate_primary_secondary_cannot_conflict(patient, signed_in):
+        response = signed_in.post(reverse("clinic:biopsy", args=[patient.pk]), {
+            "bx-biopsy_date": DAY.isoformat(), "dx-diagnosis": "FSGS - primary",
+            "dx-primary_secondary": "primary", "fsgs-primary_secondary": "secondary",
+        })
+        print("FSGS_CONFLICT:", response.status_code, "saved_biopsies=", patient.biopsies.count())
+>       assert response.status_code == 200, "Show the conflict and keep the form unsaved."
+E       AssertionError: Show the conflict and keep the form unsaved.
+E       assert 302 == 200
+E        +  where 302 = <HttpResponseRedirect status_code=302, "text/html; charset=utf-8", url="/patients/1/">.status_code
+
+docs\reviews\2026-09-29-biopsy-prescription\probes.py:53: AssertionError
+_________ test_absent_crescents_cannot_save_with_positive_percentage __________
+
+patient = <Patient: REVIEW-29-SYNTHETIC — Synthetic>
+signed_in = <django.test.client.Client object at 0x000001BE284D4490>
+
+    def test_absent_crescents_cannot_save_with_positive_percentage(patient, signed_in):
+        response = signed_in.post(reverse("clinic:biopsy", args=[patient.pk]), {
+            "bx-biopsy_date": DAY.isoformat(), "dx-diagnosis": "IgA nephropathy",
+            "bx-crescent_pct": "25",
+        })
+        saved = list(patient.biopsies.values_list("crescents_present", "crescent_pct"))
+        print("CRESCENT_CONFLICT:", response.status_code, saved)
+>       assert response.status_code == 200, "Absent with 25 percent must be reconciled, not saved."
+E       AssertionError: Absent with 25 percent must be reconciled, not saved.
+E       assert 302 == 200
+E        +  where 302 = <HttpResponseRedirect status_code=302, "text/html; charset=utf-8", url="/patients/1/">.status_code
+
+docs\reviews\2026-09-29-biopsy-prescription\probes.py:64: AssertionError
+_______________ test_percentages_above_one_hundred_are_rejected _______________
+
+patient = <Patient: REVIEW-29-SYNTHETIC — Synthetic>
+signed_in = <django.test.client.Client object at 0x000001BE284D6B50>
+
+    def test_percentages_above_one_hundred_are_rejected(patient, signed_in):
+        response = signed_in.post(reverse("clinic:biopsy", args=[patient.pk]), {
+            "bx-biopsy_date": DAY.isoformat(), "dx-diagnosis": "IgA nephropathy",
+            "bx-global_sclerosis_pct": "150", "bx-ifta_pct": "120",
+        })
+        print("PERCENT_RANGE:", response.status_code, list(patient.biopsies.values_list(
+            "global_sclerosis_pct", "ifta_pct")))
+>       assert response.status_code == 200
+E       assert 302 == 200
+E        +  where 302 = <HttpResponseRedirect status_code=302, "text/html; charset=utf-8", url="/patients/1/">.status_code
+
+docs\reviews\2026-09-29-biopsy-prescription\probes.py:75: AssertionError
+============================== warnings summary ===============================
+docs/reviews/2026-09-29-biopsy-prescription/probes.py::test_previous_prescription_diagnosis_prefills_next_entry
+docs/reviews/2026-09-29-biopsy-prescription/probes.py::test_previous_prescription_diagnosis_prefills_next_entry
+docs/reviews/2026-09-29-biopsy-prescription/probes.py::test_previous_prescription_diagnosis_prefills_next_entry
+docs/reviews/2026-09-29-biopsy-prescription/probes.py::test_previous_prescription_diagnosis_prefills_next_entry
+docs/reviews/2026-09-29-biopsy-prescription/probes.py::test_previous_prescription_diagnosis_prefills_next_entry
+docs/reviews/2026-09-29-biopsy-prescription/probes.py::test_previous_prescription_diagnosis_prefills_next_entry
+docs/reviews/2026-09-29-biopsy-prescription/probes.py::test_previous_prescription_diagnosis_prefills_next_entry
+  C:\Users\User\AppData\Local\hermes\hermes-agent\venv\Lib\site-packages\rest_framework\urlpatterns.py:108: RemovedInDjango60Warning: Converter 'drf_format_suffix' is already registered. Support for overriding registered converters is deprecated and will be removed in Django 6.0.
+    register_converter(suffix_converter, converter_name)
+
+docs/reviews/2026-09-29-biopsy-prescription/probes.py::test_previous_prescription_diagnosis_prefills_next_entry
+docs/reviews/2026-09-29-biopsy-prescription/probes.py::test_fsgs_duplicate_primary_secondary_cannot_conflict
+docs/reviews/2026-09-29-biopsy-prescription/probes.py::test_absent_crescents_cannot_save_with_positive_percentage
+docs/reviews/2026-09-29-biopsy-prescription/probes.py::test_percentages_above_one_hundred_are_rejected
+tests/test_lupus_class_single_source.py::TestBiopsyForm::test_contradiction_is_rejected_with_an_explanation
+tests/test_lupus_class_single_source.py::TestBiopsyForm::test_class_is_carried_across_when_the_panel_is_left_blank
+tests/test_lupus_class_single_source.py::TestBiopsyForm::test_patient_level2_takes_the_class_from_the_diagnosis
+tests/test_lupus_class_single_source.py::TestBiopsyForm::test_agreeing_values_save
+tests/test_lupus_class_single_source.py::TestBiopsyForm::test_non_lupus_biopsy_is_unaffected
+  C:\Users\User\AppData\Local\hermes\hermes-agent\venv\Lib\site-packages\django\core\handlers\base.py:61: UserWarning: No directory at: E:\dev\DKDR\tmp\gdes-review-20260929\staticfiles\
+    mw_instance = middleware(adapted_handler)
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+=========================== short test summary info ===========================
+FAILED docs/reviews/2026-09-29-biopsy-prescription/probes.py::test_previous_prescription_diagnosis_prefills_next_entry
+FAILED docs/reviews/2026-09-29-biopsy-prescription/probes.py::test_fsgs_duplicate_primary_secondary_cannot_conflict
+FAILED docs/reviews/2026-09-29-biopsy-prescription/probes.py::test_absent_crescents_cannot_save_with_positive_percentage
+FAILED docs/reviews/2026-09-29-biopsy-prescription/probes.py::test_percentages_above_one_hundred_are_rejected
+4 failed, 24 passed, 16 warnings in 12.94s

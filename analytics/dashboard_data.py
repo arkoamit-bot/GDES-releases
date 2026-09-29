@@ -90,22 +90,20 @@ def outcomes_summary():
     return {
         "total": total,
         "complete_remission": _safe(
-            outcomes.filter(complete_remission__isnull=False).count, 0),
+            outcomes.filter(complete_remission=True).count, 0),
         "partial_remission": _safe(
-            outcomes.filter(partial_remission__isnull=False).count, 0),
+            outcomes.filter(partial_remission=True).count, 0),
         "any_remission": _safe(
             outcomes.filter(any_remission_date__isnull=False).count, 0),
-        "relapse": _safe(
-            outcomes.filter(proteinuria_relapse__isnull=False,
-                            any_relapse=True).count, 0),
+        "relapse": _safe(outcomes.filter(any_relapse=True).count, 0),
         "decline_40": _safe(
-            outcomes.filter(sustained_40_decline__isnull=False).count, 0),
+            outcomes.filter(sustained_40_decline=True).count, 0),
         "decline_50": _safe(
-            outcomes.filter(sustained_50_decline__isnull=False).count, 0),
-        "eskd": _safe(outcomes.filter(eskd__isnull=False).count, 0),
-        "death": _safe(outcomes.filter(death__isnull=False).count, 0),
+            outcomes.filter(sustained_50_decline=True).count, 0),
+        "eskd": _safe(outcomes.filter(eskd=True).count, 0),
+        "death": _safe(outcomes.filter(death=True).count, 0),
         "composite": _safe(
-            outcomes.filter(composite_kidney_event__isnull=False).count, 0),
+            outcomes.filter(composite_kidney_event=True).count, 0),
         "remission_status": rem_status,
         "mean_latest_egfr": _safe(
             outcomes.filter(latest_egfr__isnull=False)

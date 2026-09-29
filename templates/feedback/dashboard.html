@@ -3,7 +3,7 @@
 {% block heading %}Field Feedback Dashboard{% endblock %}
 {% block content %}
 
-<div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+<div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4 mb-6">
   <div class="card"><div class="card-body text-center">
     <div class="text-3xl font-bold text-red-600">{{ total_errors }}</div>
     <div class="text-sm text-slate-500">Total Errors</div>
@@ -23,6 +23,11 @@
     <div class="text-3xl font-bold text-purple-600">{{ pending_feedback }}</div>
     <div class="text-sm text-slate-500">Pending User Feedback</div>
     <div class="text-xs text-slate-400">{{ total_workflow_feedback }} workflow ratings</div>
+  </div></div>
+  <div class="card"><div class="card-body text-center">
+    <div class="text-3xl font-bold {% if overall_override.override_rate > 15 %}text-red-600{% elif overall_override.override_rate > 10 %}text-amber-600{% else %}text-green-600{% endif %}">{{ overall_override.override_rate }}%</div>
+    <div class="text-sm text-slate-500">Override Rate (90d)</div>
+    <div class="text-xs text-slate-400">{{ overall_override.overrides }} of {{ overall_override.total }} recommendations</div>
   </div></div>
 </div>
 
@@ -122,5 +127,99 @@
   </div>
   <p class="text-xs text-slate-400">Suggestions are auto-generated when a recommendation is overridden 3+ times.</p>
 </div></div>
+
+<!-- Sprint 6: Override Analytics -->
+<h2 class="text-lg font-semibold text-slate-700 mb-4 mt-8" style="border-top:2px solid #4f46e5;padding-top:16px">
+  <i class="fas fa-chart-bar text-indigo-600"></i> Override Analytics <span class="text-sm font-normal text-slate-400">(last 90 days)</span>
+</h2>
+
+<div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
+  <div class="card"><div class="card-body">
+    <h3 class="section-title">Override Rate by Feedback Type</h3>
+    {% for item in override_by_type %}
+    <div class="flex items-center justify-between py-1">
+      <span>{{ item.feedback_type|title }}</span>
+      <div class="flex items-center gap-2">
+        <div class="w-24 h-2 bg-slate-100 rounded overflow-hidden">
+          <div class="h-full rounded" style="width:{{ item.override_rate }}%;background:{% if item.override_rate > 15 %}#dc2626{% elif item.override_rate > 10 %}#d97706{% else %}#16a34a{% endif %}"></div>
+        </div>
+        <span class="text-sm font-semibold" style="color:{% if item.override_rate > 15 %}#dc2626{% elif item.override_rate > 10 %}#d97706{% else %}#16a34a{% endif %}">{{ item.override_rate }}%</span>
+        <span class="text-xs text-slate-400">({{ item.total }})</span>
+      </div>
+    </div>
+    {% empty %}<p class="empty-state">No override data yet</p>{% endfor %}
+  </div></div>
+
+  <div class="card"><div class="card-body">
+    <h3 class="section-title">Most-Overridden Rules</h3>
+    {% for item in override_by_rule|slice:":8" %}
+    <div class="flex items-center justify-between py-1">
+      <span class="font-mono text-xs">{{ item.recommendation_ref }}</span>
+      <div class="flex items-center gap-2">
+        <span class="text-xs text-slate-500">{{ item.accepted }}/{{ item.total }}</span>
+        <div class="w-16 h-2 bg-slate-100 rounded overflow-hidden">
+          <div class="h-full rounded" style="width:{{ item.override_rate }}%;background:{% if item.override_rate > 20 %}#dc2626{% elif item.override_rate > 10 %}#d97706{% else %}#16a34a{% endif %}"></div>
+        </div>
+        <span class="text-sm font-semibold" style="color:{% if item.override_rate > 20 %}#dc2626{% elif item.override_rate > 10 %}#d97706{% else %}#16a34a{% endif %}">{{ item.override_rate }}%</span>
+      </div>
+    </div>
+    {% empty %}<p class="empty-state">No rules with 2+ overrides yet</p>{% endfor %}
+  </div></div>
+</div>
+
+<div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
+  <div class="card"><div class="card-body">
+    <h3 class="section-title">Override Rate by Clinician</h3>
+    {% for item in override_by_clinician|slice:":8" %}
+    <div class="flex items-center justify-between py-1">
+      <span>{{ item.clinician }}</span>
+      <div class="flex items-center gap-2">
+        <span class="text-xs text-slate-500">{{ item.accepted }}/{{ item.total }}</span>
+        <div class="w-16 h-2 bg-slate-100 rounded overflow-hidden">
+          <div class="h-full rounded" style="width:{{ item.override_rate }}%;background:{% if item.override_rate > 20 %}#dc2626{% elif item.override_rate > 10 %}#d97706{% else %}#16a34a{% endif %}"></div>
+        </div>
+        <span class="text-sm font-semibold" style="color:{% if item.override_rate > 20 %}#dc2626{% elif item.override_rate > 10 %}#d97706{% else %}#16a34a{% endif %}">{{ item.override_rate }}%</span>
+      </div>
+    </div>
+    {% empty %}<p class="empty-state">No clinician feedback yet</p>{% endfor %}
+  </div></div>
+
+  <div class="card"><div class="card-body">
+    <h3 class="section-title">Override Trend (weekly)</h3>
+    {% if override_trend %}
+    <div style="height:200px;position:relative">
+      <canvas id="overrideTrendChart"></canvas>
+    </div>
+    <script>
+    (function(){
+      const data = {{ override_trend|safe }};
+      const labels = data.map(d => d.period);
+      const acceptData = data.map(d => d.accepted);
+      const modData = data.map(d => d.modified);
+      const rejData = data.map(d => d.rejected);
+      const ctx = document.getElementById('overrideTrendChart');
+      if (ctx) {
+        new Chart(ctx, {
+          type: 'bar',
+          data: {
+            labels: labels,
+            datasets: [
+              { label: 'Accepted', data: acceptData, backgroundColor: '#16a34a', stack: 'a' },
+              { label: 'Modified', data: modData, backgroundColor: '#d97706', stack: 'a' },
+              { label: 'Rejected', data: rejData, backgroundColor: '#dc2626', stack: 'a' }
+            ]
+          },
+          options: {
+            responsive: true, maintainAspectRatio: false,
+            plugins: { legend: { position: 'bottom', labels: { boxWidth: 12 } } },
+            scales: { x: { stacked: true, ticks: { font: { size: 10 } } }, y: { stacked: true, beginAtZero: true } }
+          }
+        });
+      }
+    })();
+    </script>
+    {% else %}<p class="empty-state">No trend data yet</p>{% endif %}
+  </div></div>
+</div>
 
 {% endblock %}

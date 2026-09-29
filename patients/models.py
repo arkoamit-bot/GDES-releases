@@ -5,9 +5,11 @@ plugs in around this without changing the prescription workflow.
 """
 from datetime import date
 
+from django.core.exceptions import ValidationError
 from django.db import IntegrityError, models, transaction
 
 from . import choices
+from .comorbidity import LEVEL2_COMORBIDITY_FIELDS as CONDITION_FIELDS
 from .workflow import DiseasePhase, RegistrationStatus
 
 
@@ -56,6 +58,9 @@ class Patient(models.Model):
         T1 = "t1", "Type 1"
         T2 = "t2", "Type 2"
         OTHER = "other", "Other / secondary"
+        # Diabetes is known (e.g. a duration was recorded) but its type was
+        # never stated. Needs clinician confirmation; never assumed to be T2.
+        UNKNOWN = "unknown", "Diabetes, type not recorded"
 
     # Auto-generated on first save (BGD-00001…); leave blank in the form.
     patient_id = models.CharField(max_length=32, unique=True, blank=True)
@@ -83,12 +88,15 @@ class Patient(models.Model):
         max_length=120, blank=True, choices=choices.SPECIFIC_GN_DIAGNOSIS)
 
     # --- Level 2: Persistent clinical data (single source of truth) ---------
-    # Entered once at baseline; auto-carried-forward to all encounters.
-    # Clinicians update only when a true clinical change occurs.
-    hypertension = models.BooleanField(default=False)
-    autoimmune_disease = models.BooleanField(default=False)
+    # CURRENT state of each condition, owned here. Three-state: True present,
+    # False absent, None not recorded. Every change is stamped in
+    # condition_provenance (see save()); a False with no stamp is a legacy
+    # default from before 2026-09-27 and reads as "not recorded", never as a
+    # verified negative. The baseline keeps its own dated enrollment snapshot.
+    hypertension = models.BooleanField(null=True, blank=True, default=None)
+    autoimmune_disease = models.BooleanField(null=True, blank=True, default=None)
     chronic_infection = models.BooleanField(
-        default=False, help_text="HBV / HCV / HIV / TB")
+        null=True, blank=True, default=None, help_text="HBV / HCV / HIV / TB")
     smoking_status = models.CharField(
         max_length=20, blank=True, choices=choices.SMOKING)
     hepatitis_status = models.CharField(
@@ -98,9 +106,42 @@ class Patient(models.Model):
     hiv_status = models.CharField(
         max_length=10, blank=True,
         choices=[("", "—"), ("negative", "Negative"), ("positive", "Positive")])
+    # Persistent comorbidities. These used to be asked only on the baseline
+    # assessment, which meant they could not be recorded at registration and
+    # never reached the prescription pre-fill or the AI prompts. They belong
+    # here with the rest of Level 2 — recorded once, carried forward.
+    cvd_history = models.BooleanField(
+        null=True, blank=True, default=None, verbose_name="Cardiovascular disease")
+    malignancy = models.BooleanField(null=True, blank=True, default=None)
+    previous_kidney_disease = models.BooleanField(null=True, blank=True, default=None)
+    prior_immunosuppression = models.BooleanField(
+        null=True, blank=True, default=None, verbose_name="Previous immunosuppressive therapy")
+    family_history_kidney = models.BooleanField(
+        null=True, blank=True, default=None, verbose_name="Family history of kidney disease")
+    diabetic_retinopathy = models.BooleanField(null=True, blank=True, default=None)
+    neuropathy = models.BooleanField(null=True, blank=True, default=None)
+    diabetic_foot_history = models.BooleanField(
+        null=True, blank=True, default=None, verbose_name="Diabetic foot disease")
+    # Per-condition provenance of the current state:
+    #   {"hypertension": {"value": true, "at": ISO, "by": user_id|null,
+    #                     "source": "patient_form"|"api"|"correction"|..., "reason": ""}}
+    condition_provenance = models.JSONField(default=dict, blank=True, editable=False)
+
+    # Pathology summary: a read-only PROJECTION of the selected biopsy's
+    # interpretation, written only by pathology.services.projection. It is
+    # distinct from primary_diagnosis, the clinician's working diagnosis.
+    pathology_source_biopsy = models.ForeignKey(
+        "pathology.Biopsy", on_delete=models.SET_NULL, null=True, blank=True,
+        related_name="+", editable=False,
+        help_text="Biopsy the pathology summary below is projected from.")
+    pathology_projection_state = models.CharField(
+        max_length=12, blank=True, editable=False,
+        choices=[("", "—"), ("final", "Final (reviewed)"),
+                 ("provisional", "Provisional (local read, review pending)")])
+    pathology_projected_at = models.DateTimeField(null=True, blank=True, editable=False)
     biopsy_diagnosis = models.CharField(
         max_length=120, blank=True,
-        help_text="GN diagnosis from biopsy (auto-synced from GNDiagnosis)")
+        help_text="GN diagnosis from biopsy (projected from the selected biopsy)")
     gn_broad_group = models.CharField(
         max_length=80, blank=True, choices=choices.GN_BROAD_GROUP,
         help_text="Broad disease category (auto-synced from GNDiagnosis)")
@@ -160,7 +201,63 @@ class Patient(models.Model):
         from django.core.exceptions import PermissionDenied
         raise PermissionDenied("Patient deletion is not permitted. Use registration_status='inactive' to mark patients as inactive.")
 
+    @classmethod
+    def from_db(cls, db, field_names, values):
+        instance = super().from_db(db, field_names, values)
+        instance._loaded_conditions = {
+            f: getattr(instance, f, None) for f in CONDITION_FIELDS
+            if f in instance.__dict__}
+        return instance
+
+    def refresh_from_db(self, *args, **kwargs):
+        super().refresh_from_db(*args, **kwargs)
+        # The reloaded values are the new "unchanged" state for provenance.
+        loaded = dict(getattr(self, "_loaded_conditions", None) or {})
+        for f in CONDITION_FIELDS:
+            if f in self.__dict__:
+                loaded[f] = getattr(self, f)
+        self._loaded_conditions = loaded
+
+    def _stamp_condition_provenance(self):
+        """Record who/when/how for every condition whose state changed.
+
+        Callers attach context with ``patient.provenance_source`` /
+        ``provenance_reason`` / ``provenance_by`` before saving; the audit
+        actor is used otherwise. Untouched conditions keep their stamp.
+        """
+        from django.utils import timezone
+        loaded = getattr(self, "_loaded_conditions", None)
+        if loaded is None:            # new instance: stamp what was set
+            loaded = {f: None for f in CONDITION_FIELDS}
+        changed = [f for f in CONDITION_FIELDS
+                   if f in loaded and getattr(self, f) != loaded[f]]
+        if not changed:
+            return []
+        by = getattr(self, "provenance_by", None)
+        if by is None:
+            try:
+                from audit.local import current_actor
+                by = current_actor()
+            except Exception:  # pragma: no cover - audit app unavailable
+                by = None
+        stamp = {
+            "at": timezone.now().isoformat(timespec="seconds"),
+            "by": getattr(by, "pk", None),
+            "source": getattr(self, "provenance_source", "") or "update",
+            "reason": getattr(self, "provenance_reason", "") or "",
+        }
+        prov = dict(self.condition_provenance or {})
+        for f in changed:
+            prov[f] = {"value": getattr(self, f), "previous": loaded.get(f), **stamp}
+        self.condition_provenance = prov
+        return changed
+
     def save(self, *args, **kwargs):
+        changed = self._stamp_condition_provenance()
+        update_fields = kwargs.get("update_fields")
+        if changed and update_fields is not None:
+            kwargs["update_fields"] = list(set(update_fields) | {"condition_provenance"})
+        self._loaded_conditions = {f: getattr(self, f) for f in CONDITION_FIELDS}
         if not self.patient_id:
             for _ in range(5):
                 self.patient_id = next_patient_id()

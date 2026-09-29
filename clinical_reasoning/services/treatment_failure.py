@@ -15,6 +15,7 @@ from datetime import timedelta
 from typing import Any
 
 from django.utils import timezone
+from .audit import audit_treatment_failure, audit_relapse
 
 logger = logging.getLogger(__name__)
 
@@ -248,13 +249,18 @@ def detect_treatment_failure(patient, clinical_profile=None) -> TreatmentFailure
     alerts.sort(key=lambda a: _priority_order(a.priority))
     summary = _build_failure_summary(alerts, primary_disease, treatment_duration)
 
-    return TreatmentFailureReport(
+    _fail_report = TreatmentFailureReport(
         patient_id=patient.patient_id,
         primary_disease=primary_disease,
         alerts=alerts,
         treatment_duration_months=treatment_duration,
         summary=summary,
     )
+
+    # Record recommendation in audit trail
+    audit_treatment_failure(patient, _fail_report)
+
+    return _fail_report
 
 
 def detect_relapse(patient, clinical_profile=None) -> list[TreatmentFailureAlert]:
@@ -304,6 +310,9 @@ def detect_relapse(patient, clinical_profile=None) -> list[TreatmentFailureAlert
             severity="critical",
             priority="urgent",
         ))
+
+    # Record recommendation in audit trail
+    audit_relapse(patient, alerts)
 
     return alerts
 

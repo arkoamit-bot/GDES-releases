@@ -6,9 +6,12 @@ with hospital information systems and registries.
 
 from __future__ import annotations
 
+import logging
 import uuid
 from datetime import date
 from typing import Any
+
+logger = logging.getLogger(__name__)
 
 
 def _full_url(resource_type: str, local_id: int) -> str:
@@ -219,6 +222,7 @@ def export_patient_bundle(patient, include_related: bool = False) -> dict:
          "resource": export_patient(patient),
          "request": {"method": "PUT", "url": f"Patient/{_full_url('Patient', patient.id)}"}},
     ]
+    issues: list[dict[str, str]] = []
 
     if include_related:
         # Conditions from primary diagnosis
@@ -229,35 +233,51 @@ def export_patient_bundle(patient, include_related: bool = False) -> dict:
                 "request": {"method": "PUT", "url": "Condition/..."},
             })
 
-        # Lab results
-        try:
-            for lab in patient.lab_results.all()[:100]:
+        # Lab results. A failure on one Observation must not discard the rest of
+        # the patient's labs, and it must be visible to the receiving system —
+        # the Bundle carries a FHIR OperationOutcome-style `issue` for each drop.
+        for lab in patient.lab_results.all()[:100]:
+            try:
                 entries.append({
                     "fullUrl": _full_url("Observation", lab.id),
                     "resource": export_lab_result(lab),
                     "request": {"method": "PUT", "url": "Observation/..."},
                 })
-        except Exception:
-            pass
+            except Exception:
+                logger.exception("Omitted LabResult %s for patient %s", lab.id, patient.id)
+                issues.append({
+                    "severity": "warning",
+                    "code": "processing",
+                    "diagnostics": f"LabResult {lab.id} could not be exported",
+                })
 
         # Prescriptions
-        try:
-            for encounter in patient.encounters.all():
-                for rx in encounter.prescriptions.filter(status="final"):
-                    for item in rx.items.all():
+        for encounter in patient.encounters.all():
+            for rx in encounter.prescriptions.filter(status="final"):
+                for item in rx.items.all():
+                    try:
                         entries.append({
                             "fullUrl": _full_url("MedicationRequest", item.id),
                             "resource": export_medication_request(item),
                             "request": {"method": "PUT", "url": "MedicationRequest/..."},
                         })
-        except Exception:
-            pass
+                    except Exception:
+                        logger.exception(
+                            "Omitted PrescriptionItem %s for patient %s", item.id, patient.id)
+                        issues.append({
+                            "severity": "warning",
+                            "code": "processing",
+                            "diagnostics": f"PrescriptionItem {item.id} could not be exported",
+                        })
 
-    return {
+    bundle = {
         "resourceType": "Bundle",
         "type": "collection",
         "entry": entries,
     }
+    if issues:
+        bundle["issue"] = issues
+    return bundle
 
 
 def export_all_patients() -> dict:

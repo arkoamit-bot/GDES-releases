@@ -53,12 +53,19 @@ class UserProfile(models.Model):
 
     def save(self, *args, **kwargs):
         super().save(*args, **kwargs)
-        # Keep the user's Group membership in sync with the role
+        # Keep the role group in sync *without* discarding other memberships.
+        # `groups.set([role])` / `groups.clear()` replaced the whole set, so
+        # saving a profile silently dropped any extra permission group, and a
+        # blank role (the field default, reached via _ensure_profile on first
+        # login) stripped every group the user had.
+        role_groups = {name for name, _ in self._meta.get_field("role").choices if name}
         if self.role:
             group, _ = Group.objects.get_or_create(name=self.role)
-            self.user.groups.set([group])
-        else:
-            self.user.groups.clear()
+            self.user.groups.add(group)
+        stale = [g for g in self.user.groups.all()
+                 if g.name in role_groups and g.name != self.role]
+        if stale:
+            self.user.groups.remove(*stale)
 
 
 class Invitation(models.Model):

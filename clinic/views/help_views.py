@@ -1,12 +1,18 @@
-"""Help / documentation views."""
+"""Help / documentation views.
+"""
 from __future__ import annotations
 
-from django.contrib import messages
-from django.shortcuts import redirect, render
+from ._common import (  # noqa: F401
+    login_required,
+    messages,
+    redirect,
+    render,
+)
 
-from ._common import login_required
 
-
+# --- Help / documentation ---------------------------------------------------
+# Three in-app guides. The user guide is open to any signed-in user; the admin
+# guide is gated to staff; the developer guide to the superuser (the maintainer).
 @login_required
 def help_index(request):
     return render(request, "help/index.html", {"active": "help"})

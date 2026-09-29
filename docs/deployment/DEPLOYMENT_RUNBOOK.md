@@ -205,6 +205,19 @@ $env:GITHUB_TOKEN = "<token with contents:write on the releases repo>"
 ```
 GitHub computes the asset SHA-256 digest automatically; the app verifies it.
 
+**Name the asset `GDES-<ver>.zip`** (the launcher prefers this; a `BGDDR-<ver>.zip`
+name still works as a legacy fallback, but keep the OneDrive and GitHub channels
+consistent).
+
+**If an update is detected + downloaded but nothing installs** (no `.old-<ver>`
+backup, `Data\Logs\update.log` has only the "spawning helper" line): the swap
+helper is being blocked — almost always **antivirus/EDR killing the update
+PowerShell**. The updater now runs the helper in a **visible** console (not
+hidden) and retries the download, which helps, but the reliable fix is to
+**allowlist `%LOCALAPPDATA%\GDES\` in Defender/EDR**. On a locked-down PC, the
+installer (`Setup_GDES_*.exe`) is the fallback. Check Windows Security →
+Protection history for a blocked PowerShell around the update time.
+
 **⚠️ Public vs private — security decision:**
 - **Recommended:** a **PUBLIC "releases-only" repo** (e.g. `arkoamit-bot/GDES-releases`)
   holding just the built zips (no source). Clinic PCs need **no token**; point them
@@ -259,6 +272,37 @@ equivalent: `tests/test_desktop_hardening.py::test_safe_migrate_rolls_back_on_fa
 | Blank browser page | Check `startup.log`; ensure Waitress bound `127.0.0.1:8000`. |
 | "Startup blocked — critical KB problem" | No active rules / DB unreadable — restore a recent backup. |
 | SmartScreen warning | Sign the binaries (§3) or More info → Run anyway. |
+| "Request Prescription from Vera" doesn't auto-paste | By design when the guard can't confirm the window (see below) — press Ctrl+V in Vera. |
+
+### Vera auto-paste (Windows only)
+
+"Request Prescription from Vera" copies the case note, opens Vera, and then
+sends **one Ctrl+V** from the desktop service — because the browser's
+same-origin policy makes it impossible for GDES to type into verahealth.ai.
+
+The keystroke fires **only** when the foreground window is verifiably a browser
+whose title mentions Vera, re-checked immediately before sending. If the
+clinician alt-tabs while the page loads, nothing is sent — this is what stops a
+full case note being pasted into an email or another patient's record. It never
+presses Enter; the clinician reviews the prompt and submits.
+
+Focusing the window is not enough — Ctrl+V goes wherever the caret is, which
+right after opening a tab is often the address bar (nothing appears in Vera).
+So after the guard passes, GDES clicks once in the composer strip at the
+bottom-centre of the verified Vera window, then pastes.
+
+Any failure is harmless: the clipboard still holds the prompt and the UI says
+to press Ctrl+V. Keystroke automation can be flagged by aggressive EDR — same
+allowlist as §7 applies.
+
+| Env var | Default | Use |
+|---|---|---|
+| `GDES_VERA_AUTOPASTE` | `1` | `0` disables auto-paste entirely (copy only). |
+| `GDES_VERA_AUTOPASTE_SETTLE` | `3.5` | Seconds to wait for Vera's page to render. Raise on a slow PC if the paste lands before the composer exists. |
+| `GDES_VERA_AUTOPASTE_CLICK` | `1` | `0` skips the click (paste only into whatever is already focused). |
+
+Check `startup.log` for `bgddr.vera.autopaste` lines — they record the matched
+window title, whether the click landed, and the final outcome.
 
 ---
 

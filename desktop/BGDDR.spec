@@ -68,6 +68,10 @@ os.environ.setdefault("DJANGO_SETTINGS_MODULE", "bgddr.settings_desktop")
 
 PROJECT = Path(os.getcwd())
 
+# OneDrive renames the losing copy with the device name when this folder is
+# synced from two machines. Add a suffix here for every device that syncs it.
+CONFLICT_SUFFIXES = ("-Dr-Wasim", "-Home")
+
 # Local Django apps that ship templates / static / migrations.
 # NOTE: keep in sync with INSTALLED_APPS in bgddr/settings.py. Django imports
 # apps dynamically (importlib), so PyInstaller's static analysis will NOT find
@@ -81,10 +85,49 @@ LOCAL_APPS = [
     "clinical", "knowledge", "timeline", "reminders", "fhir", "events",
     "clinical_reasoning", "followup",
     "feedback",
+    # Vera Health integration (auth + the guarded auto-paste). This was missing
+    # until 7.3.12, so no packaged build shipped its loose .py files.
+    "clinical_evidence",
+    # "auth" is NOT in INSTALLED_APPS — it is a bare module included directly by
+    # bgddr/urls.py (path("auth/", include("auth.urls"))). Nothing else imports it,
+    # so PyInstaller left it out of 7.3.12 and EVERY request 500'd with
+    # ModuleNotFoundError: No module named 'auth' (the URLconf failed to import).
+    # Keep it listed here even though it is not a Django app.
+    "auth",
+    # Same situation: bgddr/urls.py includes decision.urls (legacy evaluate_case
+    # endpoints) but "decision" is not in INSTALLED_APPS, so it too was omitted.
+    "decision",
 ]
+# Guard: every local Django app must be listed above, or its templates and
+# loose .py files are silently dropped from the build.
+def _check_local_apps_cover_installed_apps():
+    import ast
+    settings_py = PROJECT / "bgddr" / "settings.py"
+    try:
+        tree = ast.parse(settings_py.read_text(encoding="utf-8"))
+    except Exception:
+        return
+    for node in ast.walk(tree):
+        if not (isinstance(node, ast.Assign)
+                and any(getattr(t, "id", "") == "INSTALLED_APPS" for t in node.targets)):
+            continue
+        for element in getattr(node.value, "elts", []):
+            name = getattr(element, "value", None)
+            if not isinstance(name, str):
+                continue
+            root = name.split(".")[0]
+            if (PROJECT / root / "__init__.py").exists() and root not in LOCAL_APPS:
+                print(f"BGDDR.spec WARNING: local app {root!r} is in INSTALLED_APPS "
+                      f"but not in LOCAL_APPS — its files will not be bundled.")
+_check_local_apps_cover_installed_apps()
 
 # Third-party packages whose Python submodules must be fully bundled.
 THIRD_PARTY = [
+    # Shared clinical intelligence (CKD-EPI 2021 eGFR, KDIGO grid, renal dose).
+    # labs/services/egfr.py is a thin shim over this, so leaving it out packages
+    # an app that cannot compute an eGFR -- and eGFR drives CKD staging, the
+    # outcome endpoints and the dosing checks.
+    "gdes_core",
     "django", "rest_framework", "jazzmin", "whitenoise", "waitress",
     "openpyxl", "et_xmlfile",
     # SPSS .sav export (pyreadstat is a compiled extension on top of pandas).
@@ -92,6 +135,23 @@ THIRD_PARTY = [
     # Background tasks — Celery's Django fixup & kombuserialisation.
     "celery", "kombu", "billiard", "vine",
 ]
+
+# --- Build-time guard -------------------------------------------------------
+# Every module that bgddr/urls.py pulls in via include("<mod>.urls") MUST be in
+# LOCAL_APPS, or PyInstaller silently omits it and EVERY request 500s at runtime
+# with ModuleNotFoundError while importing the URLconf. This bit 7.3.12 (the bare
+# "auth" module, which is not in INSTALLED_APPS so app-based checks miss it).
+# Fail the build here instead of shipping a broken exe.
+import re as _re
+_urls_src = (PROJECT / "bgddr" / "urls.py").read_text(encoding="utf-8")
+_included = set(_re.findall(r'include\(\s*["\']([\w_]+)\.urls["\']', _urls_src))
+_missing = sorted(m for m in _included if m not in LOCAL_APPS)
+if _missing:
+    raise SystemExit(
+        "BGDDR.spec: bgddr/urls.py includes these modules that are NOT in "
+        f"LOCAL_APPS: {_missing}. Add them to LOCAL_APPS, or the packaged app "
+        "will 500 on every request."
+    )
 
 # Collect everything: modules, data files, and binaries for all packages.
 hiddenimports = []
@@ -148,6 +208,10 @@ for app in LOCAL_APPS:
         continue
     for py_file in app_dir.rglob("*.py"):
         if "__pycache__" in str(py_file):
+            continue
+        # OneDrive conflict copies ("version-Dr-Wasim.py") are stale duplicates;
+        # bundling them ships dead code and bloats every clinic PC's download.
+        if any(suffix in py_file.name for suffix in CONFLICT_SUFFIXES):
             continue
         rel = py_file.relative_to(PROJECT)
         datas.append((str(py_file), str(rel.parent)))

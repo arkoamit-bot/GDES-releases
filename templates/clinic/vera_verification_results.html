@@ -1,0 +1,137 @@
+{% extends "base.html" %}
+
+{% block title %}Case Summary — {{ patient.patient_id }}{% endblock %}
+
+{% block extra_css %}
+<style>
+  .case-summary-wrap { max-width: 700px; margin: 0 auto; padding: 16px; }
+  .case-header { text-align: center; margin-bottom: 16px; }
+  .case-header h2 { font-size: 18px; font-weight: 800; color: #1e3a5f; margin: 0 0 4px 0; }
+  .case-header p { font-size: 12px; color: #6b7280; margin: 0; }
+  .case-table { width: 100%; border-collapse: collapse; font-size: 13px; margin-bottom: 16px; }
+  .case-table td { padding: 8px 12px; border-bottom: 1px solid #f1f5f9; vertical-align: top; }
+  .case-table td:first-child { font-weight: 600; color: #374151; width: 180px; white-space: nowrap; }
+  .case-table td:last-child { color: #1f2937; }
+  .case-table tr:last-child td { border-bottom: 2px solid #e2e8f0; }
+  .case-table tr:hover td { background: #f8fafc; }
+  .case-highlight { color: #dc2626; font-weight: 600; }
+  .btn-row { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 16px; }
+  .case-btn { padding: 8px 16px; border-radius: 8px; font-size: 13px; font-weight: 600; cursor: pointer; border: 1px solid transparent; display: inline-flex; align-items: center; gap: 6px; text-decoration: none; }
+  .btn-copy { background: #059669; color: white; }
+  .btn-copy:hover { background: #047857; }
+  .btn-open { background: #7c3aed; color: white; }
+  .btn-open:hover { background: #6d28d9; }
+  .btn-print { background: #2563eb; color: white; }
+  .btn-print:hover { background: #1d4ed8; }
+  .btn-back { background: white; color: #374151; border-color: #d1d5db; }
+  .btn-back:hover { background: #f9fafb; }
+  .copied-toast { position: fixed; top: 20px; right: 20px; background: #059669; color: white; padding: 12px 24px; border-radius: 8px; font-weight: 600; z-index: 100; animation: fadeInOut 2.5s ease-in-out; }
+  @keyframes fadeInOut { 0% { opacity: 0; transform: translateY(-10px); } 15% { opacity: 1; transform: translateY(0); } 85% { opacity: 1; } 100% { opacity: 0; } }
+  @media print {
+    body * { visibility: hidden; }
+    .case-summary-wrap, .case-summary-wrap * { visibility: visible; }
+    .case-summary-wrap { position: absolute; left: 0; top: 0; width: 100%; padding: 20px; }
+    .btn-row, .no-print { display: none !important; }
+  }
+</style>
+{% endblock %}
+
+{% block content %}
+<div id="copied-toast" class="copied-toast" style="display:none;"><i class="fas fa-check"></i> Copied to clipboard</div>
+
+{% if error %}
+<div class="case-summary-wrap">
+  <div style="padding:20px;background:#fef2f2;border:1px solid #fecaca;border-radius:8px;color:#991b1b;font-size:14px;">
+    <i class="fas fa-exclamation-triangle" style="margin-right:6px;"></i>{{ error }}
+  </div>
+  <div style="margin-top:12px;">
+    <a href="{% url 'clinic:patient_detail' patient.pk %}" class="case-btn btn-back"><i class="fas fa-arrow-left"></i> Back to Patient</a>
+  </div>
+</div>
+{% else %}
+<div class="case-summary-wrap">
+
+  <!-- Header -->
+  <div class="case-header">
+    <h2>Clinical Case Summary</h2>
+    <p>For Independent AI Review &middot; {{ patient.patient_id }}</p>
+  </div>
+
+  <!-- Buttons -->
+  <div class="btn-row no-print">
+    <a href="{% url 'clinic:patient_detail' patient.pk %}" class="case-btn btn-back">
+      <i class="fas fa-arrow-left"></i> Back
+    </a>
+    <button onclick="copyForVera()" class="case-btn btn-copy" id="copy-btn">
+      <i class="fas fa-copy"></i> Copy for Vera
+    </button>
+    <button onclick="window.print()" class="case-btn btn-print">
+      <i class="fas fa-print"></i> Print
+    </button>
+    <a href="https://verahealth.ai" target="_blank" rel="noopener" class="case-btn btn-open">
+      <i class="fas fa-external-link-alt"></i> Open Vera Health
+    </a>
+  </div>
+
+  <!-- Case Summary Table -->
+  <table class="case-table">
+    <tbody>
+      {% for label, value in case_rows %}
+      <tr>
+        <td>{{ label }}</td>
+        <td{% if label == "Proteinuria" and value != "-" and value != "Not quantified" %} class="case-highlight"{% endif %}>{{ value }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+
+  <!-- Hidden textarea for copy -->
+  <textarea id="copy-text" style="position:absolute;left:-9999px;">{{ copy_text }}</textarea>
+
+</div>
+{% endif %}
+
+<script>
+function copyForVera() {
+  var ta = document.getElementById('copy-text');
+  ta.style.position = 'fixed';
+  ta.style.left = '0';
+  ta.style.top = '0';
+  ta.style.width = '1px';
+  ta.style.height = '1px';
+  ta.style.opacity = '0.01';
+  ta.style.display = 'block';
+  ta.focus();
+  ta.select();
+  try {
+    document.execCommand('copy');
+    showCopySuccess();
+  } catch(e) {
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(ta.value).then(showCopySuccess).catch(function() {
+        alert('Copy failed. Please select and copy manually.');
+      });
+    } else {
+      alert('Copy failed. Please select and copy manually.');
+    }
+  }
+  ta.style.position = 'absolute';
+  ta.style.left = '-9999px';
+  ta.style.display = '';
+}
+
+function showCopySuccess() {
+  var btn = document.getElementById('copy-btn');
+  var toast = document.getElementById('copied-toast');
+  var orig = btn.innerHTML;
+  btn.innerHTML = '<i class="fas fa-check"></i> Copied!';
+  btn.style.background = '#047857';
+  if (toast) { toast.style.display = 'block'; }
+  setTimeout(function() {
+    btn.innerHTML = orig;
+    btn.style.background = '';
+    if (toast) { toast.style.display = 'none'; }
+  }, 2500);
+}
+</script>
+{% endblock %}

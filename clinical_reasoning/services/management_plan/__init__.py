@@ -99,3 +99,5 @@ __all__ = [
     "_add_ckd_modifications",
     "_build_default_plan",
 ]
+
+from .base import merge_kb_recommendations  # noqa: E402,F401

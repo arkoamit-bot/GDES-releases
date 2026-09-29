@@ -144,9 +144,13 @@ def export_feedback_package(date_from=None, date_to=None):
 
 def generate_improvement_suggestions():
     from django.db.models import Count, Q
-    from ..models import ClinicalConflict, KnowledgeImprovementSuggestion
+    from ..models import (
+        ClinicalConflict, KnowledgeImprovementSuggestion, WorkflowFeedback,
+    )
 
     suggestions = []
+
+    # Source 1: ClinicalConflict overrides (existing logic)
     conflicts = (
         ClinicalConflict.objects
         .filter(resolved=False)
@@ -179,6 +183,53 @@ def generate_improvement_suggestions():
             suggestion.override_count = override_count
             if sample:
                 suggestion.common_override_reason = sample["reason"]
+            suggestion.save(update_fields=["override_count", "common_override_reason"])
+
+        suggestions.append(suggestion)
+
+    # Source 2: WorkflowFeedback overrides (Sprint 6)
+    wf_overrides = (
+        WorkflowFeedback.objects
+        .filter(action__in=("modify", "reject"))
+        .exclude(recommendation_ref="")
+        .values("recommendation_ref")
+        .annotate(count=Count("id"))
+        .filter(count__gte=3)
+    )
+
+    for wf in wf_overrides:
+        ref = wf["recommendation_ref"]
+        override_count = wf["count"]
+
+        rule_id = ref
+        disease = ""
+        if ref.startswith("differential:"):
+            disease = ref.split(":", 1)[1]
+            rule_id = ref
+
+        sample = (
+            WorkflowFeedback.objects
+            .filter(recommendation_ref=ref, action__in=("modify", "reject"))
+            .exclude(comments="")
+            .values("comments")
+            .annotate(cnt=Count("id"))
+            .order_by("-cnt")
+            .first()
+        )
+
+        suggestion, created = KnowledgeImprovementSuggestion.objects.get_or_create(
+            rule_id=rule_id,
+            disease=disease,
+            defaults={
+                "override_count": override_count,
+                "common_override_reason": sample["comments"] if sample else "",
+                "status": "pending",
+            },
+        )
+        if not created and suggestion.status == "pending":
+            suggestion.override_count = override_count
+            if sample:
+                suggestion.common_override_reason = sample["comments"]
             suggestion.save(update_fields=["override_count", "common_override_reason"])
 
         suggestions.append(suggestion)
@@ -265,5 +316,19 @@ def generate_summary_report():
             .annotate(count=Count("id"))
             .order_by("-count")[:10]
         ),
+        # Sprint 6: Override analytics
+        "override_analytics": _compute_override_analytics(),
     }
     return report
+
+
+def _compute_override_analytics():
+    """Compute override analytics for the summary report."""
+    from ..analytics import overall_override_rate, override_rate_by_disease
+
+    overall = overall_override_rate(90)
+    by_disease = override_rate_by_disease(90)
+    return {
+        "overall_90d": overall,
+        "by_category_90d": by_disease,
+    }

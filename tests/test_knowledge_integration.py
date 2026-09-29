@@ -18,6 +18,10 @@ pytestmark = [pytest.mark.django_db, pytest.mark.usefixtures("django_db_setup")]
 # Helper — build a minimal patient with clinical data for a given disease
 # ---------------------------------------------------------------------------
 
+# 2026-09-27 (entry-linkage review): ANCA and anti-GBM are stated as
+# "Positive" reads. They were a bare numeric 1 with no reference range, which
+# only counted as evidence because reasoning treated a result's presence as
+# positivity (a Negative ANCA counted too).
 def _make_patient(patient_id, diagnosis, egfr, labs, biopsy_gn=None,
                   encounter_type="baseline", phase="active", features_extra=None):
     from patients.models import Patient
@@ -39,8 +43,11 @@ def _make_patient(patient_id, diagnosis, egfr, labs, biopsy_gn=None,
         test, _ = LabTest.objects.get_or_create(
             code=code, defaults={"name": code, "value_type": "numeric"},
         )
+        # A string is a qualitative read ("Positive"); a number is a value.
         LabResult.objects.create(
-            patient=p, test=test, value_numeric=val,
+            patient=p, test=test,
+            value_numeric=None if isinstance(val, str) else val,
+            value_text=val if isinstance(val, str) else "",
             result_date=date.today(),
         )
     if biopsy_gn:
@@ -83,7 +90,7 @@ class TestLupusIntegration:
 class TestANCAIntegration:
     def test_anca_differential(self):
         p = _make_patient("INT-ANCA-001", "ANCA vasculitis", Decimal("25"),
-                          labs=[("creatinine", Decimal("2.5")), ("anca", 1)],
+                          labs=[("creatinine", Decimal("2.5")), ("anca", "Positive")],
                           biopsy_gn="ANCA vasculitis")
         from clinical_reasoning.services.engine import reason_about_patient
         profile = reason_about_patient(p)
@@ -127,7 +134,7 @@ class TestMCDIntegration:
 class TestAntiGBMIntegration:
     def test_anti_gbm_differential(self):
         p = _make_patient("INT-GBM-001", "Anti-GBM disease", Decimal("15"),
-                          labs=[("creatinine", Decimal("4.0")), ("antiGbm", 1)],
+                          labs=[("creatinine", Decimal("4.0")), ("antiGbm", "Positive")],
                           biopsy_gn="Anti-GBM disease")
         from clinical_reasoning.services.engine import reason_about_patient
         profile = reason_about_patient(p)

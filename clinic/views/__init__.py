@@ -17,11 +17,22 @@ PACKAGE STRUCTURE:
     lab_views.py           — Lab ordering and results entry
     knowledge_views.py     — Drug intelligence, studies, feedback, safety, pathology, biomarkers
     worklist_views.py      — Scheduling worklist
+    clinical_intelligence_views.py — Reasoning run, Vera Health verification/prescription
     help_views.py          — Help / documentation pages
 """
 from __future__ import annotations
 
-# --- Patient views ----------------------------------------------------------
+from ._common import (  # noqa: F401
+    LOGIN,
+    MAX_PRESCRIPTION_ITEMS,
+    _clip,
+    _save_labs,
+    _panel_messages,
+    _get_recommendation_audit_records,
+    _get_patient_override_context,
+    _get_prediction_history,
+    _safe_call,
+)
 from .patient_views import (  # noqa: F401
     patients_list,
     quicksearch,
@@ -31,49 +42,58 @@ from .patient_views import (  # noqa: F401
     patient_edit,
     patient_detail,
 )
-
-# --- Encounter views --------------------------------------------------------
 from .encounter_views import (  # noqa: F401
     baseline_edit,
+    _sync_level2_from_followup,
     followup_create,
     patient_register,
     relapse_create,
     admission_create,
 )
-
-# --- Clinical workflow views ------------------------------------------------
 from .clinical_views import (  # noqa: F401
     adverse_event_create,
+    _reconcile_lupus_class,
+    _reconcile_qualifiers,
+    _apply_consistency,
+    _attach_report_errors,
+    _biopsy_summary_flags,
     biopsy_create,
+    _finding_sections,
+    biopsy_detail,
+    biopsy_amend,
+    adopt_pathology_diagnosis,
     study_enroll,
     consent_manage,
     treatment_add,
 )
-
-# --- Prescription views -----------------------------------------------------
 from .prescription_views import (  # noqa: F401
+    DOSE_UNITS,
+    _requested_tests,
     prescription_create,
     prescriptions_list,
 )
-
-# --- Analytics / export views -----------------------------------------------
+from .clinical_intelligence_views import (  # noqa: F401
+    run_clinical_intelligence,
+    verify_treatment_with_vera,
+    _build_treatment_verification_prompt,
+    _build_prescription_prompt,
+    request_vera_prescription,
+    vera_autopaste,
+    save_vera_response,
+)
 from .analytics_views import (  # noqa: F401
+    outcome_recompute,
     quality_page,
+    _drug_group_options,
     analytics_page,
     export_page,
-    outcome_recompute,
     cox_results,
     egfr_slope_results,
     cif_results,
 )
-
-# --- Lab views --------------------------------------------------------------
-from .lab_views import (  # noqa: F401
-    lab_order_create,
-    lab_results_entry,
+from .worklist_views import (  # noqa: F401
+    worklist_page,
 )
-
-# --- Knowledge views --------------------------------------------------------
 from .knowledge_views import (  # noqa: F401
     studies_page,
     drug_intelligence_page,
@@ -83,13 +103,10 @@ from .knowledge_views import (  # noqa: F401
     pathology_page,
     biomarkers_page,
 )
-
-# --- Worklist views ---------------------------------------------------------
-from .worklist_views import (  # noqa: F401
-    worklist_page,
+from .lab_views import (  # noqa: F401
+    lab_order_create,
+    lab_results_entry,
 )
-
-# --- Help views -------------------------------------------------------------
 from .help_views import (  # noqa: F401
     help_index,
     help_user,

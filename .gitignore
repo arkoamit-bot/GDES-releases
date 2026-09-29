@@ -5,6 +5,8 @@
 
 # Python
 __pycache__/
+venv/
+.venv/
 *.py[cod]
 .pytest_cache/
 *.egg-info/
@@ -24,6 +26,13 @@ db-*.sqlite3
 /Media/
 /media/
 /Exports/
+# Git matches ignore patterns case-insensitively on Windows (core.ignorecase),
+# so /Exports/ above also swallowed the `exports` Django app. Track its Python
+# source only; runtime export files never get a .py suffix.
+!/exports/
+/exports/**
+!/exports/**/
+!/exports/**/*.py
 /Imports/
 /Temp/
 .initialized
@@ -58,8 +67,13 @@ node_modules/
 Thumbs.db
 .claude/settings.local.json
 
-# Scratch / per-machine customisations (never commit)
-*-Dr-Wasim.*
+# OneDrive conflict copies. Syncing this folder from two machines renames the
+# loser with a device suffix — "launcher-Dr-Wasim.py", and "-Dr-Wasim-2.py" for
+# the second collision. The old pattern (*-Dr-Wasim.*) missed the numbered
+# variants, so one of them was committed. Add a line per device that syncs
+# this folder.
+*-Dr-Wasim*
+*-Home*
 
 # Keep the COMPILED stylesheet (static/css/app.css) and vendored JS committed so
 # the app runs without a Node build; only re-run `npm run build:css` when the

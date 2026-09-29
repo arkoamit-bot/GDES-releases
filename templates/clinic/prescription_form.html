@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% load static %}
 {% block title %}Prescription — {{ patient.patient_id }}{% endblock %}
 {% block heading %}New prescription · {{ patient.patient_id }}{% endblock %}
 {% block content %}
@@ -35,44 +36,63 @@
             <option value="{{ val }}" {% if val == default_diagnosis %}selected{% endif %}>{{ label }}</option>
             {% endfor %}
           </select>
+          {% if diagnosis_source_label %}<div class="help" id="dx-source" style="margin-top:4px"><i class="fas fa-link"></i> {{ diagnosis_source_label }} — edit if it has changed.</div>{% endif %}
+          {% if diagnosis_newer_draft %}
+          <div class="help" style="margin-top:4px;color:#92400e">
+            A newer draft ({{ diagnosis_newer_draft.encounter.encounter_date|date:"d M Y" }}, v{{ diagnosis_newer_draft.version }}{% if diagnosis_newer_draft.diagnosis_text %}, diagnosis “{{ diagnosis_newer_draft.diagnosis_text }}”{% endif %}) was saved but not finalized.
+            <a href="{% url 'prescriptions:preview' diagnosis_newer_draft.pk %}" style="color:#4f46e5">Resume that draft</a> instead of starting a new one.
+          </div>
+          {% endif %}
+          {% for label, value in diagnosis_also_on_record %}
+          <div class="help" style="margin-top:4px">{{ label }}: <b>{{ value }}</b>
+            <button type="button" class="btn ghost sm dx-use" data-value="{{ value }}" style="padding:1px 8px;margin-left:4px">Use this</button></div>
+          {% endfor %}
           <div style="margin-top:10px">
-            <label style="display:block;margin-bottom:4px">Comorbidities
-              <span class="help" style="display:inline;margin:0">(pre-filled from baseline)</span>
+            <label style="display:block;margin-bottom:4px">Comorbidities to print
+              <span class="help" style="display:inline;margin:0">— ticked from the patient record; unticking only leaves it off this slip.
+              <a href="{% url 'clinic:patient_edit' patient.pk %}" style="color:#4f46e5"><i class="fas fa-pen"></i> Edit at source</a></span>
             </label>
             <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:4px 10px">
+              {% for c in record_comorbidities %}
+              <label style="display:flex;align-items:center;gap:6px;font-size:13px;cursor:pointer" title="{% if c.source == 'legacy_baseline' %}Only an older baseline records this — confirm on the patient record{% else %}From the patient record{% endif %}">
+                <input type="checkbox" name="comorbidities" value="{{ c.label }}" checked> {{ c.label }}{% if c.source == "legacy_baseline" %} <span class="badge neutral" style="font-size:10px">confirm</span>{% endif %}
+              </label>
+              {% endfor %}
               {% for c in comorbidity_options %}
-              <label style="display:flex;align-items:center;gap:6px;font-size:13px;cursor:pointer">
+              <label style="display:flex;align-items:center;gap:6px;font-size:13px;cursor:pointer" title="Prescription-only: not stored on the patient record">
                 <input type="checkbox" name="comorbidities" value="{{ c }}"{% if c in prefill_comorbid %} checked{% endif %}> {{ c }}
               </label>
               {% endfor %}
             </div>
-            <input type="text" name="comorbidities_text" placeholder="Other comorbidities (free text)" style="width:100%;margin-top:6px" value="{{ comorbid_extra }}">
+            <input type="text" name="comorbidities_text" placeholder="Prescription-only notes (not added to the patient record)" style="width:100%;margin-top:6px" value="{{ comorbid_extra }}">
           </div>
         </div>
         <div class="frow">
           <label>Investigations advised</label>
           <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px">
-            <span class="help" style="margin:0">Tick the tests to order:</span>
+            <span class="help" style="margin:0">Tick the tests to request. Orders are placed when the prescription is <b>finalized</b>, not when the draft is saved.</span>
             <a href="javascript:void(0)" id="inv-toggle" style="font-size:12px;color:#26215C;text-decoration:none" onclick="var chks=document.querySelectorAll('input[name=investigations_advised]');var allOn=[...chks].every(c=>c.checked);chks.forEach(c=>c.checked=!allOn);this.textContent=allOn?'Select all':'Clear all';return false;">Select all</a>
           </div>
           <div class="inv-grid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:6px;margin-bottom:8px;max-height:160px;overflow-y:auto;border:1px solid #ddd;padding:8px;border-radius:6px;background:#fafafa">
             {% for t in lab_tests %}
             <label class="inv-chk" style="display:flex;align-items:center;gap:6px;font-size:13px;cursor:pointer;padding:2px 4px;border-radius:4px;transition:background .15s" onmouseover="this.style.background='#e8e6f3'" onmouseout="if(!this.querySelector('input').checked)this.style.background='transparent'">
-              <input type="checkbox" name="investigations_advised" value="{{ t.name }}" style="cursor:pointer"{% if t.name in prefill_invest %} checked{% endif %} onchange="this.parentElement.style.background=this.checked?'#d7d4ec':'transparent'">
-              <span>{{ t.name }}</span>
+              <input type="checkbox" name="investigations_advised" value="{{ t.pk }}" style="cursor:pointer"{% if t.pk in prefill_invest %} checked{% endif %} onchange="this.parentElement.style.background=this.checked?'#d7d4ec':'transparent'">
+              <span>{{ t.name }}{% if t.pk in outstanding_test_ids %} <span class="badge neutral" style="font-size:10px" title="Already ordered at this visit and not yet resulted — it will be linked, not ordered twice">ordered</span>{% endif %}</span>
             </label>
             {% empty %}
             <div class="help" style="grid-column:1/-1">No lab tests configured. Add them in admin first.</div>
             {% endfor %}
           </div>
-          <input type="text" name="investigations_advised_text" placeholder="Additional investigations (free text)" style="width:100%">
+          <input type="text" name="investigations_advised_text" placeholder="Investigations not in the catalogue (free text)" style="width:100%" value="{{ prefill_invest_text }}">
+          {% if outstanding_orders %}<div class="help" style="margin-top:4px">Outstanding at this visit: {% for it in outstanding_orders %}{{ it.test.name }} ({{ it.order.ordered_date }}){% if not forloop.last %}, {% endif %}{% endfor %}.</div>{% endif %}
         </div>
       </div>
       <div class="cols2" style="margin-top:14px">
         <div class="frow">
           <label for="next_due_date">Next visit date</label>
           <input type="date" id="next_due_date" name="next_due_date" value="{{ default_next_visit }}" style="width:100%">
-          <div class="help">Auto-filled from the clinic schedule (4 weeks). Edit if needed.</div>
+          <div class="help">{% if next_visit_is_selected %}The visit's selected next appointment. Changing it here moves the appointment and its reminder (the change is recorded).{% else %}Suggestion: 4 weeks from today. It becomes the visit's next appointment when you save.{% endif %}</div>
+          <input type="hidden" name="next_due_original" value="{{ default_next_visit }}">
         </div>
       </div>
     </fieldset>
@@ -83,17 +103,18 @@
       <div id="dup-warning" class="msg warning" style="display:none;margin-bottom:10px"><i class="fas fa-triangle-exclamation"></i> <span id="dup-warning-text"></span></div>
       <div id="renal-warning" class="msg warning" style="display:none;margin-bottom:10px"><i class="fas fa-kidneys"></i> <span id="renal-warning-text"></span></div>
 
-      <div class="help" style="margin-bottom:10px">Pick a drug per row; leave rows blank if unused. <b>Brand</b>, <b>Route</b>, <b>Strength</b> and <b>Frequency</b> auto-fill from the formulary — strengths follow the chosen route (e.g. cyclophosphamide PO tablets vs IV vials). Choose "Other" to type freely.</div>
+      <div class="help" style="margin-bottom:10px">Pick a drug per row; leave rows blank if unused. <b>Brand</b>, <b>Route</b>, <b>Strength</b> and <b>Frequency</b> auto-fill from the formulary — strengths follow the chosen route (e.g. cyclophosphamide PO tablets vs IV vials). Choose "Other" to type freely. A <b>systemic steroid</b> (prednisolone, methylprednisolone) opens a <b>taper plan</b> panel under its row — a course that ends abruptly can suppress the adrenals, so record the step-down.</div>
       <div style="overflow-x:auto">
       <table class="grid" style="min-width:1080px;table-layout:fixed;width:100%">
         <colgroup>
-          <col style="width:5%"><col style="width:20%"><col style="width:13%">
-          <col style="width:8%"><col style="width:14%">
-          <col style="width:14%"><col style="width:12%"><col style="width:14%">
+          <col style="width:5%"><col style="width:18%"><col style="width:12%">
+          <col style="width:7%"><col style="width:13%"><col style="width:9%">
+          <col style="width:13%"><col style="width:11%"><col style="width:12%">
         </colgroup>
         <thead><tr>
           <th>#</th><th>Drug</th><th>Brand</th>
           <th>Route</th><th>Strength</th>
+          <th title="Amount per administration, when not simply one unit of the product">Dose</th>
           <th>Frequency</th><th>Timing</th><th>Duration</th>
         </tr></thead>
         <tbody>
@@ -108,7 +129,7 @@
                 <option value="">— select —</option>
                 {% for label, items in drug_groups %}
                 <optgroup label="{{ label }}">
-                  {% for d in items %}<option value="{{ d.pk }}"{% if d.pk == r.drug_id %} selected{% endif %}>{{ d.generic_name }}</option>{% endfor %}
+                  {% for d in items %}<option value="{{ d.pk }}" data-search="{{ d.search_text }}"{% if d.pk == r.drug_id %} selected{% endif %}>{{ d.generic_name }}</option>{% endfor %}
                 </optgroup>
                 {% endfor %}
               </select>
@@ -118,7 +139,7 @@
                 <option value="">— generic —</option>
                 <option value="__other__">Other → type</option>
               </select>
-              <input type="text" name="brand_{{ r.i }}" class="brand-inp" placeholder="brand name" style="width:100%;{% if not r.brand %}display:none{% endif %}" value="{{ r.brand|default:'' }}">
+              <input type="text" name="brand_{{ r.i }}" class="brand-inp" maxlength="120" placeholder="brand name" style="width:100%;{% if not r.brand %}display:none{% endif %}" value="{{ r.brand|default:'' }}">
             </td>
             <td>
               <select name="route_{{ r.i }}" class="route-sel" data-row="{{ r.i }}" style="width:100%">
@@ -130,14 +151,20 @@
                 <option value="">— select —</option>
                 <option value="__other__">Other → type</option>
               </select>
-              <input type="text" name="strength_{{ r.i }}" class="strength-inp" placeholder="e.g. 10mg" style="width:100%;{% if not r.strength %}display:none{% endif %}" value="{{ r.strength|default:'' }}">
+              <input type="text" name="strength_{{ r.i }}" class="strength-inp" maxlength="120" placeholder="e.g. 10mg" style="width:100%;{% if not r.strength %}display:none{% endif %}" value="{{ r.strength|default:'' }}">
+            </td>
+            <td>
+              <input type="text" name="dose_{{ r.i }}" maxlength="20" placeholder="1" title="Leave blank for one unit of the product per dose" style="width:100%;margin-bottom:4px" value="{{ r.dose|default:'' }}">
+              <select name="dose_unit_{{ r.i }}" style="width:100%">
+                {% for u, lbl in dose_units %}<option value="{{ u }}"{% if u == r.dose_unit %} selected{% endif %}>{{ lbl }}</option>{% endfor %}
+              </select>
             </td>
             <td>
               <select name="frequency_sel_{{ r.i }}" class="freq-sel" data-row="{{ r.i }}" style="width:100%;margin-bottom:4px">
                 <option value="">— select —</option>
                 <option value="__other__">Other → type</option>
               </select>
-              <input type="text" name="frequency_{{ r.i }}" class="freq-inp" placeholder="1+0+1" style="width:100%;{% if not r.frequency %}display:none{% endif %}" value="{{ r.frequency|default:'' }}">
+              <input type="text" name="frequency_{{ r.i }}" class="freq-inp" maxlength="40" placeholder="1+0+1" style="width:100%;{% if not r.frequency %}display:none{% endif %}" value="{{ r.frequency|default:'' }}">
             </td>
             <td>
               <select name="timing_{{ r.i }}" style="width:100%">
@@ -158,7 +185,32 @@
                 <option value="6 months">6 months</option>
                 <option value="__other__">Other → type</option>
               </select>
-              <input type="text" name="duration_{{ r.i }}" class="dur-inp" placeholder="e.g. 6 weeks" style="width:100%;{% if not r.duration %}display:none{% endif %}" value="{{ r.duration|default:'' }}">
+              <input type="text" name="duration_{{ r.i }}" class="dur-inp" maxlength="40" placeholder="e.g. 6 weeks" style="width:100%;{% if not r.duration %}display:none{% endif %}" value="{{ r.duration|default:'' }}">
+            </td>
+          </tr>
+          <tr class="rx-taper-row" data-row="{{ r.i }}"{% if not r.taper %} style="display:none"{% endif %}>
+            <td colspan="9" style="padding:0 8px 8px 8px">
+              <div style="border-left:3px solid #b45309;background:#fffbeb;border-radius:0 6px 6px 0;padding:8px 10px">
+                <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:6px">
+                  <label style="display:flex;align-items:center;gap:6px;font-size:13px;font-weight:600;color:#92400e;cursor:pointer">
+                    <input type="checkbox" class="taper-on" data-row="{{ r.i }}" style="cursor:pointer"{% if r.taper %} checked{% endif %}>
+                    Taper this course before stopping
+                  </label>
+                  <span class="help" style="margin:0;font-size:12px;color:#92400e">Do not stop a systemic steroid suddenly — write the step-down the patient follows.</span>
+                </div>
+                <div class="rx-taper-fields"{% if not r.taper %} style="display:none"{% endif %}>
+                  <div class="taper-preset-box" style="display:flex;align-items:center;gap:6px;margin-bottom:6px">
+                    <label for="taper-preset-{{ r.i }}" style="font-size:12px;color:#92400e;margin:0">Insert template:</label>
+                    <select id="taper-preset-{{ r.i }}" class="taper-preset" data-row="{{ r.i }}" style="min-width:280px">
+                      <option value="">— choose a taper template —</option>
+                    </select>
+                  </div>
+                  <textarea name="taper_{{ r.i }}" class="taper-inp" data-row="{{ r.i }}" rows="2"
+                            style="width:100%;font-size:13px"
+                            placeholder="e.g. 40 mg 1+0+0 × 1 wk → 20 mg 1+0+0 × 1 wk → 10 mg 1+0+0 × 1 wk → 5 mg 1+0+0 × 5 days → stop. Do not stop suddenly.">{{ r.taper|default:'' }}</textarea>
+                  <div class="help" style="margin-top:4px">Templates are starting points — edit them to the actual dose and duration for this patient. This text prints on the slip. Build reusable ones in <b>Admin → Prescriptions → Taper templates</b>; selecting one appends it here.</div>
+                </div>
+              </div>
             </td>
           </tr>
           {% endfor %}
@@ -169,6 +221,7 @@
         <i class="fas fa-plus"></i> Add medication
       </button>
       {{ drug_data|json_script:"drug-data" }}
+      {{ taper_presets|json_script:"taper-presets" }}
     </fieldset>
 
     <fieldset class="fieldset">
@@ -418,14 +471,104 @@
       stopNotes.push(name + ' — ' + reason);
       syncStopNotes();
       drugSel.value = '';                          // dropped from the Rx
+      if (window.SearchableSelect) SearchableSelect.refresh(drugSel);
       populateRow(row, false);
-      ['brand','strength','frequency','duration','instruction'].forEach(function(f){
+      ['brand','strength','dose','dose_unit','frequency','duration','instruction'].forEach(function(f){
         var i = el(f, row); if (i) i.value = '';
       });
       drugSel.closest('tr').style.display = 'none';
+      var taper = taperParts(row);
+      if (taper){
+        taper.text.value = '';
+        taper.box.checked = false;
+        taper.fields.style.display = 'none';
+        taper.tr.style.display = 'none';
+      }
       checkDuplicates(); checkRenal(); showRemoveButtons();
     });
   });
+
+  // ---- Steroid taper plan (one collapsible sub-row per medication line) -----
+  // Only a systemic single-agent steroid offers the taper plan; topical and
+  // ophthalmic combination drops never do. A row that already carries taper
+  // text stays visible even if the drug is re-picked, so work is never hidden.
+  var TAPERS = JSON.parse(document.getElementById('taper-presets').textContent);
+
+  function taperParts(row){
+    var tr = document.querySelector('tr.rx-taper-row[data-row="' + row + '"]');
+    if (!tr) return null;
+    return {
+      tr: tr,
+      box: tr.querySelector('.taper-on'),
+      fields: tr.querySelector('.rx-taper-fields'),
+      text: tr.querySelector('.taper-inp'),
+      preset: tr.querySelector('.taper-preset')
+    };
+  }
+
+  function syncTaperRow(row){
+    var t = taperParts(row);
+    if (!t) return;
+    var d = DRUGS[el('drug', row).value];
+    var eligible = !!(d && d.systemic_steroid) || !!t.text.value.trim();
+    t.tr.style.display = eligible ? '' : 'none';
+    if (!eligible){ t.box.checked = false; t.fields.style.display = 'none'; }
+    else { t.fields.style.display = t.box.checked ? '' : 'none'; }
+  }
+
+  document.querySelectorAll('.taper-on').forEach(function(box){
+    box.addEventListener('change', function(){
+      var t = taperParts(this.getAttribute('data-row'));
+      if (t) t.fields.style.display = this.checked ? '' : 'none';
+    });
+  });
+
+  // Taper templates (Admin -> Prescriptions -> Taper templates). Like advice
+  // templates, a pick appends, so a ladder and counselling can be combined.
+  document.querySelectorAll('.taper-preset').forEach(function(sel){
+    if (!TAPERS.length){ sel.closest('.taper-preset-box').style.display = 'none'; return; }
+    TAPERS.forEach(function(p, i){ sel.appendChild(opt(String(i), p.title)); });
+    sel.addEventListener('change', function(){
+      if (this.value === '') return;
+      var t = taperParts(this.getAttribute('data-row'));
+      if (!t) return;
+      var body = TAPERS[+this.value].body;
+      t.text.value = t.text.value.trim() ? t.text.value.replace(/\s*$/, '') + '\n' + body : body;
+      t.box.checked = true;
+      t.fields.style.display = '';
+      this.value = '';
+      t.text.focus();
+    });
+  });
+
+  document.querySelectorAll('.drug-select').forEach(function(sel){
+    sel.addEventListener('change', function(){
+      syncTaperRow(this.getAttribute('data-row'));
+    });
+  });
+  document.querySelectorAll('.drug-select').forEach(function(sel){
+    if (sel.value) syncTaperRow(sel.getAttribute('data-row'));
+  });
+
+  // ---- Diagnosis: carried text is only a starting point ---------------------
+  // "Use this" puts another recorded diagnosis in the box; nothing is changed
+  // at its source. Any edit clears the "carried from" label.
+  var dxSel = document.getElementById('diagnosis');
+  var dxSource = document.getElementById('dx-source');
+  if (dxSel){
+    dxSel.addEventListener('change', function(){ if (dxSource) dxSource.style.display = 'none'; });
+    document.querySelectorAll('.dx-use').forEach(function(btn){
+      btn.addEventListener('click', function(){
+        var v = this.getAttribute('data-value');
+        if (!Array.prototype.some.call(dxSel.options, function(o){ return o.value === v; })){
+          var o = document.createElement('option'); o.value = v; o.textContent = v + ' (as recorded)';
+          dxSel.insertBefore(o, dxSel.options[1] || null);
+        }
+        dxSel.value = v;
+        dxSel.dispatchEvent(new Event('change', {bubbles: true}));
+      });
+    });
+  }
 
   // ---- Advice templates: paste a pre-written snippet into the advice field -
   var advSel = document.getElementById('advice-template-sel');
@@ -456,4 +599,9 @@
 })();
 </script>
 
+{% endblock %}
+
+{% block scripts %}
+<link rel="stylesheet" href="{% static 'css/searchable-select.css' %}">
+<script src="{% static 'js/searchable-select.js' %}"></script>
 {% endblock %}

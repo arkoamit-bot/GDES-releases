@@ -5,6 +5,8 @@ from . import views
 app_name = "analytics"
 
 urlpatterns = [
+    path("risk/", views.risk_dashboard, name="risk_dashboard"),
+    path("alerts/", views.alerts_dashboard, name="alerts_dashboard"),
     path("patient/<str:patient_id>/outcome/", views.patient_outcome, name="patient_outcome"),
     path("patient/<str:patient_id>/trajectory/", views.patient_trajectory, name="patient_trajectory"),
     path("predict/<str:patient_id>/survival/", views.predict_survival, name="predict_survival"),

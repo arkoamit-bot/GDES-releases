@@ -247,9 +247,12 @@ def _gather_patient_data(patient, disease: str) -> dict[str, Any]:
                 data["has_dsDNA"] = True
             elif code in ("c3", "c4"):
                 data["has_complements"] = True
-            elif code in ("upcr", "proteinuria"):
+            elif code in ("upcr", "proteinuria", "utp_24h", "uacr"):
                 try:
-                    data["proteinuria"] = float(lab.value_numeric)
+                    val = float(lab.value_numeric)
+                    existing = data.get("proteinuria")
+                    if existing is None or val > existing:
+                        data["proteinuria"] = val
                 except (ValueError, TypeError):
                     pass
     except Exception:
@@ -282,18 +285,8 @@ def _gather_patient_data(patient, disease: str) -> dict[str, Any]:
     except Exception:
         pass
 
-    # Check vitals
-    try:
-        from vitals.models import VitalSign
-        latest_vitals = VitalSign.objects.filter(
-            patient=patient,
-        ).order_by("-recorded_at").first()
-
-        if latest_vitals:
-            data["bp_systolic"] = getattr(latest_vitals, "systolic_bp", None)
-            data["bp_diastolic"] = getattr(latest_vitals, "diastolic_bp", None)
-    except Exception:
-        pass
+    # NOTE: vitals app not yet implemented — BP data comes from encounters.
+    # The encounter model stores systolic_bp / diastolic_bp directly.
 
     return data
 

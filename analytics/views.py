@@ -9,7 +9,7 @@ Analytics endpoints:
 """
 from django.contrib.auth.decorators import login_required
 from django.http import Http404, HttpResponse, JsonResponse
-from django.shortcuts import get_object_or_404
+from django.shortcuts import get_object_or_404, render
 
 from labs.models import LabResult
 from patients.models import Patient
@@ -21,6 +21,7 @@ from .services.cohort import (cohort_competing_risks, cohort_egfr_slope,
                               cohort_summary, cohort_survival, cox_regression)
 from .services.outcomes import compute_patient_outcome
 from .services.km_plot import render_km_svg
+from .services.prediction import risk_stratify_cohort, check_predictions_for_alerts
 from .services.prediction import predict_from_patient
 from .services.quality import (biopsy_yield, phase_distribution,
                                remission_concordance, relapse_rate)
@@ -310,3 +311,47 @@ def _ev(flag, date, cause=None):
     if cause is not None:
         out["cause"] = cause
     return out
+
+
+@login_required
+def risk_dashboard(request):
+    disease = request.GET.get("disease", None) or None
+    risk = request.GET.get("risk", None) or None
+
+    # Full unfiltered list for KPI tier counts
+    all_summaries = risk_stratify_cohort(disease_filter=disease, risk_filter=None, limit=200)
+    tier_counts = {"critical": 0, "high": 0, "moderate": 0, "low": 0}
+    for s in all_summaries:
+        tier_counts[s.overall_risk_tier] += 1
+
+    # Filtered list for the table
+    summaries = all_summaries
+    if risk:
+        summaries = [s for s in all_summaries if s.overall_risk_tier == risk]
+
+    return render(request, "analytics/risk_dashboard.html", {
+        "summaries": summaries,
+        "tier_counts": tier_counts,
+        "disease_filter": disease or "",
+        "risk_filter": risk or "",
+    })
+
+
+@login_required
+def alerts_dashboard(request):
+    severity = request.GET.get("severity", None) or None
+    all_alerts = check_predictions_for_alerts()
+
+    severity_counts = {"critical": 0, "warning": 0, "info": 0}
+    for a in all_alerts:
+        severity_counts[a.severity] = severity_counts.get(a.severity, 0) + 1
+
+    alerts = all_alerts
+    if severity:
+        alerts = [a for a in all_alerts if a.severity == severity]
+
+    return render(request, "analytics/alerts_dashboard.html", {
+        "alerts": alerts,
+        "severity_counts": severity_counts,
+        "severity_filter": severity or "",
+    })

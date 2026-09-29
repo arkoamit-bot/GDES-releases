@@ -1,39 +1,69 @@
-"""Encounter-related views: baseline, follow-up, registration, relapse, admission."""
+"""Encounter-related views: baseline, follow-up, registration, relapse, admission.
+"""
 from __future__ import annotations
 
-import datetime as _dt
+from ._common import (  # noqa: F401
+    AdmissionForm,
+    BaselineForm,
+    FollowupForm,
+    LOGIN,
+    Patient,
+    RegisterForm,
+    RelapseForm,
+    _panel_messages,
+    _save_labs,
+    collect_labs,
+    get_object_or_404,
+    login_required,
+    messages,
+    redirect,
+    render,
+)
 
-from django.contrib import messages
-from django.shortcuts import get_object_or_404, redirect, render
-
-from ._common import (LOGIN, Patient, _save_labs, login_required)
-from ..forms import (AdmissionForm, BaselineForm, FollowupForm, RelapseForm,
-                    RegisterForm)
-
-
-# --- Baseline ---------------------------------------------------------------
 
 @login_required(login_url=LOGIN)
 def baseline_edit(request, pk):
+    import datetime as _dt
+    from django.db import transaction
+
     patient = get_object_or_404(Patient, pk=pk)
     instance = getattr(patient, "baseline", None)
-    form = BaselineForm(request.POST or None, instance=instance)
+    form = BaselineForm(request.POST or None, instance=instance, patient=patient)
     if request.method == "POST" and form.is_valid():
-        obj = form.save(commit=False)
-        obj.patient = patient
-        obj.save()
-        n = _save_labs(patient, form, obj.assessment_date or _dt.date.today())
-        messages.success(request, "Baseline assessment saved."
-                         + (f" {n} baseline lab result(s) recorded." if n else ""))
+        with transaction.atomic():
+            obj = form.save(commit=False)
+            obj.patient = patient
+            # The enrollment comorbidity snapshot is taken once, when the
+            # baseline is created (BaselineAssessment.save); editing a note here
+            # never rewrites it.
+            obj.save()
+        result_date = obj.assessment_date or _dt.date.today()
+        rows = list(collect_labs(form.cleaned_data))
+        hba1c = form.cleaned_data.get("hba1c")
+        if hba1c is not None:
+            rows.append(("hba1c", hba1c, ""))
+        outcome = _save_labs(patient, form, result_date, rows=rows,
+                             entry_path="baseline", user=request.user)
+        # Link the HbA1c this baseline reports: the one just entered, or the
+        # identical one already on file for the date.
+        hb = next((r for r in outcome.saved + outcome.existing
+                   if r.test.code == "hba1c"), None)
+        if hb is not None and obj.hba1c_result_id != hb.pk:
+            obj.hba1c_result = hb
+            obj.save(update_fields=["hba1c_result", "updated_at"])
+        messages.success(request, "Baseline assessment saved.")
+        _panel_messages(request, outcome, "baseline lab result")
         return redirect("clinic:patient_detail", pk=patient.pk)
     return render(request, "clinic/baseline_form.html",
                   {"active": "patients", "form": form, "patient": patient})
 
 
-# --- Follow-up visit --------------------------------------------------------
-
 def _sync_level2_from_followup(patient, form):
-    """Sync Level 2 persistent fields from follow-up form back to Patient."""
+    """Sync Level 2 persistent fields from follow-up form back to Patient.
+
+    Currently the follow-up form displays Level 2 as read-only; when clinicians
+    update persistent data via Edit Patient, this sync ensures consistency.
+    """
     pass  # Level 2 edits go through patient_edit → Patient form.
 
 
@@ -45,7 +75,16 @@ def followup_create(request, pk):
         enc = form.save(commit=False)
         enc.patient = patient
         enc.save()
-        n = _save_labs(patient, form, enc.encounter_date)
+        # The BP/weight typed on the visit form are one dated reading: record
+        # it as the visit's VitalSign (the measurement owner) and select it,
+        # so display, print and reasoning all read the same measurement.
+        from encounters.services.vitals import record_visit_vitals
+        record_visit_vitals(enc, systolic=form.cleaned_data.get("systolic_bp"),
+                            diastolic=form.cleaned_data.get("diastolic_bp"),
+                            weight_kg=form.cleaned_data.get("weight_kg"))
+        n = len(_save_labs(patient, form, enc.encounter_date, entry_path="guided",
+                           user=request.user).saved)
+        # --- Level 2: sync any clinician changes back to Patient (single source) ---
         _sync_level2_from_followup(patient, form)
         # Advance the disease-phase state machine from this visit's assessment.
         from encounters.services.workflow import apply_visit
@@ -58,7 +97,8 @@ def followup_create(request, pk):
                          + phase_note)
         return redirect("clinic:patient_detail", pk=patient.pk)
 
-    # Continuity: surface the previous visit + latest key labs
+    # Continuity: surface the previous visit + latest key labs so the clinician
+    # continues from the last record instead of re-entering a blank sheet.
     prev = patient.encounters.order_by("-encounter_date", "-id").first()
     def _last(code):
         r = (patient.lab_results.filter(test__code=code, value_numeric__isnull=False)
@@ -66,7 +106,7 @@ def followup_create(request, pk):
         return r.value_numeric if r else None
     last_labs = [("eGFR", _last("egfr")), ("Creatinine", _last("creatinine")),
                  ("24h UTP", _last("utp_24h")), ("UPCR", _last("upcr")),
-                 ("Albumin", _last("albumin")), ("K\u207a", _last("potassium"))]
+                 ("Albumin", _last("albumin")), ("K⁺", _last("potassium"))]
     last_labs = [(lbl, v) for lbl, v in last_labs if v is not None]
 
     baseline = getattr(patient, "baseline", None)
@@ -79,7 +119,7 @@ def followup_create(request, pk):
     except Exception:
         pass
 
-    # Level 2 persistent clinical data from Patient
+    # Level 2 persistent clinical data from Patient (single source of truth).
     level2 = {
         "primary_diagnosis": patient.primary_diagnosis or "",
         "biopsy_diagnosis": patient.biopsy_diagnosis or "",
@@ -104,11 +144,10 @@ def followup_create(request, pk):
                    "level2": level2})
 
 
-# --- GN registry workflow: registration, relapse, admission ------------------
-
 @login_required(login_url=LOGIN)
 def patient_register(request, pk):
-    """Register a suspected patient into structured GN follow-up (step 4)."""
+    """Register a suspected patient into structured GN follow-up (step 4).
+    Sets registration status/date and opens the Active disease phase."""
     patient = get_object_or_404(Patient, pk=pk)
     if request.method == "POST":
         form = RegisterForm(request.POST)

@@ -1,20 +1,28 @@
-"""Patient management views: list, search, CRUD, detail, quicksearch."""
+"""Patient management views: list, search, CRUD, detail, quicksearch.
+"""
 from __future__ import annotations
 
-import datetime as _dt
+from ._common import (  # noqa: F401
+    LOGIN,
+    Patient,
+    PatientForm,
+    Prescription,
+    Q,
+    RegisterForm,
+    _PATIENT_CLIN_FIELDS,
+    _PATIENT_DEM_FIELDS,
+    _PATIENT_LEVEL2_FIELDS,
+    _get_patient_override_context,
+    _get_prediction_history,
+    _get_recommendation_audit_records,
+    get_object_or_404,
+    logger,
+    login_required,
+    messages,
+    redirect,
+    render,
+)
 
-from django.contrib import messages
-from django.db.models import Q
-from django.shortcuts import get_object_or_404, redirect, render
-
-from ._common import (LOGIN, Patient, Prescription, _PATIENT_CLIN_FIELDS,
-                      _PATIENT_DEM_FIELDS, _PATIENT_LEVEL2_FIELDS,
-                      _get_recommendation_audit_records, _save_labs,
-                      login_required)
-from ..forms import PatientForm, RegisterForm
-
-
-# --- Patients ---------------------------------------------------------------
 
 @login_required(login_url=LOGIN)
 def patients_list(request):
@@ -51,7 +59,9 @@ def quicksearch(request):
 
 @login_required(login_url=LOGIN)
 def patient_dupcheck(request):
-    """Live duplicate check for the registration form."""
+    """Live duplicate check for the registration form: warn if a patient with the
+    same phone / hospital id / similar name already exists (prevents the kind of
+    duplicate the data validation flagged)."""
     name = (request.GET.get("name") or "").strip()
     phone = (request.GET.get("phone") or "").strip()
     hosp = (request.GET.get("hospital_id") or "").strip()
@@ -93,7 +103,12 @@ def patient_create(request):
 
 @login_required(login_url=LOGIN)
 def patient_delete(request, pk):
-    """Permanently delete a patient and ALL their records (superuser only)."""
+    """Permanently delete a patient and ALL their records (superuser only).
+
+    Encounters PROTECT the patient and prescriptions/lab-orders PROTECT the
+    encounters, so a plain delete fails — this removes dependents in the correct
+    order inside one transaction. Guarded: POST + typed-ID confirmation.
+    """
     from django.db import transaction
     patient = get_object_or_404(Patient, pk=pk)
     if not request.user.is_superuser:
@@ -106,13 +121,18 @@ def patient_delete(request, pk):
             return redirect("clinic:patient_detail", pk=patient.pk)
         pid = patient.patient_id
         with transaction.atomic():
+            # 1) Records that PROTECT encounters.
             Prescription.objects.filter(encounter__patient=patient).delete()
             patient.lab_orders.all().delete()
+            # 2) Encounters (they PROTECT the patient).
             patient.encounters.all().delete()
+            # 3) The patient — cascades labs, biopsies, exposures, outcomes,
+            #    events, enrolments, consents, adverse events, admissions, etc.
             patient.delete()
         messages.success(request, f"Patient {pid} and all associated records were deleted.")
         return redirect("clinic:patients")
 
+    # GET → confirmation page.
     return render(request, "clinic/patient_confirm_delete.html",
                   {"active": "patients", "patient": patient})
 
@@ -160,7 +180,7 @@ def patient_detail(request, pk):
     from audit.services.consent import current_consent
     consents = [{"label": label, "current": current_consent(patient, value)}
                 for value, label in Consent.Type.choices]
-    # Broad audit trail
+    # Broad audit trail for the patient across key models.
     patient_models = [
         "patients.Patient", "clinic.Encounter", "prescriptions.Prescription",
         "pathology.Biopsy", "adverse.AdverseEvent", "patients.LabResult",
@@ -171,7 +191,7 @@ def patient_detail(request, pk):
     ) | AuditLog.objects.filter(object_repr__icontains=patient.patient_id)
     audit_entries = audit_q.order_by("-changed_at")[:50]
 
-    # Lab trends for the charts
+    # Lab trends for the charts (eGFR + proteinuria over time).
     def _pts(code):
         return list(
             patient.lab_results.filter(test__code=code, value_numeric__isnull=False)
@@ -193,11 +213,12 @@ def patient_detail(request, pk):
     chart_prot = [prot_map.get(d) for d in _dates]
     has_chart = bool(_dates)
 
-    # Recorded lab results
+    # Recorded lab RESULTS (the values entered at baseline/follow-up), pivoted
+    # date × key test, newest first — so they can be SEEN like the ordered labs.
     KEY_LAB_COLS = [
         ("egfr", "eGFR"), ("creatinine", "Creatinine"),
         ("utp_24h", "24h UTP"), ("upcr", "UPCR"), ("uacr", "UACR"),
-        ("albumin", "Albumin"), ("hemoglobin", "Hb"), ("potassium", "K\u207a"),
+        ("albumin", "Albumin"), ("hemoglobin", "Hb"), ("potassium", "K⁺"),
         ("hba1c", "HbA1c"), ("c3", "C3"), ("c4", "C4"),
         ("anti_pla2r", "PLA2R"), ("anti_dsdna", "dsDNA"), ("gd_iga1", "Gd-IgA1"),
         ("ana", "ANA"), ("anca", "ANCA"),
@@ -205,6 +226,7 @@ def patient_detail(request, pk):
     by_date, present = {}, set()
     for r in (patient.lab_results
               .exclude(result_date__isnull=True).select_related("test")):
+        # Numeric value if present, else the qualitative text (ANA/ANCA).
         val = r.value_numeric if r.value_numeric is not None else (r.value_text or None)
         if val is None:
             continue
@@ -215,11 +237,11 @@ def patient_detail(request, pk):
     def _cellfmt(v):
         if v is None or isinstance(v, str):
             return v
-        return ("%.2f" % float(v)).rstrip("0").rstrip(".")
+        return ("%.2f" % float(v)).rstrip("0").rstrip(".")  # numeric, trim zeros
     recorded_labs = [{"date": d, "cells": [_cellfmt(by_date[d].get(c)) for c, _ in lab_cols]}
                      for d in sorted(by_date, reverse=True)]
 
-    # Enrich each visit with eGFR + proteinuria
+    # Enrich each visit with the eGFR + proteinuria recorded that day.
     visits = []
     for e in encounters:
         vals = by_date.get(e.encounter_date, {})
@@ -231,12 +253,16 @@ def patient_detail(request, pk):
 
     admissions = patient.admissions.select_related("biopsy").all()[:10]
     relapses = patient.relapses.all()[:10]
+    # Auto drug-specific monitoring plan from the patient's active therapy
+    # (CBC/LFT for MMF, potassium for finerenone, retinal for HCQ, …).
     try:
         from scheduling.services.monitoring import monitoring_requirements
         monitoring = monitoring_requirements(patient)
     except Exception:
         monitoring = []
     register_form = RegisterForm()
+    # Auto-suggest GN-clinic registration once a positive biopsy is on file
+    # (workflow step 4: biopsy-positive → register for structured follow-up).
     suggest_register = (
         patient.registration_status == "suspected"
         and patient.biopsies.filter(result_category="positive").exists())
@@ -256,7 +282,7 @@ def patient_detail(request, pk):
             return 4
         return 5
 
-    # CDS plans
+    # CDS plans: management, monitoring, follow-up schedule
     management_plan = None
     monitoring_plan_data = None
     followup_schedule = None
@@ -299,7 +325,7 @@ def patient_detail(request, pk):
                 followup_schedule = None
                 cds_errors.append("followup")
 
-    # Workflow step states
+    # Workflow step states for the progress strip.
     steps = [
         {"key": "register", "label": "Registered",
          "done": patient.registration_status == "registered",
@@ -318,10 +344,26 @@ def patient_detail(request, pk):
     ]
     last_visit = encounters[0] if encounters else None
 
+    # The full ranking stays on the profile for audit/export; the page shows
+    # only what is clinically in contention (see services/differential.py).
+    from clinical_reasoning.services.differential import differential_for_display
+    dx_display = differential_for_display(
+        patient, getattr(profile, "differential", None) if profile else None)
+
+    # Pathology summary: read-only projection with its source and any newer
+    # biopsy still pending review; and the current comorbidities with their
+    # source (a legacy-baseline-only item is flagged for confirmation).
+    from pathology.services.projection import select_source, working_diagnosis_differs
+    from patients.comorbidity import comorbidity_items
+    _sel = select_source(patient)
+    pathology_ctx = {"pending": _sel.pending_biopsies if _sel.state == "final" else [],
+                     "differs": working_diagnosis_differs(patient)}
+
     return render(request, "clinic/patient_detail.html", {
         "active": "patients", "patient": patient, "baseline": baseline,
         "encounters": encounters, "prescriptions": prescriptions,
         "outcome": outcome, "profile": profile, "steps": steps,
+        "dx_display": dx_display,
         "adverse_events": adverse_events,
         "biopsies": biopsies, "enrollments": enrollments, "consents": consents,
         "exposures": exposures, "lab_orders": lab_orders,
@@ -337,4 +379,8 @@ def patient_detail(request, pk):
         "cds_errors": cds_errors,
         "audit_records": _get_recommendation_audit_records(patient),
         "last_visit": last_visit,
+        "patient_override_context": _get_patient_override_context(patient),
+        "prediction_history": _get_prediction_history(patient),
+        "pathology": pathology_ctx,
+        "comorbidity_items": comorbidity_items(patient, baseline),
     })

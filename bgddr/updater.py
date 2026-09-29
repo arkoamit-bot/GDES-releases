@@ -136,8 +136,16 @@ _HELPER_PS1 = r"""
 $ErrorActionPreference = "Continue"
 $log = "{log}"
 function Log($m) {{ try {{ Add-Content -Path $log -Value ("[update] " + (Get-Date -Format o) + " " + $m) }} catch {{}} }}
+function MoveRetry($src, $dst) {{
+    for ($i = 0; $i -lt 20; $i++) {{
+        try {{ Move-Item -LiteralPath $src -Destination $dst -Force -ErrorAction Stop; return $true }}
+        catch {{ Start-Sleep -Milliseconds 500 }}
+    }}
+    return $false
+}}
 
-Log "waiting for pid {pid} to exit"
+Write-Host "Updating GDES to {newver} - please wait. This window closes automatically."
+Log "helper started; waiting for pid {pid} to exit"
 try {{ Wait-Process -Id {pid} -Timeout 90 -ErrorAction SilentlyContinue }} catch {{}}
 Start-Sleep -Seconds 2
 
@@ -155,25 +163,27 @@ if (-not (Test-Path $exe)) {{
 }}
 
 try {{
-    if (Test-Path $bakExe) {{ Remove-Item $bakExe -Force }}
-    if (Test-Path $bakInt) {{ Remove-Item $bakInt -Recurse -Force }}
-    Move-Item $exe $bakExe
-    Move-Item $internal $bakInt
+    if (Test-Path $bakExe) {{ Remove-Item $bakExe -Force -ErrorAction SilentlyContinue }}
+    if (Test-Path $bakInt) {{ Remove-Item $bakInt -Recurse -Force -ErrorAction SilentlyContinue }}
+    if (-not (MoveRetry $exe $bakExe))      {{ throw "current GDES.exe is locked (still running?)" }}
+    if (-not (MoveRetry $internal $bakInt)) {{ throw "current _internal is locked" }}
     # Accept either GDES.exe or BGDDR.exe from the staging folder
     $newExe = Join-Path $staging "GDES.exe"
     if (-not (Test-Path $newExe)) {{ $newExe = Join-Path $staging "BGDDR.exe" }}
-    Move-Item $newExe $exe
-    Move-Item (Join-Path $staging "_internal") $internal
+    if (-not (MoveRetry $newExe $exe))                          {{ throw "could not place new GDES.exe" }}
+    if (-not (MoveRetry (Join-Path $staging "_internal") $internal)) {{ throw "could not place new _internal" }}
     Log "swapped code -> {newver} (previous kept as *.old-{oldver})"
 }} catch {{
     Log ("swap failed: " + $_.Exception.Message + " -- rolling back")
-    if ((Test-Path $bakExe) -and -not (Test-Path $exe)) {{ Move-Item $bakExe $exe }}
-    if ((Test-Path $bakInt) -and -not (Test-Path $internal)) {{ Move-Item $bakInt $internal }}
+    if ((Test-Path $bakExe) -and -not (Test-Path $exe)) {{ Move-Item $bakExe $exe -Force }}
+    if ((Test-Path $bakInt) -and -not (Test-Path $internal)) {{ Move-Item $bakInt $internal -Force }}
+    Write-Host "Update failed - your app is unchanged. Details: $log"
+    Start-Sleep -Seconds 6
     if (Test-Path $exe) {{ Start-Process $exe }}
     exit 1
 }}
 
-try {{ Remove-Item $staging -Recurse -Force }} catch {{}}
+try {{ Remove-Item $staging -Recurse -Force -ErrorAction SilentlyContinue }} catch {{}}
 Log "relaunching {newver}"
 Start-Process $exe
 """
@@ -186,24 +196,37 @@ def apply_update(app_dir: Path, staging_root: Path, old_version: str,
     helper was launched (the caller should then exit the app)."""
     app_dir = Path(app_dir)
     log_file = str(log_path) if log_path else str(app_dir / "Logs" / "update.log")
+    # Always leave a breadcrumb BEFORE spawning, so update.log exists even if the
+    # helper is blocked from running (AV/EDR). If update.log then contains only
+    # this line and no "swapped"/"swap failed", the helper never executed.
+    try:
+        Path(log_file).parent.mkdir(parents=True, exist_ok=True)
+        with open(log_file, "a", encoding="utf-8") as f:
+            f.write(f"[update] apply_update: spawning helper {old_version} -> "
+                    f"{new_version} (app pid {os.getpid()})\n")
+    except OSError:
+        pass
+
     script = _HELPER_PS1.format(
         pid=os.getpid(), app=str(app_dir), staging=str(staging_root),
         oldver=old_version, newver=new_version, log=log_file,
     )
-    helper = Path(tempfile.gettempdir()) / f"bgddr_update_{new_version}.ps1"
+    helper = Path(tempfile.gettempdir()) / f"gdes_update_{new_version}.ps1"
     try:
         helper.write_text(script, encoding="utf-8")
     except OSError as exc:
         log(f"Could not write updater helper: {exc}")
         return False
 
-    flags = getattr(subprocess, "CREATE_NEW_PROCESS_GROUP", 0) \
-        | getattr(subprocess, "DETACHED_PROCESS", 0) \
-        | getattr(subprocess, "CREATE_NO_WINDOW", 0)
+    # Spawn a VISIBLE helper console that SURVIVES this process exiting. A hidden,
+    # detached PowerShell that renames .exe files is routinely killed by AV/EDR;
+    # a visible, user-initiated update window is far more reliable and lets the
+    # user see progress ("Updating GDES ...").
+    flags = getattr(subprocess, "CREATE_NEW_CONSOLE", 0) \
+        | getattr(subprocess, "CREATE_NEW_PROCESS_GROUP", 0)
     try:
         subprocess.Popen(
-            ["powershell", "-NoProfile", "-ExecutionPolicy", "Bypass",
-             "-WindowStyle", "Hidden", "-File", str(helper)],
+            ["powershell", "-NoProfile", "-ExecutionPolicy", "Bypass", "-File", str(helper)],
             creationflags=flags, close_fds=True,
         )
         return True

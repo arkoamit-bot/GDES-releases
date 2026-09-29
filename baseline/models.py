@@ -49,7 +49,15 @@ class BaselineAssessment(models.Model):
     smoking = models.CharField(max_length=20, blank=True, choices=choices.SMOKING)
     alcohol_use = models.CharField(max_length=10, blank=True, choices=choices.ALCOHOL)
 
-    # B. Medical history (comorbidity flags + free-text drug history).
+    # B. Medical history -- the ENROLLMENT SNAPSHOT of the patient's
+    # conditions, captured once when this baseline is created (see save()).
+    # The patient record owns the current state; a later change there never
+    # rewrites this snapshot. Correct it only through
+    # patients.comorbidity.correct_baseline_snapshot (audited, with reason).
+    comorbidity_snapshot_at = models.DateTimeField(null=True, blank=True, editable=False)
+    comorbidity_snapshot_source = models.CharField(
+        max_length=16, blank=True, editable=False,
+        help_text="enrollment | legacy_mirror | correction")
     previous_kidney_disease = models.BooleanField(default=False)
     autoimmune_disease = models.BooleanField(default=False)
     chronic_infection = models.BooleanField(default=False)
@@ -68,7 +76,21 @@ class BaselineAssessment(models.Model):
 
     # Diabetes burden.
     dm_duration_years = models.DecimalField(max_digits=4, decimal_places=1, null=True, blank=True)
-    hba1c = models.DecimalField(max_digits=4, decimal_places=1, null=True, blank=True)
+    # Legacy scalar. HbA1c is now recorded as a dated LabResult through the
+    # laboratory service; hba1c_result links the observation this baseline
+    # uses (see labs.services.baseline). The scalar keeps pre-2026-09-27 values
+    # and is never written by the forms again.
+    hba1c = models.DecimalField(max_digits=4, decimal_places=1, null=True, blank=True,
+                                editable=False)
+    hba1c_result = models.ForeignKey(
+        "labs.LabResult", on_delete=models.SET_NULL, null=True, blank=True,
+        related_name="+", editable=False,
+        help_text="The HbA1c observation this baseline reports.")
+    # The visit at which this baseline was taken, when it is the same visit.
+    baseline_encounter = models.ForeignKey(
+        "encounters.ClinicalEncounter", on_delete=models.SET_NULL, null=True,
+        blank=True, related_name="+",
+        help_text="Link only when the baseline was captured at this visit.")
     diabetic_retinopathy = models.BooleanField(default=False)
     neuropathy = models.BooleanField(default=False)
     diabetic_foot_history = models.BooleanField(default=False)
@@ -76,8 +98,9 @@ class BaselineAssessment(models.Model):
     # C. Clinical presentation.
     hypertension = models.BooleanField(default=False)
     cvd_history = models.BooleanField(default=False)
-    # Kept for backward compatibility (single primary syndrome, synced from the
-    # multi-select below); presentation_syndromes holds the full multi-select.
+    # Kept for backward compatibility (legacy single syndrome, projected from
+    # the first element of presentation_syndromes, which is the primary
+    # presentation; any further elements are additional presentations).
     presentation_syndrome = models.CharField(
         max_length=14, choices=Syndrome.choices, blank=True)
     presentation_syndromes = models.JSONField(default=list, blank=True)
@@ -116,12 +139,25 @@ class BaselineAssessment(models.Model):
         "incidental": "asymptomatic",
     }
 
+    # Legacy scalar -> canonical code, for rows that only have the scalar.
+    _LEGACY_TO_CANONICAL = {
+        "nephrotic": "nephrotic", "nephritic": "nephritic", "rpgn": "rpgn",
+        "aki": "aki", "ckd": "ckd", "proteinuria": "isolated_proteinuria",
+        "hematuria": "isolated_hematuria", "asymptomatic": "incidental",
+    }
+
     def save(self, *args, **kwargs):
-        # Keep the legacy single syndrome in sync with the primary multi-select.
+        # The list is canonical; the legacy scalar is a lossy projection of its
+        # first (primary) element. A row that only has the scalar is lifted
+        # into the list rather than losing it; an unmapped primary leaves the
+        # scalar blank instead of stale.
         if self.presentation_syndromes:
             first = self.presentation_syndromes[0]
-            self.presentation_syndrome = self._SYNDROME_MAP.get(
-                first, self.presentation_syndrome)
+            self.presentation_syndrome = self._SYNDROME_MAP.get(first, "")
+        elif self.presentation_syndrome:
+            canonical = self._LEGACY_TO_CANONICAL.get(self.presentation_syndrome)
+            if canonical:
+                self.presentation_syndromes = [canonical]
         if self.height_cm and self.weight_kg and float(self.height_cm) > 0:
             h = float(self.height_cm) / 100.0
             self.bmi = Decimal(str(round(float(self.weight_kg) / (h * h), 1)))
@@ -129,36 +165,32 @@ class BaselineAssessment(models.Model):
         else:
             self.bmi = None
             self.bmi_category = ""
+        # Enrollment snapshot: captured ONCE, when the baseline is created.
+        # Later saves (a note, a vital sign) must not rewrite enrollment history.
+        if self._state.adding and self.comorbidity_snapshot_at is None:
+            from django.utils import timezone
+            from patients.comorbidity import snapshot_to_baseline
+            snapshot_to_baseline(self.patient, self)
+            self.comorbidity_snapshot_at = timezone.now()
+            self.comorbidity_snapshot_source = "enrollment"
         super().save(*args, **kwargs)
-        # --- Level 2: sync persistent clinical data to Patient (single source) ---
-        self._sync_level2_to_patient()
+        self._flag_diabetes_type()
 
-    def _sync_level2_to_patient(self):
-        """Copy Level 2 persistent fields from baseline to Patient model."""
+    def _flag_diabetes_type(self):
+        """A recorded DM duration means diabetes, but says nothing about type.
+
+        Previously this silently set Type 2. Now a patient whose record says
+        "no diabetes" is moved to "type not recorded" -- visible, and left for
+        the clinician to confirm -- and a recorded type is never touched.
+        """
         p = self.patient
-        changed = False
-        _set = lambda attr, val: (
-            setattr(p, attr, val) if getattr(p, attr) != val else None) or True
-        # Only set Patient fields if they are currently empty (don't overwrite
-        # clinician edits on Patient — baseline is the initial seed).
-        if not p.hypertension:
-            p.hypertension = self.hypertension
-            changed = True
-        if not p.autoimmune_disease:
-            p.autoimmune_disease = self.autoimmune_disease
-            changed = True
-        if not p.chronic_infection:
-            p.chronic_infection = self.chronic_infection
-            changed = True
-        if not p.smoking_status:
-            p.smoking_status = self.smoking or ""
-            changed = True
-        if not p.diabetes_status or p.diabetes_status == "none":
-            # Infer diabetes status from baseline if available.
-            if self.dm_duration_years:
-                p.diabetes_status = "t2"  # default to T2 if duration known
-                changed = True
-        if changed:
-            p.save(update_fields=[
-                "hypertension", "autoimmune_disease", "chronic_infection",
-                "smoking_status", "diabetes_status", "updated_at"])
+        if p is None or not self.dm_duration_years or self.dm_duration_years <= 0:
+            return
+        if p.diabetes_status and p.diabetes_status != "none":
+            return
+        from audit.local import acting_as, current_actor
+        p.diabetes_status = "unknown"
+        with acting_as(current_actor(),
+                       reason="Baseline records a diabetes duration; type not "
+                              "recorded - needs clinician confirmation"):
+            p.save(update_fields=["diabetes_status", "updated_at"])

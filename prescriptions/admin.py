@@ -1,11 +1,18 @@
 from django.contrib import admin
 from django.utils.html import format_html
 
-from .models import AdviceTemplate, Prescription, PrescriptionItem
+from .models import AdviceTemplate, Prescription, PrescriptionItem, TaperTemplate
 
 
 @admin.register(AdviceTemplate)
 class AdviceTemplateAdmin(admin.ModelAdmin):
+    list_display = ("title", "sort_order", "is_active")
+    list_editable = ("sort_order", "is_active")
+    search_fields = ("title", "body")
+
+
+@admin.register(TaperTemplate)
+class TaperTemplateAdmin(admin.ModelAdmin):
     list_display = ("title", "sort_order", "is_active")
     list_editable = ("sort_order", "is_active")
     search_fields = ("title", "body")
@@ -16,7 +23,8 @@ class PrescriptionItemInline(admin.TabularInline):
     extra = 1
     autocomplete_fields = ("drug",)
     fields = ("sort_order", "drug", "brand", "strength", "dose",
-              "frequency", "timing", "duration", "instruction_bn")
+              "frequency", "timing", "duration", "instruction_bn",
+              "taper_notes")
 
 
 @admin.register(Prescription)

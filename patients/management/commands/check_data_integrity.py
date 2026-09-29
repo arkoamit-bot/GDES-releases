@@ -84,6 +84,18 @@ class Command(BaseCommand):
         ).count()
         if stop_before_start:
             self._fail("tx.stop_before_start", "error", f"{stop_before_start} exposures with stop before start.", stop_before_start)
+        # Duplicate ongoing episodes double-count the patient in every exposure
+        # -> outcome analysis, and the reconciliation engine can only ever see
+        # one of them. Blocked by a constraint since 7.3.13; this catches rows
+        # that predate it.
+        duplicate_ongoing = (TreatmentExposure.objects.filter(ongoing=True)
+                             .values("patient_id", "drug_id")
+                             .annotate(n=models.Count("id"))
+                             .filter(n__gt=1).count())
+        if duplicate_ongoing:
+            self._fail("tx.duplicate_ongoing", "error",
+                       f"{duplicate_ongoing} drug(s) with more than one ongoing "
+                       f"episode for the same patient.", duplicate_ongoing)
 
     def _check_scheduled_visits(self):
         from scheduling.models import ScheduledVisit

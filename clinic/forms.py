@@ -15,6 +15,7 @@ from decimal import Decimal
 from django import forms
 
 from patients import choices
+from patients.comorbidity import BASELINE_MIRROR_FIELDS
 from patients.models import Patient
 from patients.workflow import RelapseType
 from baseline.models import BaselineAssessment
@@ -22,7 +23,7 @@ from encounters.models import Admission, ClinicalEncounter
 from safety.models import AdverseEvent
 from treatments.models import DrugMaster
 from pathology.models import (Biopsy, FSGSPathology, GNDiagnosis, IgANScore,
-                              LupusPathology, MembranousPathology)
+                              LupusPathology, MembranousPathology, PathologyReport)
 from studies.models import Study
 from audit.models import Consent
 from treatments.models import TreatmentExposure
@@ -126,9 +127,16 @@ class PatientForm(forms.ModelForm):
                   "enrollment_date", "cohort", "diabetes_status",
                   "primary_diagnosis",
                   # Level 2: persistent clinical data (single source of truth).
-                  "hypertension", "autoimmune_disease", "chronic_infection",
+                  # Comorbidities are asked HERE and nowhere else — the baseline
+                  # form no longer repeats them.
+                  "hypertension", "cvd_history", "autoimmune_disease",
+                  "chronic_infection", "malignancy", "previous_kidney_disease",
+                  "prior_immunosuppression", "family_history_kidney",
+                  "diabetic_retinopathy", "neuropathy", "diabetic_foot_history",
                   "smoking_status", "hepatitis_status", "hiv_status",
-"biopsy_diagnosis", "gn_broad_group", "gn_primary_secondary", "oxford_mestc", "isn_rps_class",
+                  # Histology — only shown once a biopsy exists (see __init__).
+                  "biopsy_diagnosis", "gn_broad_group", "gn_primary_secondary",
+                  "oxford_mestc", "isn_rps_class",
                   "ckd_etiology", "transplant_status"]
         widgets = {
             "dob": _date(),
@@ -145,6 +153,83 @@ class PatientForm(forms.ModelForm):
             "ckd_etiology": "CKD aetiology (auto-derived or clinician-entered).",
         }
 
+    # Histological fields. Before a biopsy these have no answer -- and each is
+    # projected from pathology anyway (see the help texts), so asking at
+    # registration invites a guess that a later biopsy report will overwrite.
+    HISTOLOGY_FIELDS = ["biopsy_diagnosis", "gn_broad_group",
+                        "gn_primary_secondary", "oxford_mestc", "isn_rps_class"]
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        from patients.comorbidity import LEVEL2_COMORBIDITY_FIELDS
+        # Present / absent / not recorded: an unticked box used to mean all
+        # three. Existing legacy False values show as "not recorded" until
+        # someone states them (Patient.condition_provenance).
+        for name in LEVEL2_COMORBIDITY_FIELDS:
+            if name in self.fields:
+                self.fields[name].widget = TriStateSelect(
+                    labels=("Not recorded", "Yes", "No"))
+                instance = getattr(self, "instance", None)
+                if instance is not None and instance.pk:
+                    from patients.comorbidity import condition_state
+                    if condition_state(instance, name) == "unknown":
+                        self.initial[name] = None
+        if not self._has_biopsy():
+            for name in self.HISTOLOGY_FIELDS:
+                self.fields.pop(name, None)
+        elif self.pathology_is_projected():
+            # Owned by the pathology projection: shown, not editable here.
+            for name in self.HISTOLOGY_FIELDS:
+                if name in self.fields:
+                    self.fields[name].disabled = True
+                    self.fields[name].help_text = (
+                        "From the selected biopsy report (read-only). "
+                        "Change it on the biopsy report.")
+
+    def pathology_is_projected(self) -> bool:
+        patient = getattr(self, "instance", None)
+        if patient is None or not patient.pk:
+            return False
+        try:
+            return patient.biopsies.exists() or bool(patient.pathology_source_biopsy_id)
+        except Exception:  # pragma: no cover
+            return False
+
+    def clean(self):
+        cleaned = super().clean()
+        # Leaving a legacy condition at "Not recorded" keeps its raw stored
+        # value (the old default False) instead of rewriting it to None.
+        from patients.comorbidity import LEVEL2_COMORBIDITY_FIELDS, condition_state
+        instance = self.instance
+        if instance is not None and instance.pk:
+            for name in LEVEL2_COMORBIDITY_FIELDS:
+                if (name in cleaned and cleaned[name] is None
+                        and getattr(instance, name) is False
+                        and condition_state(instance, name) == "unknown"):
+                    cleaned[name] = False
+        return cleaned
+
+    def save(self, commit=True):
+        self.instance.provenance_source = "patient_form"
+        return super().save(commit=commit)
+
+    def _has_biopsy(self) -> bool:
+        """True once this patient has a biopsy on file (or a histology value
+        already recorded, so an existing entry is never hidden from editing)."""
+        patient = getattr(self, "instance", None)
+        if patient is None or not patient.pk:
+            return False
+        if any(getattr(patient, name, "") for name in self.HISTOLOGY_FIELDS):
+            return True
+        try:
+            return patient.biopsies.exists()
+        except Exception:  # pragma: no cover - relation unavailable
+            return False
+
+    def histology_visible(self) -> bool:
+        """For the template: whether the histology block should be rendered."""
+        return any(name in self.fields for name in self.HISTOLOGY_FIELDS)
+
 
 class BaselineForm(forms.ModelForm):
     # Curated dropdowns (replace the old free-text boxes).
@@ -156,11 +241,29 @@ class BaselineForm(forms.ModelForm):
     oedema_grade = forms.TypedChoiceField(
         required=False, coerce=int, empty_value=None, label="Oedema grade",
         choices=[("", "— select —")] + choices.OEDEMA_GRADE)
-    # C. Presentation — the syndrome is a SINGLE choice (one predominant
-    # syndrome); symptoms remain multi-select.
+    # C. Presentation — one PRIMARY presenting syndrome plus any additional
+    # presentations already recorded or clinically present. (A single select
+    # used to load only the first stored value and save a one-element list,
+    # silently dropping the rest.) Symptoms remain multi-select.
     presentation_syndromes = forms.ChoiceField(
         required=False, choices=[("", "— select —")] + list(choices.PRESENTATION_SYNDROMES),
-        widget=forms.Select, label="Presenting syndrome")
+        widget=forms.Select, label="Primary presenting syndrome")
+    additional_syndromes = forms.MultipleChoiceField(
+        required=False, choices=choices.PRESENTATION_SYNDROMES,
+        widget=forms.CheckboxSelectMultiple, label="Additional presentations")
+    # HbA1c is a laboratory observation: recorded through the lab service and
+    # linked to this baseline (the old baseline column is legacy only).
+    hba1c = forms.DecimalField(
+        required=False, min_value=0, max_value=25, decimal_places=1, label="HbA1c (%)",
+        widget=forms.NumberInput(attrs={"step": "0.1", "placeholder": "%"}),
+        help_text="Recorded as a dated lab result on the assessment date.")
+    # One token per rendered form: a resubmission returns the results already
+    # recorded instead of recording them again.
+    form_token = forms.CharField(required=False, widget=forms.HiddenInput)
+    # Set when the user confirms that a value identical to one on file for the
+    # same date is a genuine repeat measurement.
+    confirm_repeat = forms.BooleanField(
+        required=False, label="These are new repeat measurements — record them anyway")
     presenting_symptoms = forms.MultipleChoiceField(
         required=False, choices=choices.PRESENTING_SYMPTOMS,
         widget=forms.CheckboxSelectMultiple, label="Presenting symptoms")
@@ -176,39 +279,134 @@ class BaselineForm(forms.ModelForm):
         model = BaselineAssessment
         # BMI + category are auto-derived on save; patient is set from the URL;
         # presentation_syndrome (legacy single) is synced from the multi-select.
+        # Comorbidities are excluded: they are Level 2 data, asked once on the
+        # patient record. Re-asking them here is what let the two copies drift.
+        # The columns remain (historical data, analytics) and are mirrored from
+        # the patient on save.
+        # drug_history is excluded for the same reason as the comorbidities:
+        # medication belongs in TreatmentExposure episodes, which the
+        # prescription -> reconciliation engine maintains and every exposure ->
+        # outcome analysis reads. Free text typed here reaches no analysis and
+        # can contradict the structured record. The column stays for the legacy
+        # text, which the form shows read-only.
         exclude = ["patient", "bmi", "bmi_category", "created_at", "updated_at",
-                   "presentation_syndrome"]
+                   "presentation_syndrome", "drug_history"] + BASELINE_MIRROR_FIELDS
         widgets = {
             "assessment_date": _date(),
             "notes": forms.Textarea(attrs={"rows": 3}),
             "drug_history": forms.Textarea(attrs={"rows": 2}),
         }
         labels = {
-            "family_history_kidney": "Family history of kidney disease",
-            "previous_kidney_disease": "Previous kidney disease",
-            "autoimmune_disease": "Autoimmune disease",
-            "chronic_infection": "Chronic infection (HBV/HCV/HIV/TB)",
-            "prior_immunosuppression": "Previous immunosuppressive therapy",
             "alcohol_use": "Alcohol use",
             "pulse_bpm": "Pulse (bpm)", "temperature_c": "Temperature (°C)",
             "respiratory_rate": "Respiratory rate (/min)",
             "volume_status": "Volume status", "drug_history": "Drug history",
         }
 
-    def __init__(self, *args, **kwargs):
+    def __init__(self, *args, patient=None, **kwargs):
         super().__init__(*args, **kwargs)
         add_lab_fields(self)
-        # presentation_syndromes is stored as a JSON list; the form edits a single
-        # value, so seed the initial from the first stored element.
+        self.patient = patient
+        import uuid
+        if not self.is_bound:
+            self.initial["form_token"] = uuid.uuid4().hex
+        if "baseline_encounter" in self.fields:
+            self.fields["baseline_encounter"].queryset = (
+                ClinicalEncounter.objects.filter(patient=patient).order_by("-encounter_date")
+                if patient is not None else ClinicalEncounter.objects.none())
+            self.fields["baseline_encounter"].label = "Captured at visit"
+        # presentation_syndromes is stored as a JSON list: the first element is
+        # the primary presentation, the rest are additional. A legacy row with
+        # only the scalar is shown through its canonical code.
         if self.instance and self.instance.pk:
-            existing = self.instance.presentation_syndromes or []
+            existing = list(self.instance.presentation_syndromes or [])
+            if not existing and self.instance.presentation_syndrome:
+                canonical = BaselineAssessment._LEGACY_TO_CANONICAL.get(
+                    self.instance.presentation_syndrome)
+                existing = [canonical] if canonical else []
             if existing:
                 self.initial["presentation_syndromes"] = existing[0]
+                self.initial["additional_syndromes"] = existing[1:]
+            hv = self.baseline_hba1c()
+            if hv.source == "linked":
+                self.initial["hba1c"] = hv.value
+
+    def baseline_hba1c(self):
+        from labs.services.baseline import baseline_hba1c
+        return baseline_hba1c(self.instance if self.instance and self.instance.pk else None)
+
+    def recorded_results(self):
+        """Results already on file around this baseline, shown with date and
+        source so they are not typed in again."""
+        from labs.models import LabResult
+        from labs.services.baseline import (ENROLLMENT_WINDOW_AFTER,
+                                            ENROLLMENT_WINDOW_BEFORE, anchor_date)
+        import datetime as _dt
+        if self.patient is None:
+            return []
+        anchor = anchor_date(self.instance if self.instance.pk else None, self.patient)
+        if anchor is None:
+            return []
+        lo = anchor - _dt.timedelta(days=ENROLLMENT_WINDOW_BEFORE)
+        hi = anchor + _dt.timedelta(days=ENROLLMENT_WINDOW_AFTER)
+        return list(LabResult.objects.filter(
+            patient=self.patient, result_date__range=(lo, hi))
+            .exclude(source=LabResult.Source.DERIVED)
+            .select_related("test").order_by("result_date", "test__name"))
+
+    def clean_additional_syndromes(self):
+        return list(self.cleaned_data.get("additional_syndromes") or [])
+
+    def carried_comorbidities(self):
+        """Comorbidities from the patient record, shown read-only on this form.
+
+        They are displayed rather than re-asked so the clinician can see what is
+        already known without a second copy that can disagree with the first.
+        """
+        from patients.comorbidity import comorbidity_summary
+        return comorbidity_summary(self.patient, self.instance)
+
+    def carried_medications(self):
+        """Ongoing medication episodes, shown read-only on this form.
+
+        Recorded once — by prescribing (the reconciliation engine opens the
+        episode) or via Add medication for drugs started elsewhere — so the
+        exposure -> outcome analyses see them.
+        """
+        if self.patient is None:
+            return []
+        return list(self.patient.exposures.filter(ongoing=True)
+                    .select_related("drug").order_by("drug_name"))
+
+    def legacy_drug_history(self):
+        """Free text from a baseline recorded before medication was structured."""
+        return (getattr(self.instance, "drug_history", "") or "").strip()
+
+    def clean(self):
+        cleaned = super().clean()
+        # Compose the canonical list: primary first, then the additional ones
+        # (never the primary twice). Clearing both is an explicit clear, which
+        # also clears the legacy scalar rather than leaving it stale.
+        primary = cleaned.get("presentation_syndromes")
+        if isinstance(primary, list):      # already composed
+            return cleaned
+        additional = cleaned.get("additional_syndromes") or []
+        if self.is_bound and "additional_syndromes_shown" not in self.data:
+            # The submitting form never showed the additional presentations
+            # (an older page, a script): keep what is stored rather than read
+            # their absence as "untick all".
+            additional = list((self.instance.presentation_syndromes or [])[1:]) \
+                if self.instance and self.instance.pk else additional
+        additional = [s for s in additional if s != primary]
+        combined = ([primary] if primary else []) + additional
+        cleaned["presentation_syndromes"] = combined
+        if not combined:
+            self.instance.presentation_syndrome = ""
+        return cleaned
 
     def clean_presentation_syndromes(self):
-        # Store the single choice back as a 1-element list (model field is JSON).
-        v = self.cleaned_data.get("presentation_syndromes")
-        return [v] if v else []
+        # Kept as the single primary value here; clean() builds the list.
+        return self.cleaned_data.get("presentation_syndromes") or ""
 
     def serology_fields(self):
         """Paired (value, qualitative) bound fields for the E. serology block."""
@@ -217,12 +415,9 @@ class BaselineForm(forms.ModelForm):
                 for code, label, unit, _q in BASELINE_SEROLOGY]
 
     def comorbidity_fields(self):
-        """Bound boolean fields for the B. Medical-history checkbox grid."""
-        names = ["hypertension", "cvd_history", "previous_kidney_disease",
-                 "autoimmune_disease", "chronic_infection", "malignancy",
-                 "prior_immunosuppression", "family_history_kidney",
-                 "diabetic_retinopathy", "neuropathy", "diabetic_foot_history"]
-        return [self[n] for n in names]
+        """Kept for templates: the checkbox grid is gone (comorbidities are
+        recorded on the patient record), so there is nothing left to bind."""
+        return []
 
 
 class AdverseEventForm(forms.ModelForm):
@@ -255,25 +450,37 @@ class AdverseEventForm(forms.ModelForm):
         self.fields["encounter"].required = False
 
 
+class TriStateSelect(forms.NullBooleanSelect):
+    """Not assessed / Present / Absent -- a blank lesion is not a negative."""
+    def __init__(self, attrs=None, labels=("Not assessed", "Present", "Absent")):
+        super().__init__(attrs)
+        self.choices = [("unknown", labels[0]), ("true", labels[1]), ("false", labels[2])]
+
+
 class BiopsyForm(forms.ModelForm):
-    """Core biopsy + lesion descriptors. `patient` is set from the URL;
+    """Core biopsy + light-microscopy summary. `patient` is set from the URL;
     `review_status` defaults to 'pending' (the central-review workflow takes it
-    from there)."""
+    from there). The single-choice IF/EM fields are no longer entered here:
+    they are repeatable findings on the report (see PathologyFindingForm)."""
 
     class Meta:
         model = Biopsy
-        exclude = ["patient", "review_status", "created_at", "updated_at"]
+        exclude = ["patient", "review_status", "created_at", "updated_at",
+                   "if_pattern", "em_findings"]
         widgets = {
             "biopsy_date": _date(),
-            "em_findings": forms.Select(),
             "notes": forms.Textarea(attrs={"rows": 2}),
-            "if_pattern": forms.Select(),
+            "arteriolar_hyalinosis": TriStateSelect(),
+            "dkd_lesion_present": TriStateSelect(),
+            "crescents_present": TriStateSelect(),
+            "necrosis_present": TriStateSelect(),
         }
 
 
 class GNDiagnosisForm(forms.ModelForm):
     """The diagnosis — drives the disease-specific remission rules and analytics.
-    Required for every biopsy."""
+    Required for a final or preliminary report; a draft, pending or inadequate
+    report can be recorded without inventing one."""
     # Common secondary causes as a dropdown (stores the readable label).
     secondary_cause = forms.ChoiceField(
         required=False, label="Secondary cause / association",
@@ -283,6 +490,134 @@ class GNDiagnosisForm(forms.ModelForm):
     class Meta:
         model = GNDiagnosis
         exclude = ["biopsy"]
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.fields["diagnosis"].required = False
+
+
+class PathologyReportForm(forms.ModelForm):
+    """Report provenance, specimen adequacy by modality, modality availability
+    and conclusion. The primary diagnosis is the one on GNDiagnosisForm (asked
+    once); coexisting diagnoses are added here."""
+    additional_diagnoses = forms.MultipleChoiceField(
+        required=False, choices=choices.SPECIFIC_GN_DIAGNOSIS,
+        widget=forms.SelectMultiple(attrs={"size": 4}),
+        label="Additional / coexisting diagnoses",
+        help_text="E.g. DKD with a superimposed GN. Hold Ctrl to pick several.")
+
+    class Meta:
+        model = PathologyReport
+        fields = ["status", "report_identifier", "laboratory", "pathologist",
+                  "report_date", "context", "cortex_present", "medulla_present",
+                  "cores", "glomeruli_if", "glomeruli_em", "globally_sclerosed",
+                  "segmentally_sclerosed", "crescentic_glomeruli",
+                  "lm_status", "if_status", "ihc_status", "em_status",
+                  "additional_diagnoses", "limitations", "comment",
+                  "original_report_text", "panel_override_reason",
+                  "signed_by", "signed_at"]
+        widgets = {
+            "report_date": _date(), "signed_at": _date(),
+            "cortex_present": TriStateSelect(labels=("Not stated", "Yes", "No")),
+            "medulla_present": TriStateSelect(labels=("Not stated", "Yes", "No")),
+            "limitations": forms.Textarea(attrs={"rows": 2}),
+            "comment": forms.Textarea(attrs={"rows": 2}),
+            "original_report_text": forms.Textarea(
+                attrs={"rows": 3, "placeholder": "Paste the original report text (optional)"}),
+        }
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        # Omitted status (older clients, scripts) = a final report, the model
+        # default; the form shows it preselected.
+        self.fields["status"].required = False
+
+    def clean_status(self):
+        return self.cleaned_data.get("status") or PathologyReport.Status.FINAL
+
+    def report_data(self):
+        data = dict(self.cleaned_data)
+        data["additional_diagnoses"] = list(data.get("additional_diagnoses") or [])
+        return data
+
+
+def _finding_code_choices():
+    from pathology import findings as vocab
+    return [("", "— finding —")] + [
+        (label, [(code, lbl) for code, lbl in codes])
+        for _key, (label, codes) in vocab.SECTIONS.items()]
+
+
+class PathologyFindingForm(forms.Form):
+    """One repeatable finding row. The section is fixed by the "Add finding"
+    button that created the row; the code must belong to that section."""
+    section = forms.CharField(widget=forms.HiddenInput)
+    code = forms.ChoiceField(required=False, choices=_finding_code_choices)
+    other_label = forms.CharField(required=False, max_length=120,
+                                  widget=forms.TextInput(attrs={"placeholder": "Describe"}))
+    marker = forms.ChoiceField(required=False, choices=[])
+    presence = forms.ChoiceField(required=False, choices=[])
+    intensity = forms.ChoiceField(required=False, choices=[])
+    distribution = forms.ChoiceField(required=False, choices=[])
+    site = forms.ChoiceField(required=False, choices=[])
+    severity = forms.ChoiceField(required=False, choices=[])
+    extent = forms.ChoiceField(required=False, choices=[])
+    extent_pct = forms.DecimalField(required=False, min_value=0, max_value=100,
+                                    decimal_places=1, label="%",
+                                    widget=forms.NumberInput(attrs={"step": "any"}))
+    count = forms.IntegerField(required=False, min_value=0)
+    denominator = forms.IntegerField(required=False, min_value=0, label="of")
+    detail = forms.CharField(required=False, max_length=240,
+                             widget=forms.TextInput(attrs={"placeholder": "Details (optional)"}))
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        from pathology import findings as vocab
+        from pathology.models import PathologyFinding as F
+        blank = [("", "—")]
+        self.fields["marker"].choices = blank + list(vocab.IF_MARKERS)
+        self.fields["presence"].choices = list(F.Presence.choices)
+        self.fields["intensity"].choices = blank + list(F.Intensity.choices)
+        self.fields["distribution"].choices = blank + list(F.Distribution.choices)
+        self.fields["site"].choices = blank + list(F.Site.choices)
+        self.fields["severity"].choices = blank + list(F.Severity.choices)
+        self.fields["extent"].choices = blank + list(F.Extent.choices)
+
+    def section_value(self):
+        return (self["section"].value() or "")
+
+    def clean_section(self):
+        from pathology import findings as vocab
+        value = self.cleaned_data.get("section") or ""
+        if value not in vocab.SECTIONS:
+            raise forms.ValidationError("Unknown section.")
+        return value
+
+
+FindingFormSet = forms.formset_factory(PathologyFindingForm, extra=0, can_delete=True)
+
+
+def findings_from_formset(formset):
+    """Cleaned finding dicts (deleted and empty rows dropped), in form order,
+    plus the formset index of each so service errors can be attached back."""
+    rows, index = [], []
+    for i, form in enumerate(formset.forms):
+        cd = getattr(form, "cleaned_data", None) or {}
+        if not cd or cd.get("DELETE"):
+            continue
+        row = {k: v for k, v in cd.items() if k != "DELETE"}
+        if not (row.get("code") or row.get("marker") or row.get("other_label")
+                or row.get("detail")):
+            continue
+        rows.append(row)
+        index.append(i)
+    return rows, index
+
+
+def findings_initial(report):
+    """Formset initial data from an existing report revision."""
+    from pathology.services.report import FINDING_FIELDS
+    return [{k: getattr(f, k) for k in FINDING_FIELDS} for f in report.findings.all()]
 
 
 class IgANScoreForm(forms.ModelForm):
@@ -297,12 +632,18 @@ class LupusPathologyForm(forms.ModelForm):
     class Meta:
         model = LupusPathology
         exclude = ["biopsy"]
+        help_texts = {
+            "isn_rps_class": "Leave blank if the diagnosis above already states "
+                             "the class — it is carried across automatically.",
+        }
 
 
 class FSGSPathologyForm(forms.ModelForm):
+    """Variant only. Primary/secondary is asked once, on the diagnosis; the
+    panel's column is written from there (pathology.diagnosis.project_fsgs_panel)."""
     class Meta:
         model = FSGSPathology
-        exclude = ["biopsy"]
+        exclude = ["biopsy", "primary_secondary"]
 
 
 class MembranousPathologyForm(forms.ModelForm):
@@ -551,9 +892,17 @@ class LabResultsForm(forms.Form):
     # Creatinine may be entered in mg/dL or µmol/L (converted to mg/dL on save).
     creatinine_unit = forms.ChoiceField(
         required=False, choices=CREATININE_UNITS, initial="mg", widget=forms.Select())
+    # One token per rendered form: a resubmission (double click, browser
+    # retry) returns the results already recorded instead of adding them again.
+    form_token = forms.CharField(required=False, widget=forms.HiddenInput)
+    confirm_repeat = forms.BooleanField(
+        required=False, label="These are new repeat measurements — record them anyway")
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
+        import uuid
+        if not self.is_bound:
+            self.initial["form_token"] = uuid.uuid4().hex
         from labs.models import LabTest
         tests = {t.code: t for t in
                  LabTest.objects.filter(is_active=True, is_derived=False)}

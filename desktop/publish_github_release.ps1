@@ -1,24 +1,24 @@
 # =====================================================================
 #  Publish a GDES update to GitHub Releases (the self-update channel).
 #
-#  Clinic PCs check <repo>/releases/latest and download the BGDDR-<ver>.zip
+#  Clinic PCs check <repo>/releases/latest and download the GDES-<ver>.zip
 #  asset (see desktop/launcher.py _github_update_available). This script
 #  creates the release and uploads that asset.
 #
 #  Prereqs:
 #    1. Build the app + the update zip first:
 #         .\desktop\build_exe.ps1
-#         # then create dist\update\BGDDR-<ver>.zip (see the runbook / the
+#         # then create dist\update\GDES-<ver>.zip (see the runbook / the
 #         # zip step used for the OneDrive channel) OR pass -ZipPath.
 #    2. A GitHub token with CONTENTS:WRITE on the target repo, via -Token or
 #       the GITHUB_TOKEN env var. (Fine-grained, single-repo, is safest.)
 #
 #  Usage:
 #    $env:GITHUB_TOKEN = "ghp_xxx"
-#    .\desktop\publish_github_release.ps1 -Repo arkoamit-bot/GDES-releases -ZipPath dist\update\BGDDR-6.6.1.zip
+#    .\desktop\publish_github_release.ps1 -Repo arkoamit-bot/GDES-releases -ZipPath dist\update\GDES-6.6.1.zip
 #
 #  SECURITY: prefer a PUBLIC "releases-only" repo (e.g. arkoamit-bot/GDES-releases)
-#  that holds only the built zips — then clinic PCs need NO token. Point them at
+#  that holds only the built zips -- then clinic PCs need NO token. Point them at
 #  it with BGDDR_GITHUB_REPO. Do NOT ship a token that can read your private
 #  source repo to clinic machines.
 # =====================================================================
@@ -44,9 +44,16 @@ if (-not $Repo) {
 }
 if (-not $Repo)  { throw "No -Repo and no git origin found." }
 if (-not $Token) { throw "No token. Set -Token or `$env:GITHUB_TOKEN (needs contents:write on $Repo)." }
-if (-not $ZipPath) { $ZipPath = "dist\update\BGDDR-$version.zip" }
+if (-not $ZipPath) { $ZipPath = "dist\update\GDES-$version.zip" }
 if (-not (Test-Path $ZipPath)) { throw "Update zip not found: $ZipPath (build it first)." }
 if (-not $Notes) { $Notes = "GDES $version. Automated self-update package." }
+
+# --- compute SHA-256 of the update zip ---
+$sha256 = (Get-FileHash $ZipPath -Algorithm SHA256).Hash.ToLower()
+Write-Host "==> SHA-256: $sha256" -ForegroundColor Cyan
+
+# Append the SHA-256 to release notes so the launcher can verify the download.
+$bodyWithSha = "$Notes`n`nsha256:$sha256"
 
 $hdr = @{ Authorization = "Bearer $Token"; "User-Agent" = "GDES-Publisher"; Accept = "application/vnd.github+json" }
 $api = "https://api.github.com/repos/$Repo"
@@ -56,8 +63,12 @@ Write-Host "==> Publishing $tag to $Repo" -ForegroundColor Cyan
 try {
     $rel = Invoke-RestMethod -Uri "$api/releases/tags/$tag" -Headers $hdr -Method Get
     Write-Host "   release $tag already exists (id $($rel.id)); reusing." -ForegroundColor Yellow
+    # Update the body with the current SHA-256 (the old body may have a stale hash).
+    $update = @{ body = $bodyWithSha } | ConvertTo-Json
+    Invoke-RestMethod -Uri "$api/releases/$($rel.id)" -Headers $hdr -Method Patch -Body $update -ContentType "application/json" | Out-Null
+    Write-Host "   updated release body with current SHA-256." -ForegroundColor Green
 } catch {
-    $body = @{ tag_name = $tag; name = "GDES $version"; body = $Notes; draft = $false; prerelease = $false } | ConvertTo-Json
+    $body = @{ tag_name = $tag; name = "GDES $version"; body = $bodyWithSha; draft = $false; prerelease = $false } | ConvertTo-Json
     $rel = Invoke-RestMethod -Uri "$api/releases" -Headers $hdr -Method Post -Body $body -ContentType "application/json"
     Write-Host "   created release $tag (id $($rel.id))." -ForegroundColor Green
 }
@@ -76,4 +87,4 @@ $asset = Invoke-RestMethod -Uri $uploadUrl -Headers $uploadHdr -Method Post -InF
 Write-Host "   uploaded: $($asset.browser_download_url)" -ForegroundColor Green
 Write-Host ""
 Write-Host "DONE. Clinic PCs on version < $version will now offer this update on next launch." -ForegroundColor Green
-Write-Host "(They must be able to reach $Repo — public repo = no token; private = set BGDDR_GITHUB_TOKEN on each PC.)" -ForegroundColor Green
+Write-Host "(They must be able to reach $Repo -- public repo = no token; private = set BGDDR_GITHUB_TOKEN on each PC.)" -ForegroundColor Green

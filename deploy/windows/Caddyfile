@@ -1,0 +1,35 @@
+# GDES / BGDDR registry - clinic LAN, port 8080 (phase 1: plain HTTP).
+#
+# This machine also serves the DKD registry: DKD's own Caddy owns port 80
+# and its admin API owns 127.0.0.1:2019. This Caddy uses port 8080 and admin
+# 127.0.0.1:2020, so the two never collide.
+#
+# If the machine's address changes, change these together or GDES answers
+# nothing and says nothing about why:
+#   1. the site address below
+#   2. DJANGO_ALLOWED_HOSTS and GDES_CSRF_TRUSTED_ORIGINS in E:\GDES server\.env
+#   3. $LanSubnet in install.ps1 (firewall rule), then re-run it
+#   4. $EdgeUrl / $AppHost in watchdog.ps1
+{
+	admin 127.0.0.1:2020
+}
+
+http://192.168.7.55:8080, http://dr-wasim:8080, http://127.0.0.1:8080, http://localhost:8080 {
+	reverse_proxy 127.0.0.1:8100
+
+	request_body {
+		max_size 30MB
+	}
+
+	log {
+		output file "E:/gdes-data/app/Logs/caddy.log" {
+			roll_size 10MB
+			roll_keep 5
+		}
+	}
+}
+
+# Any other Host on 8080: answer plainly instead of Caddy's default empty 200.
+:8080 {
+	respond "Misdirected request - GDES answers at http://192.168.7.55:8080/" 421
+}

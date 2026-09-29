@@ -10,6 +10,7 @@ research pathway, then validates exports and the backup/restore subsystem:
 Run:  python manage.py test patients.tests_e2e
 """
 import datetime as dt
+import sqlite3
 import tempfile
 from pathlib import Path
 
@@ -111,7 +112,12 @@ class EndToEndWorkflowTest(TestCase):
         with tempfile.TemporaryDirectory() as tmp:
             tmp = Path(tmp)
             db = tmp / "db.sqlite3"
-            db.write_bytes(b"ORIGINAL-DB-CONTENTS")
+            # Create a valid SQLite database (integrity_check requires this).
+            conn = sqlite3.connect(str(db))
+            conn.execute("CREATE TABLE _marker (id INTEGER)")
+            conn.execute("INSERT INTO _marker VALUES (42)")
+            conn.commit()
+            conn.close()
             backups = tmp / "Backups"
 
             with override_settings(
@@ -127,6 +133,10 @@ class EndToEndWorkflowTest(TestCase):
                 # Corrupt the live DB, then restore from the snapshot.
                 db.write_bytes(b"CORRUPTED")
                 self.assertTrue(restore_from_backup(snap))
-                self.assertEqual(db.read_bytes(), b"ORIGINAL-DB-CONTENTS")
+                # Verify the marker row survived the round-trip.
+                verify = sqlite3.connect(str(db))
+                row = verify.execute("SELECT id FROM _marker").fetchone()
+                verify.close()
+                self.assertEqual(row[0], 42)
                 # restore takes a pre_restore safety snapshot -> now 2 backups.
                 self.assertEqual(len(list_backups()), 2)

@@ -15,8 +15,11 @@ REGISTRY_APPS = [
     "patients", "encounters", "baseline", "labs", "pathology", "treatments",
     "prescriptions", "analytics", "audit", "studies", "safety", "scheduling",
     "biomarkers", "clinical", "knowledge", "decision", "timeline",
+    # Patient contact details and reminder bodies are clinical data. Without
+    # this app listed, NO role held any reminders permission, so the API's
+    # DjangoModelPermissions gate denied every user including data_manager.
+    "reminders",
 ]
-
 # role -> {"app_label.model": [actions]} ; "ALL" grants every registry permission,
 # "VIEW_ALL" grants view on every registry model.
 ROLES = {
@@ -29,7 +32,13 @@ ROLES = {
         "scheduling.scheduledvisit": ["add", "change", "view"],
         "studies.studyenrollment": ["add", "change", "view"],
         "prescriptions.prescription": ["view"],
+        # Clinic staff log reminders during a consult (reminder_log) and close
+        # them out; patient contact preferences are not theirs to rewrite.
+        "reminders.reminderschedule": ["add", "change", "view"],
+        "reminders.remindertemplate": ["view"],
+        "reminders.patientcommunicationpreference": ["view"],
     },
+
     "investigator": {
         "encounters.clinicalencounter": ["add", "change", "view"],
         "encounters.clinicalevent": ["add", "change", "view"],

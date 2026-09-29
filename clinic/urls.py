@@ -22,6 +22,9 @@ urlpatterns = [
     path("patients/<int:pk>/relapse/", views.relapse_create, name="relapse"),
     path("patients/<int:pk>/admission/", views.admission_create, name="admission"),
     path("patients/<int:pk>/biopsy/", views.biopsy_create, name="biopsy"),
+    path("patients/<int:pk>/biopsy/<int:bid>/", views.biopsy_detail, name="biopsy_detail"),
+    path("patients/<int:pk>/biopsy/<int:bid>/amend/", views.biopsy_amend, name="biopsy_amend"),
+    path("patients/<int:pk>/pathology/adopt/", views.adopt_pathology_diagnosis, name="adopt_pathology_dx"),
     path("patients/<int:pk>/enroll/", views.study_enroll, name="study_enroll"),
     path("patients/<int:pk>/consent/", views.consent_manage, name="consent"),
     path("patients/<int:pk>/treatment/", views.treatment_add, name="treatment"),
@@ -52,4 +55,15 @@ urlpatterns = [
     path("clinic/analytics/cox/", views.cox_results, name="cox_results"),
     path("clinic/analytics/egfr-slope/", views.egfr_slope_results, name="egfr_slope_results"),
     path("clinic/analytics/cif/", views.cif_results, name="cif_results"),
+    path("patients/<int:pk>/run-intelligence/", views.run_clinical_intelligence,
+         name="run_intelligence"),
+    path("patients/<int:pk>/verify-treatment/", views.verify_treatment_with_vera,
+         name="verify_treatment"),
+
+    path("patients/<int:pk>/request-prescription/", views.request_vera_prescription,
+         name="request_vera_prescription"),
+    path("patients/<int:pk>/save-vera-response/", views.save_vera_response,
+         name="save_vera_response"),
+    # Keystroke-only (no patient data); see views.vera_autopaste.
+    path("clinic/vera/autopaste/", views.vera_autopaste, name="vera_autopaste"),
 ]

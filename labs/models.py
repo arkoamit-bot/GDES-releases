@@ -108,11 +108,36 @@ class LabOrderItem(models.Model):
         return self.results.exists()
 
 
+class CurrentResultManager(models.Manager):
+    """Default manager: only current observations.
+
+    A corrected result is superseded, not overwritten. Superseded rows (and
+    the derivations made from them) stay in the table for lineage and are
+    reachable through ``LabResult.all_objects`` and ``result.supersedes``;
+    every ordinary query -- trends, latest value, exports, reasoning -- sees
+    the current observation only.
+    """
+    def get_queryset(self):
+        return super().get_queryset().filter(is_current=True)
+
+
 class LabResult(models.Model):
     class Source(models.TextChoices):
         LAB = "lab", "Laboratory"
         MANUAL = "manual", "Manual entry"
         DERIVED = "derived", "Derived (computed)"
+        LEGACY = "legacy", "Legacy value (reconciled from an older form)"
+
+    class EntryPath(models.TextChoices):
+        GUIDED = "guided", "Results page"
+        BASELINE = "baseline", "Baseline form"
+        API = "api", "API"
+        ADMIN = "admin", "Admin"
+        IMPORT = "import", "Import"
+        FHIR = "fhir", "FHIR"
+        DERIVED = "derived", "Derived"
+        RECONCILE = "reconcile", "Reconciliation"
+        OTHER = "other", "Other"
 
     class Flag(models.TextChoices):
         NORMAL = "", "Normal"
@@ -146,6 +171,29 @@ class LabResult(models.Model):
         related_name="derivations")
     formula_version = models.CharField(max_length=40, blank=True)
 
+    # Correction lineage: a correction is a new row that supersedes this one.
+    supersedes = models.OneToOneField(
+        "self", on_delete=models.PROTECT, null=True, blank=True,
+        related_name="superseded_by")
+    is_current = models.BooleanField(default=True, db_index=True)
+    correction_reason = models.CharField(max_length=240, blank=True)
+
+    # Entry provenance and duplicate protection. idempotency_key makes a
+    # retried submission return the row it already created; it is NOT a
+    # uniqueness rule on patient+test+date (a genuine same-day repeat
+    # measurement is a second row). source_report_id / specimen_id identify the
+    # laboratory report when it is known.
+    idempotency_key = models.CharField(max_length=80, blank=True, db_index=True)
+    source_report_id = models.CharField(max_length=60, blank=True)
+    specimen_id = models.CharField(max_length=60, blank=True)
+    entry_path = models.CharField(max_length=10, choices=EntryPath.choices, blank=True)
+    entered_by = models.ForeignKey(
+        "auth.User", on_delete=models.SET_NULL, null=True, blank=True,
+        related_name="+")
+
+    objects = CurrentResultManager()
+    all_objects = models.Manager()
+
     def clean(self):
         if self.value_numeric is None and not self.value_text:
             raise ValidationError("At least one of value_numeric or value_text must be provided.")
@@ -159,6 +207,13 @@ class LabResult(models.Model):
         indexes = [
             models.Index(fields=["patient", "test", "result_date"]),
         ]
+        constraints = [
+            models.UniqueConstraint(
+                fields=["patient", "idempotency_key"],
+                condition=~models.Q(idempotency_key=""),
+                name="uniq_labresult_idempotency_key"),
+        ]
+        base_manager_name = "all_objects"
 
     def __str__(self):
         v = self.value_numeric if self.value_numeric is not None else self.value_text

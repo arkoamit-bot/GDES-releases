@@ -6,15 +6,16 @@ user's role (Group permissions) through DjangoModelPermissions (configured
 globally). Computed/derived resources are read-only.
 """
 from rest_framework import viewsets
+from rest_framework.permissions import DjangoModelPermissions
 
 from .base import AuditedModelViewSet
-from .permissions import site_filter_kwargs
+from .permissions import IsSiteScoped, site_filter_kwargs
 
 from analytics.models import PatientOutcome
 from biomarkers.models import BiomarkerKinetics
 from encounters.models import ClinicalEncounter, ClinicalEvent
 from labs.models import LabResult
-from pathology.models import Biopsy, PathologyReview
+from pathology.models import Biopsy, PathologyReport, PathologyReview
 from patients.models import Patient, Site, UserSiteRole
 from prescriptions.models import Prescription
 from safety.models import AdverseEvent
@@ -40,6 +41,9 @@ class PatientViewSet(AuditedModelViewSet):
     queryset = Patient.objects.all()
     serializer_class = s.PatientSerializer
     search_fields = ["patient_id", "name", "hospital_id"]
+    # An account with no site assignment is rejected rather than silently served
+    # an empty list. No-op for superuser/data_manager and single-site registries.
+    permission_classes = [IsSiteScoped, DjangoModelPermissions]
 
     def get_queryset(self):
         qs = super().get_queryset()
@@ -60,8 +64,19 @@ class ClinicalEventViewSet(AuditedModelViewSet):
 
 
 class LabResultViewSet(AuditedModelViewSet):
+    """Current observations. Create/update go through the recording service;
+    an update supersedes (see LabResultSerializer). Measured history is never
+    deleted over the API -- correct the result instead."""
     queryset = LabResult.objects.select_related("test").all()
     serializer_class = s.LabResultSerializer
+
+    def destroy(self, request, *args, **kwargs):
+        from rest_framework import status
+        from rest_framework.response import Response
+        return Response(
+            {"detail": "Lab results are not deleted; PUT/PATCH with a "
+                       "correction_reason to supersede one."},
+            status=status.HTTP_405_METHOD_NOT_ALLOWED)
 
 
 class TreatmentExposureViewSet(AuditedModelViewSet):
@@ -72,6 +87,15 @@ class TreatmentExposureViewSet(AuditedModelViewSet):
 class BiopsyViewSet(AuditedModelViewSet):
     queryset = Biopsy.objects.all()
     serializer_class = s.BiopsySerializer
+
+
+class PathologyReportViewSet(AuditedModelViewSet):
+    """Report revisions with their findings. Create = new report or an
+    amendment (through pathology.services.report); no in-place edit, no delete."""
+    queryset = PathologyReport.objects.select_related("biopsy").prefetch_related("findings")
+    serializer_class = s.PathologyReportSerializer
+    filterset_fields = ["biopsy", "role", "is_current"]
+    http_method_names = ["get", "post", "head", "options"]
 
 
 class PathologyReviewViewSet(AuditedModelViewSet):

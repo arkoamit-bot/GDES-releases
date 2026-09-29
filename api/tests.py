@@ -48,6 +48,29 @@ class ReadAccessTests(RBACTestBase):
         self.assertEqual(resp.status_code, 200)
         self.assertEqual(resp.data["count"], 1)
 
+    def test_siteless_patient_does_not_500_the_list_endpoint(self):
+        # `site` is nullable; the `site.code` traversal used to raise
+        # AttributeError and take down the whole endpoint for every patient.
+        from patients.models import Site
+        site = Site.objects.create(code="S1", name="Site One")
+        Patient.objects.create(patient_id="R-OK", name="with site", sex="M", site=site)
+        Patient.objects.create(patient_id="R-NONE", name="no site", sex="M")
+
+        self._auth(self._user("ro-null", "readonly"))
+        resp = self.client.get("/api/v1/patients/")
+        self.assertEqual(resp.status_code, 200)
+        self.assertEqual(resp.data["count"], 2)
+        by_id = {r["patient_id"]: r for r in resp.data["results"]}
+        self.assertEqual(by_id["R-OK"]["site_code"], "S1")
+        self.assertIsNone(by_id["R-NONE"]["site_code"])
+
+    def test_siteless_patient_detail_does_not_500(self):
+        p = Patient.objects.create(patient_id="R-DET", name="no site", sex="M")
+        self._auth(self._user("ro-null2", "readonly"))
+        resp = self.client.get(f"/api/v1/patients/{p.id}/")
+        self.assertEqual(resp.status_code, 200)
+        self.assertIsNone(resp.data["site_code"])
+
 
 class WriteRBACTests(RBACTestBase):
     PATIENT = {"patient_id": "W1", "name": "w", "sex": "M"}
@@ -88,6 +111,100 @@ class WriteRBACTests(RBACTestBase):
         b = Biopsy.objects.create(patient=p, biopsy_date=dt.date(2026, 1, 1))
         review = {"biopsy": b.id, "role": "local", "diagnosis": "IgA nephropathy"}
         self.assertEqual(self.client.post("/api/v1/pathology-reviews/", review).status_code, 201)
+
+
+class SiteScopingTests(RBACTestBase):
+    """Multi-center scoping.
+
+    With a single site there is nothing to scope, so the desktop pilot keeps
+    working with no UserSiteRole rows at all. Once a second site exists, an
+    account without a site assignment must NOT inherit the whole registry --
+    that used to return every site's patients.
+    """
+
+    def setUp(self):
+        from patients.models import Site
+        self.site_a = Site.objects.create(code="SA", name="Site A")
+        self.site_b = Site.objects.create(code="SB", name="Site B")
+        self.pat_a = Patient.objects.create(
+            patient_id="SA-1", name="a", sex="F", site=self.site_a)
+        self.pat_b = Patient.objects.create(
+            patient_id="SB-1", name="b", sex="M", site=self.site_b)
+
+    def _assign(self, user, site, role="site_coordinator"):
+        from patients.models import UserSiteRole
+        UserSiteRole.objects.create(user=user, site=site, role=role)
+
+    def test_user_with_no_site_assignment_sees_nothing(self):
+        u = self._user("unassigned", "readonly")
+        self._auth(u)
+        resp = self.client.get("/api/v1/patients/")
+        self.assertEqual(resp.status_code, 403)
+        self.assertIn("not assigned to any site", str(resp.data).lower())
+
+    def test_user_with_no_site_assignment_gets_empty_queryset(self):
+        # The queryset itself must be fail-closed too, not just the permission.
+        from django.test import RequestFactory
+
+        from api.permissions import site_filter_kwargs
+        from patients.models import Patient as P
+        u = self._user("unassigned2", "readonly")
+        request = RequestFactory().get("/")
+        request.user = u
+        kwargs = site_filter_kwargs(request, P)
+        self.assertTrue(kwargs, "unassigned user must receive a restrictive filter")
+        self.assertEqual(P.objects.filter(**kwargs).count(), 0)
+
+    def test_site_coordinator_sees_only_their_site(self):
+        u = self._user("coordA", "coordinator")
+        self._assign(u, self.site_a)
+        self._auth(u)
+        resp = self.client.get("/api/v1/patients/")
+        self.assertEqual(resp.status_code, 200)
+        self.assertEqual(resp.data["count"], 1)
+        self.assertEqual(resp.data["results"][0]["patient_id"], "SA-1")
+
+    def test_site_coordinator_cannot_read_another_sites_patient_detail(self):
+        u = self._user("coordB", "coordinator")
+        self._assign(u, self.site_a)
+        self._auth(u)
+        resp = self.client.get(f"/api/v1/patients/{self.pat_b.id}/")
+        self.assertEqual(resp.status_code, 404)
+
+    def test_data_manager_still_sees_every_site(self):
+        self._auth(self._user("dm-multi", "data_manager"))
+        resp = self.client.get("/api/v1/patients/")
+        self.assertEqual(resp.status_code, 200)
+        self.assertEqual(resp.data["count"], 2)
+
+    def test_superuser_still_sees_every_site(self):
+        su = User.objects.create_superuser("su-multi", "a@b.c", "x")
+        self._auth(su)
+        resp = self.client.get("/api/v1/patients/")
+        self.assertEqual(resp.status_code, 200)
+        self.assertEqual(resp.data["count"], 2)
+
+    def test_single_site_registry_stays_unrestricted(self):
+        from django.test import RequestFactory
+
+        from api.permissions import site_filter_kwargs
+        from patients.models import Patient as P, Site as S
+        P.objects.update(site=None)
+        S.objects.all().delete()
+        u = self._user("solo", "readonly")
+        request = RequestFactory().get("/")
+        request.user = u
+        self.assertEqual(site_filter_kwargs(request, P), {})
+
+    def test_single_site_user_without_role_can_still_list(self):
+        from patients.models import Site as S
+        self.pat_b.site = None
+        self.pat_b.save()
+        self.site_b.delete()
+        self._auth(self._user("solo2", "readonly"))
+        resp = self.client.get("/api/v1/patients/")
+        self.assertEqual(resp.status_code, 200)
+        self.assertEqual(resp.data["count"], 2)
 
 
 class ApiAuditAttributionTests(RBACTestBase):

@@ -1,0 +1,19 @@
+<div class="finding-row" data-section="{{ sec }}">
+  {{ f.section }}
+  <div class="fcell fld-code">{{ f.code }}</div>
+  <div class="fcell fld-marker">{{ f.marker }}</div>
+  <div class="fcell fld-other">{{ f.other_label }}</div>
+  <div class="fcell fld-presence" title="Present / absent / indeterminate">{{ f.presence }}</div>
+  <div class="fcell fld-intensity" title="Intensity">{{ f.intensity }}</div>
+  <div class="fcell fld-distribution" title="Distribution">{{ f.distribution }}</div>
+  <div class="fcell fld-site" title="Site / compartment">{{ f.site }}</div>
+  <div class="fcell fld-severity" title="Severity">{{ f.severity }}</div>
+  <div class="fcell fld-extent" title="Extent">{{ f.extent }}</div>
+  <div class="fcell fld-pct" title="Extent %">{{ f.extent_pct }}<span class="unit">%</span></div>
+  <div class="fcell fld-count" title="Count of denominator">{{ f.count }}<span class="unit">of</span>{{ f.denominator }}</div>
+  <div class="fcell fld-detail">{{ f.detail }}</div>
+  <label class="fcell fld-del" title="Remove this finding">{{ f.DELETE }} remove</label>
+  {% if f.errors or f.non_field_errors %}
+  <div class="errs" style="flex-basis:100%">{% for e in f.non_field_errors %}{{ e }} {% endfor %}{% for field in f %}{% for e in field.errors %}{{ field.label }}: {{ e }} {% endfor %}{% endfor %}</div>
+  {% endif %}
+</div>

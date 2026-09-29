@@ -3,6 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="csrf-token" content="{{ csrf_token }}">
 <title>{% block title %}GDES{% endblock %}</title>
 <!-- Self-hosted FontAwesome (offline-capable; no render-blocking CDN). Inter is
      served by the system font stack (falls back to Segoe UI) — see input.css. -->
@@ -123,6 +124,11 @@
 
 <!-- HTMX (vendored) for partial swaps: live search, quick-jump, dup-check -->
 <script src="{% static 'js/htmx.min.js' %}"></script>
+<script>
+document.addEventListener('htmx:configRequest', function(evt) {
+  evt.detail.headers['X-CSRFToken'] = document.querySelector('meta[name="csrf-token"]').content;
+});
+</script>
 
 <!-- Tab switching utility -->
 <script>
@@ -145,6 +151,7 @@ document.addEventListener('DOMContentLoaded', function() {
   }
 });
 </script>
+{% block extra_css %}{% endblock %}
 </head>
 <body class="h-full">
 <div class="flex h-full">
@@ -181,6 +188,7 @@ document.addEventListener('DOMContentLoaded', function() {
       {% include "_navlink.html" with url="feedback:feedback_dashboard" icon="fa-chart-simple" label="Feedback Dashboard" on=a key="feedback_dashboard" %}
       {% include "_navlink.html" with url="feedback:conflict_list" icon="fa-scale-balanced" label="AI Conflicts" on=a key="feedback_conflicts" %}
       {% include "_navlink.html" with url="feedback:improvement_suggestions" icon="fa-lightbulb" label="Improvements" on=a key="feedback_improvements" %}
+      {% include "_navlink.html" with url="feedback:continuous_improvement" icon="fa-arrow-trend-up" label="Continuous Improvement" on=a key="feedback_continuous" %}
       {% include "_navlink.html" with url="feedback:workflow_feedback" icon="fa-star" label="Rate Suggestions" on=a key="feedback_workflow" %}
       <a href="https://www.verahealth.ai/" target="_blank" rel="noopener noreferrer"
          title="Open Vera Health evidence search in a new tab (external)"
@@ -190,6 +198,8 @@ document.addEventListener('DOMContentLoaded', function() {
         <i class="fas fa-arrow-up-right-from-square text-[10px] ml-auto text-slate-400"></i>
       </a>
       <p class="px-3 pt-4 pb-1 text-[11px] font-semibold uppercase tracking-wide text-slate-400">Research</p>
+      {% include "_navlink.html" with url="analytics:risk_dashboard" icon="fa-layer-group" label="Risk Dashboard" on=a key="risk_dashboard" %}
+      {% include "_navlink.html" with url="analytics:alerts_dashboard" icon="fa-triangle-exclamation" label="Predictive Alerts" on=a key="alerts_dashboard" %}
       {% include "_navlink.html" with url="clinic:analytics" icon="fa-chart-line" label="Analytics" on=a key="analytics" %}
       {% include "_navlink.html" with url="clinic:studies" icon="fa-flask-vial" label="Studies" on=a key="studies" %}
       {% include "_navlink.html" with url="clinic:safety" icon="fa-triangle-exclamation" label="Safety" on=a key="safety" %}
@@ -259,6 +269,8 @@ document.addEventListener('DOMContentLoaded', function() {
 </div>
 <!-- Flowbite interactive JS (vendored): drawers, dropdowns, tooltips -->
 <script src="{% static 'js/flowbite.min.js' %}"></script>
+<!-- Chart.js (vendored) — available on all pages for inline charts -->
+<script src="{% static 'clinic/chart.umd.min.js' %}"></script>
 {% block scripts %}{% endblock %}
 </body>
 </html>

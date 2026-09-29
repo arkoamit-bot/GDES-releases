@@ -1,0 +1,4 @@
+# Server (LAN, PostgreSQL) install: the app requirements plus the PostgreSQL
+# driver. Pinned by deploy/windows/constraints.txt; see docs/WINDOWS_SERVER.md.
+-r requirements.txt
+psycopg[binary]==3.3.4

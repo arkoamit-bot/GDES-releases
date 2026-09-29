@@ -300,15 +300,27 @@ _GITHUB_REPO = os.environ.get("BGDDR_GITHUB_REPO", "arkoamit-bot/GDES-releases")
 # Optional read-only token for a PRIVATE releases repo. Prefer a PUBLIC releases
 # repo (no token needed, no token shipped to clinic PCs). If you must use a
 # private repo, set BGDDR_GITHUB_TOKEN to a fine-grained token with read-only
-# access to that repo's Contents/Releases.
+# access to that repo's Contents/Releases. Falls back to bgddr_paths.json.
 _GITHUB_TOKEN = os.environ.get("BGDDR_GITHUB_TOKEN", "").strip()
 _GITHUB_API = "https://api.github.com/repos/{repo}/releases/latest"
 
 
-def _github_headers(accept: str = "application/vnd.github+json") -> dict:
-    h = {"Accept": accept, "User-Agent": "GDES-Updater"}
+def _resolve_github_token(data_dir: Path) -> str:
+    """Return the GitHub token from env var, or fall back to bgddr_paths.json."""
     if _GITHUB_TOKEN:
-        h["Authorization"] = f"Bearer {_GITHUB_TOKEN}"
+        return _GITHUB_TOKEN
+    try:
+        saved = _read_paths_config(data_dir / _PATHS_CONFIG_NAME) or {}
+        return saved.get("github_token", "")
+    except Exception:
+        return ""
+
+
+def _github_headers(accept: str = "application/vnd.github+json", token: str = "") -> dict:
+    h = {"Accept": accept, "User-Agent": "GDES-Updater"}
+    tok = token or _GITHUB_TOKEN
+    if tok:
+        h["Authorization"] = f"Bearer {tok}"
     return h
 
 
@@ -381,6 +393,16 @@ def _github_update_available(current: str) -> dict | None:
         digest = str(asset.get("digest") or "").strip()
         if digest.lower().startswith("sha256:"):
             sha256 = digest.split(":", 1)[1].lower()
+        # Fallback: parse SHA-256 from the release body (appended by publish script).
+        if not sha256:
+            body = str(data.get("body") or "")
+            for line in body.splitlines():
+                line = line.strip().lower()
+                if line.startswith("sha256:") and len(line) == 71:
+                    candidate = line.split(":", 1)[1].strip()
+                    if len(candidate) == 64 and all(c in "0123456789abcdef" for c in candidate):
+                        sha256 = candidate
+                        break
 
         return {
             "version": version,
@@ -422,70 +444,36 @@ def _github_download_and_stage(manifest: dict, log=print) -> Path | None:
         download_dir = Path(tempfile.mkdtemp(prefix="gdes-gh-update-"))
         zip_path = download_dir / manifest["file"]
         req = urllib.request.Request(url, headers=headers)
-        log(f"Downloading {manifest['file']} from GitHub ...")
-        with urllib.request.urlopen(req, timeout=120) as resp:
-            with open(zip_path, "wb") as out:
-                shutil.copyfileobj(resp, out)
+
+        # Retry up to 3 times with backoff and a long timeout — the release zip
+        # is ~100 MB and GitHub/CDN occasionally returns a transient 5xx (502).
+        last_err = None
+        backoff = (0, 3, 8)
+        for attempt in (1, 2, 3):
+            if backoff[attempt - 1]:
+                time.sleep(backoff[attempt - 1])
+            try:
+                log(f"Downloading {manifest['file']} from GitHub "
+                    f"(attempt {attempt}/3) ...")
+                with urllib.request.urlopen(req, timeout=300) as resp:
+                    with open(zip_path, "wb") as out:
+                        shutil.copyfileobj(resp, out)
+                last_err = None
+                break
+            except Exception as exc:
+                last_err = exc
+                code = getattr(exc, "code", None)
+                log(f"Download attempt {attempt}/3 failed"
+                    + (f" (HTTP {code})" if code else "") + f": {exc}")
+                continue
+        if last_err:
+            raise last_err
+
         staged = updater.verify_and_stage(download_dir, manifest, log=log)
+        if staged is None:
+            log("verify_and_stage returned None — ZIP may be corrupt or structure wrong.")
         shutil.rmtree(download_dir, ignore_errors=True)
         return staged
-    except Exception as exc:
-        log(f"GitHub download/stage failed: {exc}")
-        return None
-
-
-def _github_update_available(current: str) -> dict | None:
-    """Check GitHub Releases for a newer version. Returns manifest dict or None."""
-    if not _GITHUB_REPO or _GITHUB_REPO.startswith("YOUR_"):
-        return None
-    try:
-        from bgddr.updater import is_newer
-        import urllib.request
-        url = _GITHUB_API.format(repo=_GITHUB_REPO)
-        req = urllib.request.Request(url, headers={"Accept": "application/vnd.github.v3+json",
-                                                    "User-Agent": "GDES-Updater"})
-        with urllib.request.urlopen(req, timeout=15) as resp:
-            data = json.loads(resp.read().decode())
-        tag = (data.get("tag_name") or "").lstrip("v")
-        if not tag or not is_newer(tag, current):
-            return None
-        zip_name = f"GDES-{tag}.zip"
-        asset_url = None
-        for asset in data.get("assets", []):
-            if asset.get("name") == zip_name:
-                asset_url = asset.get("browser_download_url")
-                break
-        if not asset_url:
-            return None
-        return {"version": tag, "file": zip_name, "url": asset_url,
-                "notes": data.get("body", "")}
-    except Exception:
-        return None
-
-
-def _github_download_and_stage(manifest: dict, log=print) -> Path | None:
-    """Download a release zip from GitHub and extract to a staging folder."""
-    import tempfile
-    import urllib.request
-    import zipfile
-    url = manifest.get("url")
-    if not url:
-        log("No download URL in GitHub manifest.")
-        return None
-    try:
-        staging = Path(tempfile.mkdtemp(prefix="gdes-gh-update-"))
-        zip_path = staging / manifest["file"]
-        log(f"Downloading {manifest['file']} from GitHub ...")
-        urllib.request.urlretrieve(url, str(zip_path))
-        log("Download complete. Extracting ...")
-        with zipfile.ZipFile(zip_path) as zf:
-            zf.extractall(staging)
-        zip_path.unlink(missing_ok=True)
-        for cand in [staging] + [p for p in staging.iterdir() if p.is_dir()]:
-            if (cand / "GDES.exe").is_file() and (cand / "_internal").is_dir():
-                return cand
-        log("Extracted zip does not contain GDES.exe / _internal.")
-        return None
     except Exception as exc:
         log(f"GitHub download/stage failed: {exc}")
         return None
@@ -533,10 +521,9 @@ def _update_prompt(current: str, manifest: dict) -> bool:
 
 
 def run_update_check(root: Path, interactive: bool = True) -> bool:
-    """Check for an update (local folder OR GitHub Releases) and, if the user
-    confirms, stage the new build and spawn the swap helper. Returns True if an
-    update is being applied — the caller must then exit so the helper can replace
-    the files.
+    """Check the update folder and, if the user confirms, stage the new build and
+    spawn the swap helper. Returns True if an update is being applied — the caller
+    must then exit so the helper can replace the files.
 
     Only meaningful for the packaged .exe; a no-op when running from source.
     """
@@ -563,6 +550,10 @@ def run_update_check(root: Path, interactive: bool = True) -> bool:
             log(f"Update check failed for {candidate}: {exc}")
             continue
     if not manifest:
+        # Resolve GitHub token from env or config file before checking
+        global _GITHUB_TOKEN
+        if not _GITHUB_TOKEN:
+            _GITHUB_TOKEN = _resolve_github_token(root)
         manifest = _github_update_available(current)
         github_mode = bool(manifest)
     if not manifest:
@@ -578,11 +569,11 @@ def run_update_check(root: Path, interactive: bool = True) -> bool:
         staging = _github_download_and_stage(manifest, log=log)
     else:
         staging = updater.verify_and_stage(Path(update_dir), manifest, log=log)
-
     if not staging:
-        _info_msg("GDES - Update failed",
-                  "The update could not be verified or extracted. "
-                  "See Logs\\\\update.log. Your app is unchanged.")
+        if interactive:
+            _info_msg("GDES - Update failed",
+                      "The update could not be verified or extracted. "
+                      "See Logs\\update.log. Your app is unchanged.")
         return False
 
     # A safety snapshot before we hand over to the swap helper.
@@ -592,16 +583,19 @@ def run_update_check(root: Path, interactive: bool = True) -> bool:
     except Exception as exc:
         log(f"pre-update backup warning: {exc}")
 
+    # The code (BGDDR.exe + _internal) lives in the APP folder, which is NOT the
+    # data dir: since the data dir was moved to %LOCALAPPDATA%\GDES\Data, the
+    # swap must target app_dir(), not `root` (the data dir). Getting this wrong
+    # makes the updater "succeed" but silently swap nothing.
     code_dir = app_dir()
     started = updater.apply_update(
         app_dir=code_dir, staging_root=staging,
         old_version=current, new_version=manifest["version"],
         log_path=Path(root) / "Logs" / "update.log", log=log,
     )
-    if started and interactive:
-        _info_msg("GDES - Updating",
-                  f"Updating to {manifest['version']}. GDES will close and reopen "
-                  "in a moment.")
+    # Do NOT show a blocking dialog after apply_update — the helper is already
+    # waiting for this process to exit.  A modal _info_msg here causes the helper
+    # to time out (90 s) and roll back if the user doesn't click OK in time.
     return started
 
 
@@ -651,7 +645,11 @@ def initialise(data_dir: Path) -> None:
             f"(installed={get_installed_kb_version() or 'none'} -> {PACKAGED_KB_VERSION}) ...")
         for cmd in ("seed_knowledge_base", "seed_v4_knowledge",
                      "seed_clinical_cases", "seed_drug_knowledge",
-                     "seed_drug_intelligence", "activate_entries"):
+                     "seed_drug_intelligence", "activate_entries",
+                     # Build the reasoning knowledge graph from the seeded
+                     # entities (must run AFTER them); the engine's graph layer
+                     # is inert without it.
+                     "build_knowledge_graph"):
             try:
                 run_cmd(cmd, verbosity=0)
             except Exception as exc:
@@ -673,6 +671,24 @@ def initialise(data_dir: Path) -> None:
         log(f"  (collectstatic warning: {exc})")
 
 
+def _generate_admin_password() -> str:
+    """Strong random password for unattended first-run installs.
+
+    A fixed fallback password must never be used here: this account has
+    superuser rights over the whole patient registry, and a well-known default
+    is equivalent to no authentication at all.
+    """
+    import secrets
+    import string
+    alphabet = string.ascii_letters + string.digits + "!@#$%^&*()-_=+"
+    while True:
+        pw = "".join(secrets.choice(alphabet) for _ in range(24))
+        # Guarantee the character classes Django's validators expect.
+        if (any(c.islower() for c in pw) and any(c.isupper() for c in pw)
+                and any(c.isdigit() for c in pw)):
+            return pw
+
+
 def ensure_admin(interactive: bool = True) -> None:
     """Guarantee at least one superuser. Prompt once via a small Tk dialog."""
     from django.contrib.auth import get_user_model
@@ -682,19 +698,19 @@ def ensure_admin(interactive: bool = True) -> None:
         return
 
     username, password = _admin_dialog() if interactive else (None, None)
-    if not username:  # dialog cancelled — generate a secure random password
-        import secrets
-        import string
-        _alphabet = string.ascii_letters + string.digits + "!@#$%&*"
-        password = "".join(secrets.choice(_alphabet) for _ in range(16))
+    if not username:
+        # Dialog cancelled or tkinter unavailable (unattended install). Generate
+        # a random password and surface it ONCE rather than shipping a default
+        # that anyone in the world could log in with.
         username = "admin"
-        log("=" * 60)
-        log("ADMIN DIALOG CANCELLED — AUTO-GENERATED CREDENTIALS")
-        log(f"  Username: {username}")
-        log(f"  Password: {password}")
-        log("  ⚠️  SAVE THIS PASSWORD — YOU WILL NOT SEE IT AGAIN")
-        log("  ⚠️  CHANGE IT IMMEDIATELY after first login")
-        log("=" * 60)
+        password = _generate_admin_password()
+        log("=" * 68)
+        log("  FIRST-RUN ADMINISTRATOR CREATED (no password prompt available)")
+        log(f"    username: {username}")
+        log(f"    password: {password}")
+        log("  This password is shown ONLY ONCE. Record it now and change it")
+        log("  immediately:  python manage.py changepassword admin")
+        log("=" * 68)
     User.objects.create_superuser(username=username, password=password)
     log(f"Administrator account '{username}' created.")
 
@@ -732,8 +748,9 @@ def _admin_dialog():
     def submit():
         if not u.get().strip():
             messagebox.showerror("BGDDR", "Username is required."); return
-        if len(p.get()) < 6:
-            messagebox.showerror("BGDDR", "Password must be at least 6 characters."); return
+        if len(p.get()) < 10:
+            messagebox.showerror("BGDDR", "Password must be at least 10 characters."); return
+
         if p.get() != p2.get():
             messagebox.showerror("BGDDR", "Passwords do not match."); return
         result["u"], result["p"] = u.get().strip(), p.get()
@@ -1077,6 +1094,30 @@ def main() -> None:
     if check:
         server = make_server()           # binds the port to prove it works
         server.close()
+
+        # Serve a real request through the full WSGI stack. Binding the port is
+        # NOT enough: a URLconf that fails to import (e.g. an app missing from
+        # LOCAL_APPS in BGDDR.spec) starts fine and then 500s on EVERY request.
+        # That shipped in 7.3.12 as "No module named 'auth'". This must FAIL the
+        # self-check, so the build script refuses to certify a broken package.
+        try:
+            from django.test import Client
+
+            client = Client()
+            resp = client.get("/", HTTP_HOST="127.0.0.1", follow=True)
+            if resp.status_code >= 500:
+                log(f"Self-check FAILED: GET / returned {resp.status_code} "
+                    "(the app starts but cannot serve requests).")
+                sys.exit(1)
+            log(f"Self-check: HTTP GET / -> {resp.status_code} OK.")
+        except SystemExit:
+            raise
+        except Exception as exc:
+            import traceback
+            log(f"Self-check FAILED: could not serve a request: {exc}")
+            log(traceback.format_exc())
+            sys.exit(1)
+
         # Prove the compiled SPSS writer (pyreadstat) is bundled & working.
         try:
             from exports.services.writers import to_sav
@@ -1085,7 +1126,31 @@ def main() -> None:
             log("Self-check: SPSS .sav export OK.")
         except Exception as exc:
             log(f"Self-check WARNING: SPSS export failed: {exc}")
-        log("Self-check OK: migrate, seed, static, admin, and server all wired.")
+
+        # Emit real knowledge-base counts from the freshly-seeded DB so the build
+        # script can put TRUE numbers in version.json / RELEASE_REPORT.md instead
+        # of regex-scraping the seed source (which over-counted diseases 43 vs 22).
+        try:
+            import json as _json
+            from knowledge.kb_version import kb_health_summary
+
+            health = kb_health_summary()
+            stats_path = data_dir / "selfcheck_stats.json"
+            stats_path.write_text(_json.dumps({
+                "kb_version": health.get("kb_version", ""),
+                "diseases": health.get("diseases", 0),
+                "rules_active": health.get("rules_active", 0),
+                "rules_total": health.get("rules_total", 0),
+                "pathways": health.get("pathways", 0),
+                "cases": health.get("cases", 0),
+                "guidelines": health.get("guidelines", 0),
+            }, indent=2), encoding="utf-8")
+            log(f"Self-check: wrote KB stats to {stats_path.name} "
+                f"(diseases={health.get('diseases')}, rules_active={health.get('rules_active')}).")
+        except Exception as exc:
+            log(f"Self-check WARNING: could not write KB stats: {exc}")
+
+        log("Self-check OK: migrate, seed, static, admin, HTTP request, and server all wired.")
         return
     create_desktop_shortcut(data_dir)
     start_backups()
@@ -1103,6 +1168,16 @@ def main() -> None:
             log("Error reporting system initialised.")
         except Exception as exc:
             log(f"Error reporting init warning: {exc}")
+        # Drug-catalogue refresh (medex.com.bd/brands). Separate try block:
+        # a failure here must not affect error reporting above.
+        try:
+            from prescriptions.services.scheduler import (
+                start_scheduler as start_drug_sync,
+            )
+            start_drug_sync()
+            log("Drug sync scheduler initialised.")
+        except Exception as exc:
+            log(f"Drug sync init warning: {exc}")
     run(server, data_dir)
 
 

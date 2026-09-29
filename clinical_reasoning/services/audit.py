@@ -44,9 +44,32 @@ def create_audit_record(
     This function is the canonical way to write to the audit trail.
     Call it from every recommendation-producing service.
 
-    Returns the created RecommendationAudit instance.
+    Idempotent: re-issuing an identical recommendation returns the record
+    already on file instead of writing another one. The recommendation
+    generators run on every page render, so without this the trail filled with
+    copies -- one patient had 44 rows for 8 distinct recommendations, a log of
+    page views rather than of clinical decisions, which is what made it
+    unreadable. The FIRST issuance is kept: that is the date the recommendation
+    was actually made.
+
+    Returns the RecommendationAudit instance (existing or newly created).
     """
     from knowledge.models import RecommendationAudit
+
+    # Deliberately inside a guard: this function has always been best-effort —
+    # a failure to write the trail must never break the recommendation itself.
+    try:
+        existing = (RecommendationAudit.objects
+                    .filter(patient=patient,
+                            recommendation_type=recommendation_type,
+                            disease_id=disease_id,
+                            recommendation_text=recommendation_text)
+                    .order_by("issued_at")
+                    .first())
+    except Exception:
+        existing = None
+    if existing is not None:
+        return existing
 
     rec_id = _generate_recommendation_id(recommendation_type, patient.pk)
     today = date.today()
@@ -204,6 +227,10 @@ def audit_clinical_reasoning(patient, profile, care_pathway_data: dict, clinicia
     rule_results = care_pathway_data.get("rule_results", [])
     if rule_results:
         disease_id = rule_results[0].get("disease_id", "")
+    # The engine does not put rule_results in care_pathway_data; fall back to the
+    # profile's top differential so audit rows carry a real disease_id.
+    if not disease_id and getattr(profile, "differential", None):
+        disease_id = (profile.differential[0] or {}).get("disease_id", "")
 
     for rec in recommendations:
         create_audit_record(

@@ -1,0 +1,41 @@
+<dl class="kv">
+  {% if r.primary_diagnosis %}<dt>Conclusion</dt><dd>{{ r.get_primary_diagnosis_display }}</dd>{% endif %}
+  {% if r.additional_diagnoses %}<dt>Coexisting</dt><dd>{{ r.additional_diagnoses|join:"; " }}</dd>{% endif %}
+  {% if r.report_identifier or r.laboratory or r.pathologist %}<dt>Report</dt><dd>{{ r.report_identifier|default:"" }} {% if r.laboratory %}· {{ r.laboratory }}{% endif %} {% if r.pathologist %}· {{ r.pathologist }}{% endif %}</dd>{% endif %}
+  <dt>Specimen / report date</dt><dd>{{ r.specimen_date|default:"—" }} / {{ r.report_date|default:"—" }}{% if r.context %} · {{ r.get_context_display }}{% endif %}</dd>
+  <dt>Modalities</dt><dd>{% for label, value in r.modality_rows %}{{ label }}: {{ value|default:"not stated" }}{% if not forloop.last %} · {% endif %}{% endfor %}</dd>
+  {% if r.cores is not None or r.cortex_present is not None or r.medulla_present is not None %}<dt>Specimen</dt><dd>{% if r.cores is not None %}{{ r.cores }} core(s){% endif %} {% if r.cortex_present is not None %}· cortex {{ r.cortex_present|yesno:"yes,no" }}{% endif %} {% if r.medulla_present is not None %}· medulla {{ r.medulla_present|yesno:"yes,no" }}{% endif %}</dd>{% endif %}
+  {% if r.globally_sclerosed is not None or r.segmentally_sclerosed is not None or r.crescentic_glomeruli is not None %}<dt>LM counts</dt><dd>{% if r.globally_sclerosed is not None %}{{ r.globally_sclerosed }} globally sclerosed{% endif %}{% if r.segmentally_sclerosed is not None %} · {{ r.segmentally_sclerosed }} segmentally sclerosed{% endif %}{% if r.crescentic_glomeruli is not None %} · {{ r.crescentic_glomeruli }} with crescents{% endif %} (of {{ r.biopsy.total_glomeruli|default:"?" }})</dd>{% endif %}
+  {% if r.glomeruli_if is not None or r.glomeruli_em is not None %}<dt>Glomeruli IF / EM</dt><dd>{{ r.glomeruli_if|default_if_none:"—" }} / {{ r.glomeruli_em|default_if_none:"—" }}</dd>{% endif %}
+  {% if r.limitations %}<dt>Limitations</dt><dd>{{ r.limitations|linebreaksbr }}</dd>{% endif %}
+  {% if r.comment %}<dt>Comment</dt><dd>{{ r.comment|linebreaksbr }}</dd>{% endif %}
+  {% if r.panel_override_reason %}<dt>Panel override</dt><dd>{{ r.panel_override_reason }}</dd>{% endif %}
+  {% if r.signed_by or r.signed_at %}<dt>Signed</dt><dd>{{ r.signed_by }} {{ r.signed_at|default:"" }}</dd>{% endif %}
+  <dt>Entered</dt><dd>{{ r.created_at|date:"Y-m-d H:i" }}{% if r.entered_by %} by {{ r.entered_by }}{% endif %} · {{ r.get_origin_display }}{% if r.revision_reason %} — {{ r.revision_reason }}{% endif %}</dd>
+  {% if r.scores %}<dt>Scores stated</dt><dd>{% for k, v in r.scores.items %}{{ k }}: {% for kk, vv in v.items %}{{ kk }}={{ vv|default_if_none:"—" }} {% endfor %}{% if not forloop.last %}; {% endif %}{% endfor %}</dd>{% endif %}
+</dl>
+{% with sections=r.findings_by_section %}
+{% if sections %}
+<table class="grid finding-table" style="margin-top:10px">
+  <thead><tr><th style="width:24%">Section</th><th>Finding</th><th>Result</th><th>Grading</th><th>Details</th></tr></thead>
+  <tbody>
+  {% for key, label, items in sections %}
+    {% for f in items %}
+    <tr>
+      <td>{% if forloop.first %}{{ label }}{% endif %}</td>
+      <td>{{ f.display_label }}{% if f.origin == "legacy" %} <span class="legacy" title="Original value: {{ f.legacy_value }}">legacy</span>{% endif %}</td>
+      <td>{{ f.get_presence_display }}</td>
+      <td>{{ f.grading|default:"—" }}</td>
+      <td>{{ f.detail }}{% if f.other_label and f.code != "other" and f.section != "if_marker" %} {{ f.other_label }}{% endif %}</td>
+    </tr>
+    {% endfor %}
+  {% endfor %}
+  </tbody>
+</table>
+{% else %}
+<div class="help" style="margin-top:8px">No structured findings recorded on this revision.</div>
+{% endif %}
+{% endwith %}
+{% if r.original_report_text %}
+<details style="margin-top:8px"><summary>Original report text</summary><pre style="white-space:pre-wrap;font-size:13px">{{ r.original_report_text }}</pre></details>
+{% endif %}
