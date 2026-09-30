@@ -13,6 +13,10 @@ DKDR (the sister DKD/CKM registry) vendors two brand sources under
 * ``brand_registry/drugs.xls`` - a tab-separated brand list (FORM_DESC,
   GENERIC_NAME, TRADE_NAME, STRENGTH, ...) that carries brands MedEx lacks
 
+A checkout is not needed on clinic PCs: ``--write-bundle`` saves the rows of
+all three sources as one gzipped CSV (``prescriptions/data/dkdr_drugs.csv.gz``,
+shipped in the app) and ``--bundle`` imports from that file instead.
+
 Both are reshaped into the CSV that ``import_bddrugbank`` reads and handed
 to it, so folding, synonyms, route inference, curated-brand ordering and the
 field-length guards behave exactly as they do for the weekly MedEx sync.
@@ -37,6 +41,7 @@ Deliberately narrower than a full import:
 from __future__ import annotations
 
 import csv
+import gzip
 import io
 import os
 import re
@@ -54,6 +59,7 @@ from .import_bddrugbank import (MAX_GENERIC, canonical_generic, is_device,
                                 norm, split_generic)
 
 DEFAULT_DKDR_DIR = os.environ.get("DKDR_DIR", r"E:\dev\DKDR")
+BUNDLE_PATH = Path(__file__).resolve().parents[2] / "data" / "dkdr_drugs.csv.gz"
 
 # Header `import_bddrugbank`'s DictReader expects.
 CSV_HEADER = ["name", "generic_name", "strength", "therapeutic_class",
@@ -199,6 +205,13 @@ def _read_bddrugbank(path: Path):
                 }
 
 
+def _read_bundle(path: Path):
+    """Rows previously saved by ``--write-bundle`` (gzipped, CSV_HEADER)."""
+    with gzip.open(path, "rt", newline="", encoding="utf-8") as f:
+        for row in csv.DictReader(f):
+            yield {k: (row.get(k) or "").strip() for k in CSV_HEADER}
+
+
 class Command(BaseCommand):
     requires_system_checks = []
     help = "Merge DKDR's brand catalogue into DrugMaster (additive)."
@@ -220,24 +233,39 @@ class Command(BaseCommand):
                             help="Skip the BDDrugBank zip (bddrugbank/*.zip)")
         parser.add_argument("--skip-registry", action="store_true",
                             help="Use bd_med only, not brand_registry/drugs.xls")
+        parser.add_argument("--bundle", nargs="?", const=str(BUNDLE_PATH),
+                            default="",
+                            help="Import from a saved bundle instead of a "
+                                 "DKDR checkout (default: the one shipped in "
+                                 "the app)")
+        parser.add_argument("--write-bundle", default="",
+                            help="Save the source rows to this .csv.gz and "
+                                 "exit without touching the database")
         parser.add_argument("--report", default="",
                             help="Write unmatched generics (with brand counts) "
                                  "to this CSV for review")
 
     def handle(self, *args, dkdr_dir, dry_run, create_generics, fold_salts,
-               skip_registry, skip_bddrugbank, report, **options):
+               skip_registry, skip_bddrugbank, report, bundle="",
+               write_bundle="", **options):
         data = Path(dkdr_dir) / "data"
         sources = [("bd_med", data / "bd_med" / "medicine.csv", _read_bd_med)]
-        if not skip_bddrugbank:
+        if bundle:
+            sources = [("bundle", Path(bundle), _read_bundle)]
+        elif not skip_bddrugbank:
             zips = sorted((data / "bddrugbank").glob("*.zip"))
             if zips:
                 sources.append(("bddrugbank", zips[-1], _read_bddrugbank))
-        if not skip_registry:
+        if not skip_registry and not bundle:
             sources.append(("registry", data / "brand_registry" / "drugs.xls",
                             _read_registry))
         for label, path, _ in sources:
             if not path.exists():
                 raise CommandError(f"{label} source not found: {path}")
+
+        if write_bundle:
+            self._write_bundle(sources, Path(write_bundle))
+            return
 
         existing = set()
         for name in DrugMaster.objects.values_list("generic_name", flat=True):
@@ -316,3 +344,31 @@ class Command(BaseCommand):
             merged.write_text(buf.getvalue(), encoding="utf-8", newline="")
             call_command("import_bddrugbank", str(merged), dry_run=dry_run,
                          stdout=self.stdout, stderr=self.stderr)
+
+    def _write_bundle(self, sources, out: Path):
+        """Save every usable source row, deduplicated, for offline import.
+
+        Only filtering that does not depend on the target database happens
+        here, so the bundle behaves exactly like the DKDR checkout it came
+        from when it is imported into any database.
+        """
+        seen = set()
+        n = 0
+        out.parent.mkdir(parents=True, exist_ok=True)
+        # mtime=0 keeps the file byte-identical across rebuilds of the same data.
+        with open(out, "wb") as raw,                 gzip.GzipFile(fileobj=raw, mode="wb", mtime=0) as gz,                 io.TextIOWrapper(gz, encoding="utf-8", newline="") as f:
+            w = csv.DictWriter(f, fieldnames=CSV_HEADER)
+            w.writeheader()
+            for _label, path, reader in sources:
+                for row in reader(path):
+                    generic, brand = row["generic_name"], row["name"]
+                    if not generic or not brand or _BRAND_JUNK.match(brand)                             or is_device(generic):
+                        continue
+                    key = (norm(generic), norm(brand), row["strength"].lower(),
+                           row["therapeutic_class"])
+                    if key in seen:
+                        continue
+                    seen.add(key)
+                    w.writerow({k: row.get(k, "") for k in CSV_HEADER})
+                    n += 1
+        self.stdout.write(f"Wrote {n} rows to {out}")

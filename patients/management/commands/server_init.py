@@ -55,6 +55,19 @@ class Command(BaseCommand):
         else:
             self.stdout.write(f"knowledge base up to date (v{get_installed_kb_version()})")
 
+        from prescriptions.drug_bundle import (BUNDLE_VERSION, apply_if_newer,
+                                               installed_version)
+        self.stdout.write("drug list")
+        try:
+            if apply_if_newer(log=self.stdout.write, stdout=self.stdout,
+                              stderr=self.stderr):
+                self.stdout.write(f"  ok  drug list {BUNDLE_VERSION}")
+            else:
+                self.stdout.write(f"  up to date ({installed_version()})")
+        except Exception as exc:          # reported, and counted below
+            failures.append("drug list")
+            self.stderr.write(f"  FAILED  drug list: {exc}")
+
         self.stdout.write("collectstatic")
         call_command("collectstatic", interactive=False, verbosity=0)
         self.stdout.write("  ok  collectstatic")

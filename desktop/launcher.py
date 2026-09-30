@@ -658,6 +658,15 @@ def initialise(data_dir: Path) -> None:
     else:
         log(f"Knowledge base up to date (v{get_installed_kb_version()}); skipping seed.")
 
+    # Drug list shipped in the app (prescriptions/data/dkdr_drugs.csv.gz):
+    # imported once per bundle version, after seed_drugs on a first run. A
+    # failure must not block startup; the next launch retries.
+    try:
+        from prescriptions.drug_bundle import apply_if_newer
+        apply_if_newer(log=log, stdout=_SINK, stderr=_SINK)
+    except Exception as exc:
+        log(f"  (drug list update skipped: {exc})")
+
     if not marker.exists():
         try:
             marker.write_text("ok", encoding="utf-8")

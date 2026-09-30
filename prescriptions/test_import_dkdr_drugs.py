@@ -291,3 +291,59 @@ class SpellingVariantCreationTests(TestCase):
         rows = DrugMaster.objects.filter(generic_name__icontains="losartan")
         self.assertEqual(rows.count(), 1)
         self.assertEqual(sorted(rows[0].brand_names), ["Aa", "Bb"])
+
+
+class BundleTests(ImportDkdrDrugsTests):
+    def test_bundle_round_trip_matches_a_checkout_import(self):
+        bundle = Path(self.dkdr) / "b.csv.gz"
+        self._run("--write-bundle", str(bundle))
+        self.ramipril.refresh_from_db()
+        self.assertEqual(self.ramipril.brand_names, ["Cardace", "Tritace"])
+
+        self._run("--bundle", str(bundle), "--create-generics")
+        via_bundle = DrugMaster.objects.get(pk=self.ramipril.pk)
+        self.assertIn("Regpril", via_bundle.brand_names)
+        self.assertIn("Newpril", via_bundle.brand_names)
+        self.assertNotIn("Herbo", via_bundle.brand_names)
+        self.assertTrue(DrugMaster.objects.filter(
+            generic_name="Unknownium").exists())
+
+    def test_shipped_bundle_exists_and_reads(self):
+        from .management.commands.import_dkdr_drugs import (BUNDLE_PATH,
+                                                            _read_bundle)
+        self.assertTrue(BUNDLE_PATH.exists(), BUNDLE_PATH)
+        first = next(iter(_read_bundle(BUNDLE_PATH)))
+        self.assertTrue(first["generic_name"] and first["name"])
+
+
+class DrugBundleGateTests(TestCase):
+    def setUp(self):
+        self._tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(self._tmp.cleanup)
+        from django.test import override_settings
+        ctx = override_settings(BGDDR_DATA_DIR=Path(self._tmp.name))
+        ctx.enable()
+        self.addCleanup(ctx.disable)
+
+    def test_applies_once_then_is_stamped(self):
+        from unittest import mock
+
+        from prescriptions import drug_bundle
+        with mock.patch("django.core.management.call_command") as cc:
+            self.assertTrue(drug_bundle.apply_if_newer(log=lambda *_: None))
+            self.assertEqual(cc.call_count, 2)
+            self.assertEqual(drug_bundle.installed_version(),
+                             drug_bundle.BUNDLE_VERSION)
+            self.assertFalse(drug_bundle.apply_if_newer(log=lambda *_: None))
+            self.assertEqual(cc.call_count, 2)
+
+    def test_a_failed_import_is_retried_next_launch(self):
+        from unittest import mock
+
+        from prescriptions import drug_bundle
+        with mock.patch("django.core.management.call_command",
+                        side_effect=RuntimeError("boom")):
+            with self.assertRaises(RuntimeError):
+                drug_bundle.apply_if_newer(log=lambda *_: None)
+        self.assertIsNone(drug_bundle.installed_version())
+        self.assertTrue(drug_bundle.should_apply())
