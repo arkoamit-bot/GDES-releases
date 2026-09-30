@@ -142,11 +142,14 @@ class ImportRouteFromDosageFormTests(TestCase):
         d = DrugMaster.objects.get(generic_name="Insulin Human")
         self.assertEqual(d.default_route, "SC")
 
-    def test_an_ambiguous_form_leaves_the_route_unasserted(self):
+    def test_an_ambiguous_form_falls_to_the_clinical_table_not_to_oral(self):
+        """A bare "Injection" states no route, so the form asserts nothing --
+        but the drug must still not be left oral."""
         self._import([["Rocephin", "Ceftriaxone", "1 gm/vial", "", "X",
                        "Injection", ""]])
         d = DrugMaster.objects.get(generic_name="Ceftriaxone")
-        self.assertEqual(d.available_routes, [])
+        self.assertEqual(d.available_routes, ["IV", "IM"])
+        self.assertNotEqual(d.default_route, "PO")
 
     def test_a_catalogue_derived_default_is_recomputed_not_inherited(self):
         """Paracetamol sat at default IV because an "(IV Infusion)" name
@@ -217,3 +220,94 @@ class PreviewIframeTests(TestCase):
 
     def test_srcdoc_contains_no_bare_quote_to_close_the_attribute(self):
         self.assertNotIn('"', self._srcdoc())
+
+
+class InjectionRouteTableTests(TestCase):
+    """A product filed only as "Injection" must not default to oral, and a
+    route must not be invented where no label states one."""
+
+    def _r(self, name):
+        from .injection_routes import routes_for_injection
+        return [str(x) for x in routes_for_injection(name)]
+
+    def test_vaccines_are_im_with_yellow_fever_subcutaneous(self):
+        self.assertEqual(self._r("Influenza vaccine inactivated"), ["IM"])
+        self.assertEqual(self._r("Tetanus toxoid (Absorbed Tetanus) Vaccine"),
+                         ["IM"])
+        self.assertEqual(self._r("Tetanus + Diphtheria"), ["IM"])
+        self.assertEqual(self._r("Yellow fever Virus (Live attenuated) Vaccine"),
+                         ["SC"])
+
+    def test_routes_that_a_label_states_absolutely(self):
+        self.assertEqual(self._r("Vincristine Sulphate"), ["IV"])
+        self.assertEqual(self._r("Streptomycin"), ["IM"])
+        self.assertEqual(self._r("Benzyl Penicillin + Procaine Penicillin"),
+                         ["IM"])
+        self.assertEqual(self._r("Insulin degludec + Insulin aspart 70/30 "
+                                 "premixed"), ["SC"])
+
+    def test_heparin_is_never_intramuscular(self):
+        self.assertNotIn("IM", self._r("Heparin"))
+        self.assertEqual(self._r("Heparin"), ["IV", "SC"])
+
+    def test_the_usual_route_is_listed_first(self):
+        # Anaphylaxis is the common case, so IM leads IV.
+        self.assertEqual(self._r("Adrenaline"), ["IM", "IV", "SC"])
+
+    def test_a_local_anaesthetic_is_not_given_a_systemic_route(self):
+        for name in ("Lidocaine + Adrenaline", "Bupivacaine Hydrochloride",
+                     "Articaine Hydrochloride + Epinephrine"):
+            self.assertEqual(self._r(name), ["INJ"], name)
+
+    def test_an_unknown_injection_is_recorded_as_injection_not_oral(self):
+        self.assertEqual(self._r("Wholly Unknown Substance"), ["INJ"])
+        self.assertEqual(self._r(""), ["INJ"])
+
+
+class InjectionOnlyImportTests(TestCase):
+    """End to end: the importer must never leave an injection on PO."""
+
+    def _import(self, rows):
+        import csv as _csv
+        import os
+        import tempfile
+        fd, path = tempfile.mkstemp(suffix=".csv")
+        os.close(fd)
+        with open(path, "w", newline="", encoding="utf-8") as fh:
+            w = _csv.writer(fh)
+            w.writerow(CSV_HEADER)
+            w.writerows(rows)
+        call_command("import_bddrugbank", path, stdout=io.StringIO(),
+                     stderr=io.StringIO())
+        os.unlink(path)
+
+    def test_a_bare_injection_form_never_leaves_the_drug_oral(self):
+        self._import([
+            ["Fluvac", "Influenza vaccine inactivated", "0.5 ml", "", "X",
+             "Injection", ""],
+            ["Mystery", "Wholly Unknown Substance", "1 g/vial", "", "X",
+             "Injection", ""],
+        ])
+        vac = DrugMaster.objects.get(generic_name="Influenza vaccine inactivated")
+        self.assertEqual(vac.default_route, "IM")
+        unknown = DrugMaster.objects.get(generic_name="Wholly Unknown Substance")
+        self.assertEqual(unknown.default_route, "INJ")
+        self.assertNotEqual(unknown.routes, ["PO"])
+
+    def test_a_form_naming_a_route_the_vocabulary_now_holds(self):
+        self._import([
+            ["Spinal", "Bupivacaine Heavy", "0.5%", "", "X",
+             "Intraspinal Injection", ""],
+            ["Lucentis", "Ranibizumab", "10 mg/ml", "", "X",
+             "Intravitreal Injection", ""],
+        ])
+        self.assertEqual(DrugMaster.objects.get(
+            generic_name="Bupivacaine Heavy").default_route, "IT")
+        self.assertEqual(DrugMaster.objects.get(
+            generic_name="Ranibizumab").default_route, "IVIT")
+
+    def test_an_oral_drug_is_untouched_by_the_injection_fallback(self):
+        self._import([["Napa", "Paracetamol", "500 mg", "", "X", "Tablet", ""]])
+        self.assertEqual(
+            DrugMaster.objects.get(generic_name="Paracetamol").default_route,
+            "PO")

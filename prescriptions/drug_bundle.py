@@ -20,7 +20,7 @@ from pathlib import Path
 # the import reads it differently -- 2026.09.30.1 re-applies the same file now
 # that the importer takes routes from each product's dosage form, so an
 # installed PC stops offering an injection-only drug as oral.
-BUNDLE_VERSION = "2026.09.30.1"
+BUNDLE_VERSION = "2026.09.30.2"
 
 _STAMP_NAME = ".drug_bundle_version"
 

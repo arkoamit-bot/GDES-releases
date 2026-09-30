@@ -50,6 +50,7 @@ from pathlib import Path
 from django.core.management.base import BaseCommand
 from django.db import transaction
 
+from prescriptions.injection_routes import routes_for_injection
 from treatments.models import DrugClass, DrugMaster, Route
 
 # Curated, most-used-first brand lists for the research formulary. The
@@ -130,6 +131,15 @@ _F_EYE_EAR = re.compile(r" (eye|ophthalmic|ear|otic|e e) ")
 _F_NOWHERE = re.compile(r" (nasal|vaginal|mouthwash|gargle|dialysis|irrigation|"
                         r"bladder|implant|pessary) ")
 _F_RECTAL = re.compile(r" (rectal|suppository|enema) ")
+# Injections whose form names a route the systemic vocabulary cannot hold.
+_F_NAMED_INJECTION = (
+    (re.compile(r" (intraspinal|intrathecal|epidural) "), Route.IT),
+    (re.compile(r" intravitreal "), Route.IVIT),
+    (re.compile(r" (intra articular|intraarticular) "), Route.IA),
+    (re.compile(r" (intracameral|intra cameral) "), Route.ICAM),
+)
+# A form that says the product is an injection without saying which route.
+_F_INJECTION = re.compile(r" (injection|infusion|vial|vials|ampoule) ")
 _F_SUBLINGUAL = re.compile(r" (sublingual|buccal) ")
 _F_TOPICAL = re.compile(r" (topical|cream|ointment|lotion|shampoo|scalp|"
                         r"hand rub|medicated bar|paint|liniment|patch|"
@@ -144,7 +154,8 @@ _F_ORAL_WORDS = re.compile(r" (tablet|capsule|syrup|suspension|chewable|"
 # form's default when the drug has no curated route. Alphabetical order would
 # default ceftriaxone (IM + IV) to IM; the usual hospital route is IV.
 ROUTE_PREFERENCE = [Route.PO, Route.IV, Route.IM, Route.SC, Route.INH,
-                    Route.SL, Route.PR, Route.TOP]
+                    Route.SL, Route.PR, Route.TOP, Route.IT, Route.IVIT,
+                    Route.IA, Route.ICAM, Route.INJ]
 
 
 def route_sort_key(route):
@@ -170,6 +181,9 @@ def routes_from_dosage_form(form: str) -> frozenset:
         return frozenset()
 
     routes = set()
+    for pattern, route in _F_NAMED_INJECTION:
+        if pattern.search(f):
+            routes.add(route)
     # Parenteral routes are additive: "IM/IV Injection" is genuinely both.
     if re.search(r" (iv|intravenous) ", f):
         routes.add(Route.IV)
@@ -196,6 +210,12 @@ def routes_from_dosage_form(form: str) -> frozenset:
     elif _F_ORAL_WORDS.search(f):
         routes.add(Route.PO)
     return frozenset(routes)
+
+
+def is_injection_form(form: str) -> bool:
+    """True when the form says the product is an injection, however given."""
+    f = " " + re.sub(r"[^a-z0-9]+", " ", (form or "").lower()).strip() + " "
+    return bool(_F_INJECTION.search(f))
 
 
 # Device / consumable "generics": never prescribable.
@@ -952,7 +972,11 @@ class Command(BaseCommand):
             # --- routes: additive, never removing curated ones ---
             if data["routes"]:
                 routes = list(obj.available_routes or [])
-                for route in sorted(data["routes"], key=route_sort_key):
+                order = [r for r in data.get("route_order") or []
+                         if r in data["routes"]]
+                rest = sorted(set(data["routes"]) - set(order),
+                              key=route_sort_key)
+                for route in order + rest:
                     if route not in routes:
                         routes.append(route)
                         counts["routes"] += 1
@@ -968,7 +992,8 @@ class Command(BaseCommand):
                         # store first: paracetamol had been left defaulting to
                         # IV because an "(IV Infusion)" name reached it before
                         # any oral form did.
-                        routes = sorted(routes, key=route_sort_key)
+                        if not order:
+                            routes = sorted(routes, key=route_sort_key)
                         obj.available_routes = routes
                         obj.default_route = routes[0]
                 # Per-route strengths only for rows this import created, so
@@ -1262,6 +1287,8 @@ class Command(BaseCommand):
             "therapeutic_classes": set(),
             "routes": set(),
             "strengths_by_route": defaultdict(set),
+            "forms": set(),
+            "route_order": [],
         })
 
         with csv_path.open(newline="", encoding="utf-8") as f:
@@ -1286,6 +1313,7 @@ class Command(BaseCommand):
                 strength = (row.get("strength") or "").strip()
                 tclass = (row.get("therapeutic_class") or "").strip()
                 form_routes = routes_from_dosage_form(row.get("dosage_form"))
+                form = (row.get("dosage_form") or "").strip()
 
                 data = generics[base]
                 # Brand name: include if it differs from the generic name.
@@ -1308,8 +1336,34 @@ class Command(BaseCommand):
                             data["strengths_by_route"][r].add(strength)
                 # A product with no strength still tells us its route.
                 data["routes"].update(form_routes)
+                if form:
+                    data["forms"].add(form)
                 if tclass:
                     data["therapeutic_classes"].add(tclass)
+
+        # A product whose every form is an injection but whose form never
+        # names a route (a bare "Injection") would otherwise keep DrugMaster's
+        # default of PO and be offered, and printed, as oral. Take the route
+        # from the curated clinical table, or record Route.INJ where no
+        # published label settles it.
+        injection_only = 0
+        for base, data in generics.items():
+            if data["routes"] or not data["forms"]:
+                continue
+            if not all(is_injection_form(f) for f in data["forms"]):
+                continue
+            table_routes = routes_for_injection(base)
+            data["routes"].update(table_routes)
+            # The table lists the usual route first (adrenaline is IM before
+            # IV: anaphylaxis, not cardiac arrest), so keep that order rather
+            # than the generic preference.
+            data["route_order"] = list(table_routes)
+            injection_only += 1
+        if injection_only:
+            self.stdout.write(
+                f"  {injection_only} injection-only generic(s) had no route in "
+                f"their dosage form; routed from the clinical table or "
+                f"recorded as {Route.INJ.value}.")
 
         if skipped_devices or skipped_long or folded:
             self.stdout.write(

@@ -52,6 +52,17 @@ class Route(models.TextChoices):
     TOP = "TOP", "Topical"
     INH = "INH", "Inhaled"
     PR = "PR", "Rectal (PR)"
+    # Injections the catalogue names precisely. Without these a spinal or an
+    # intravitreal product has no route it can be recorded under, and the
+    # importer would have to fall back to something systemic and wrong.
+    IT = "IT", "Intrathecal / intraspinal (IT)"
+    IVIT = "IVIT", "Intravitreal"
+    IA = "IA", "Intra-articular"
+    ICAM = "ICAM", "Intracameral"
+    # The product is an injection but its label does not say which route, and
+    # guessing one is unsafe. Recorded as-is so the slip never prints "PO"
+    # for an injection and the prescriber chooses.
+    INJ = "INJ", "Injection (route not specified)"
 
 
 class DrugMaster(models.Model):
