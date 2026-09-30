@@ -917,6 +917,11 @@ class Command(BaseCommand):
                         generic_name=canonical,
                         drug_class=drug_class,
                     )
+                    # Later spellings that fold to the same canonical name
+                    # ("Losartan potassium" / "Losartan Potassium") must find
+                    # this row, not try to create it again.
+                    exact[canonical] = obj
+                    existing.setdefault(norm(canonical), obj)
                     counts = apply(obj, canonical, data, is_new=True)
                     brands_added += counts["brands"]
                     strengths_added += counts["strengths"]

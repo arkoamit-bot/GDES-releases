@@ -118,6 +118,31 @@ class ImportDkdrDrugsTests(TestCase):
         self.assertEqual(self.ramipril.brand_names, first)
 
 
+class BddrugbankZipTests(ImportDkdrDrugsTests):
+    def test_zip_brands_and_therapeutic_class_are_imported(self):
+        import zipfile
+        z = Path(self.dkdr) / "data" / "bddrugbank"
+        z.mkdir()
+        buf = io.StringIO(newline="")
+        w = csv.DictWriter(buf, fieldnames=["name", "generic_name", "strength",
+                                            "therapeutic_class", "manufacturer",
+                                            "dosage_form"])
+        w.writeheader()
+        w.writerow({"name": "Zipril", "generic_name": "Ramipril",
+                    "strength": "1.25 mg", "therapeutic_class": "ACE inhibitors",
+                    "manufacturer": "X", "dosage_form": "Tablet"})
+        w.writerow({"name": "Znew", "generic_name": "Statinomab",
+                    "strength": "5 mg", "therapeutic_class": "",
+                    "manufacturer": "X", "dosage_form": "Tablet"})
+        with zipfile.ZipFile(z / "BDDrugBank_test.zip", "w") as zf:
+            zf.writestr("medex_merged.csv", buf.getvalue())
+        self._run("--create-generics")
+        self.ramipril.refresh_from_db()
+        self.assertIn("Zipril", self.ramipril.brand_names)
+        self.assertIn("1.25 mg", self.ramipril.available_strengths)
+        self.assertTrue(DrugMaster.objects.filter(generic_name="Statinomab").exists())
+
+
 class SaltFoldTests(TestCase):
     def _index(self, *names):
         return build_salt_index(names)
@@ -157,13 +182,13 @@ class SaltFoldTests(TestCase):
 
 
 class FoldSaltsCommandTests(ImportDkdrDrugsTests):
-    def test_new_insulin_generics_are_never_created(self):
+    def test_new_insulin_generics_are_created_as_insulin(self):
         data = Path(self.dkdr) / "data"
         _write(data / "bd_med" / "medicine.csv", BD_MED_HEADER,
-               [_med("Insu", "Insulin (Human) R", "100 IU/ml")])
+               [_med("Insu", "Insulin Degludec", "100 IU/ml")])
         self._run("--create-generics", "--fold-salts")
-        self.assertFalse(DrugMaster.objects.filter(
-            generic_name__istartswith="Insulin").exists())
+        row = DrugMaster.objects.get(generic_name="Insulin Degludec")
+        self.assertEqual(row.drug_class, DrugClass.INSULIN)
 
     def test_fold_salts_avoids_a_twin_row(self):
         DrugMaster.objects.create(generic_name="Cefixime Trihydrate",
@@ -241,3 +266,23 @@ class ReclassifyCommandTests(TestCase):
             row.refresh_from_db()
             self.assertEqual(row.drug_class, expected, row.generic_name)
         self.assertIn("Would change 0", self._run())
+
+
+class SpellingVariantCreationTests(TestCase):
+    def test_two_spellings_of_a_new_generic_make_one_row(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            data = Path(tmp) / "data"
+            (data / "bd_med").mkdir(parents=True)
+            (data / "brand_registry").mkdir(parents=True)
+            _write(data / "bd_med" / "medicine.csv", BD_MED_HEADER, [
+                _med("Aa", "Losartan potassium", "50 mg"),
+                _med("Bb", "Losartan Potassium", "100 mg"),
+            ])
+            _write(data / "brand_registry" / "drugs.xls", REGISTRY_HEADER, [],
+                   delimiter="\t")
+            call_command("import_dkdr_drugs", "--dkdr-dir", tmp,
+                         "--create-generics", stdout=io.StringIO(),
+                         stderr=io.StringIO())
+        rows = DrugMaster.objects.filter(generic_name__icontains="losartan")
+        self.assertEqual(rows.count(), 1)
+        self.assertEqual(sorted(rows[0].brand_names), ["Aa", "Bb"])

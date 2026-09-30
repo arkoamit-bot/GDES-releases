@@ -8,6 +8,8 @@ DKDR (the sister DKD/CKM registry) vendors two brand sources under
 ``data/``:
 
 * ``bd_med/medicine.csv``    - MedEx brands, CC0 (allopathic rows only here)
+* ``bddrugbank/*.zip``       - BDDrugBank ``medex_merged.csv`` (MedEx, Sep 2025),
+  the only source that carries a therapeutic class per brand
 * ``brand_registry/drugs.xls`` - a tab-separated brand list (FORM_DESC,
   GENERIC_NAME, TRADE_NAME, STRENGTH, ...) that carries brands MedEx lacks
 
@@ -28,8 +30,6 @@ Deliberately narrower than a full import:
   "Cefixime" is filed under the existing "Cefixime Trihydrate" when the two
   differ only by salt/hydrate words and exactly one existing single-
   ingredient generic qualifies; ambiguous or combination names never fold.
-* **Insulin names with no existing row are never created** - the curated
-  formulary owns insulin, and its dosing/finalize rules key on those rows.
 * **Strengths are normalised** ("30mg" -> "30 mg") and pack descriptions
   ("5's pack") are dropped, so the registry file does not add a second
   spelling of every strength MedEx already holds.
@@ -41,6 +41,7 @@ import io
 import os
 import re
 import tempfile
+import zipfile
 from collections import Counter
 from pathlib import Path
 
@@ -171,6 +172,29 @@ def _read_registry(path: Path):
             }
 
 
+def _read_bddrugbank(path: Path):
+    """Stream `medex_merged.csv` out of the BDDrugBank subset zip."""
+    csv.field_size_limit(10 ** 9)
+    with zipfile.ZipFile(path) as z:
+        member = next((n for n in z.namelist()
+                       if n.endswith("medex_merged.csv")), None)
+        if member is None:
+            raise CommandError(f"medex_merged.csv not found in {path}")
+        with z.open(member) as raw:
+            for row in csv.DictReader(io.TextIOWrapper(raw, encoding="utf-8",
+                                                       newline="")):
+                yield {
+                    "name": (row.get("name") or "").strip(),
+                    "generic_name": (row.get("generic_name") or "").strip(),
+                    "strength": (row.get("strength") or "").strip(),
+                    "therapeutic_class": (row.get("therapeutic_class")
+                                          or "").strip(),
+                    "company": (row.get("manufacturer") or "").strip(),
+                    "dosage_form": (row.get("dosage_form") or "").strip(),
+                    "medex_url": "",
+                }
+
+
 class Command(BaseCommand):
     requires_system_checks = []
     help = "Merge DKDR's brand catalogue into DrugMaster (additive)."
@@ -188,6 +212,8 @@ class Command(BaseCommand):
                             help="File a name that differs from one existing "
                                  "generic only by salt/hydrate words under "
                                  "that generic instead of creating a twin")
+        parser.add_argument("--skip-bddrugbank", action="store_true",
+                            help="Skip the BDDrugBank zip (bddrugbank/*.zip)")
         parser.add_argument("--skip-registry", action="store_true",
                             help="Use bd_med only, not brand_registry/drugs.xls")
         parser.add_argument("--report", default="",
@@ -195,9 +221,13 @@ class Command(BaseCommand):
                                  "to this CSV for review")
 
     def handle(self, *args, dkdr_dir, dry_run, create_generics, fold_salts,
-               skip_registry, report, **options):
+               skip_registry, skip_bddrugbank, report, **options):
         data = Path(dkdr_dir) / "data"
         sources = [("bd_med", data / "bd_med" / "medicine.csv", _read_bd_med)]
+        if not skip_bddrugbank:
+            zips = sorted((data / "bddrugbank").glob("*.zip"))
+            if zips:
+                sources.append(("bddrugbank", zips[-1], _read_bddrugbank))
         if not skip_registry:
             sources.append(("registry", data / "brand_registry" / "drugs.xls",
                             _read_registry))
@@ -239,12 +269,6 @@ class Command(BaseCommand):
                         folded[(canonical, target)] += 1
                         canonical = generic = target
                         row = {**row, "generic_name": target}
-                if norm(canonical) not in existing and                         canonical.lower().startswith("insulin"):
-                    # Insulins carry dedicated dosing/finalize handling keyed
-                    # on the curated formulary rows; never mint new ones here.
-                    unmatched[canonical] += 1
-                    unmatched_brands.setdefault(canonical, set()).add(brand)
-                    continue
                 if norm(canonical) not in existing and not create_generics:
                     unmatched[canonical] += 1
                     unmatched_brands.setdefault(canonical, set()).add(brand)
