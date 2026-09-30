@@ -30,6 +30,13 @@
 
 ## Latest Changes (2026-09-30)
 
+
+---
+
+# Changelog
+
+## Latest Changes (2026-09-30)
+
 88eb910 Remove stray rehearsal file left in the 7.4.2 release commit
 4d37d2b docs: update changelog [skip ci]
 
