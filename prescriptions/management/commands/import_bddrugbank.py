@@ -662,10 +662,32 @@ def split_generic(generic: str) -> tuple[str, str | None]:
     return base, route
 
 
+# A name tagged as a local product ("Betamethasone 0.05% Topical", "Tobramycin
+# Eye prep") or built from several ingredients is not the systemic exposure the
+# steroid / calcineurin-inhibitor research classes analyse.
+LOCAL_FORM_RE = re.compile(
+    r"\b(topical|eye|ear|nasal|ophthalmic|otic|prep|cream|ointment|lotion|"
+    r"gel|drops?|spray|inhal\w*|vag\w*|rectal|mouth\W?wash|gargle|"
+    r"respirator\w*)\b|\d\s*%",
+    re.I,
+)
+
+
+def is_local_or_combination(generic_name: str) -> bool:
+    name = generic_name or ""
+    if LOCAL_FORM_RE.search(name):
+        return True
+    parts = [p.split()[0].lower() for p in name.split("+") if p.strip()]
+    # "Betamethasone Sodium Phosphate + Betamethasone Acetate" is one molecule
+    # in two salts (the systemic injectable), not a combination product.
+    return len(set(parts)) > 1
+
+
 def classify_drug(generic_name: str, therapeutic_classes: list[str]) -> DrugClass:
     """Map a BDDrugBank generic to a BGDDR DrugClass."""
     g = (generic_name or "").lower()
     tc = " ".join(t.lower() for t in therapeutic_classes)
+    local = is_local_or_combination(generic_name)
 
     # SGLT2 inhibitors
     if (any(k in g for k in ("dapagliflozin", "empagliflozin", "canagliflozin",
@@ -694,7 +716,7 @@ def classify_drug(generic_name: str, therapeutic_classes: list[str]) -> DrugClas
                 "deflazacort", "hydrocortisone", "cortisone",
                 "triamcinolone", "beclomethasone", "fluticasone",
                 "corticosteroid", "glucocorticoid"]
-    if any(k in g for k in steroids):
+    if any(k in g for k in steroids) and not local:
         return DrugClass.STEROID
     if "mycophenolate" in g:
         return DrugClass.MMF
@@ -704,7 +726,7 @@ def classify_drug(generic_name: str, therapeutic_classes: list[str]) -> DrugClas
         return DrugClass.CYCLOPHOSPHAMIDE
     cni = ["cyclosporine", "ciclosporin", "tacrolimus",
            "rapamycin", "everolimus", "sirolimus"]
-    if any(k in g for k in cni):
+    if any(k in g for k in cni) and not local:
         return DrugClass.CNI
     if "rituximab" in g:
         return DrugClass.RITUXIMAB
@@ -716,10 +738,10 @@ def classify_drug(generic_name: str, therapeutic_classes: list[str]) -> DrugClas
                  "potassium-sparing", "thiazide"]
     if any(k in g for k in diuretics) or any(k in tc for k in diuretics):
         return DrugClass.DIURETIC
-    statins_kw = ["atorvastatin", "rosuvastatin", "simvastatin",
-                  "pravastatin", "fluvastatin", "pitavastatin",
-                  "lovastatin", "statin"]
-    if any(k in g for k in statins_kw) or any(k in tc for k in statins_kw):
+    # HMG-CoA reductase inhibitors all end in "-vastatin". A bare "statin"
+    # substring also hits nystatin (antifungal), somatostatin (hormone) and
+    # cilastatin (dehydropeptidase inhibitor).
+    if "vastatin" in g or re.search(r"\bstatins?\b", tc):
         return DrugClass.STATIN
     if "metformin" in g or "biguanide" in g:
         return DrugClass.METFORMIN

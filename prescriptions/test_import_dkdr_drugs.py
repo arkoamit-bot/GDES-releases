@@ -7,7 +7,7 @@ from pathlib import Path
 from django.core.management import call_command
 from django.test import TestCase
 
-from treatments.models import DrugMaster
+from treatments.models import DrugClass, DrugMaster
 
 from .management.commands.import_dkdr_drugs import (build_salt_index, clean_strength,
                                                     fold_salt_variant)
@@ -176,3 +176,68 @@ class FoldSaltsCommandTests(ImportDkdrDrugsTests):
             generic_name="Cefixime").exists())
         self.assertIn("Fixo", DrugMaster.objects.get(
             generic_name="Cefixime Trihydrate").brand_names)
+
+
+class ClassifyDrugFalsePositiveTests(TestCase):
+    def _cls(self, name, tc=()):
+        from .management.commands.import_bddrugbank import classify_drug
+        return classify_drug(name, list(tc))
+
+    def test_statin_suffix_is_not_a_bare_substring(self):
+        for name in ("Nystatin", "Somatostatin", "Imipenem + Cilastatin"):
+            self.assertNotEqual(self._cls(name), DrugClass.STATIN, name)
+        self.assertEqual(self._cls("Atorvastatin Calcium"), DrugClass.STATIN)
+        self.assertEqual(self._cls("Pitavastatin"), DrugClass.STATIN)
+        self.assertEqual(self._cls("Ezetimibe", ["HMG-CoA (Statins)"]),
+                         DrugClass.STATIN)
+
+    def test_local_and_combination_steroids_and_cnis_are_other(self):
+        for name in ("Betamethasone valerate 0.01% Topical",
+                     "Acyclovir + Hydrocortisone",
+                     "Tobramycin + Dexamethasone Eye prep",
+                     "Tacrolimus 0.1%, 0.03% Topical"):
+            self.assertEqual(self._cls(name), DrugClass.OTHER, name)
+
+    def test_two_salts_of_one_steroid_stay_systemic(self):
+        self.assertEqual(
+            self._cls("Betamethasone Sodium Phosphate + Betamethasone Acetate"),
+            DrugClass.STEROID)
+
+    def test_systemic_single_ingredient_classes_are_unchanged(self):
+        self.assertEqual(self._cls("Prednisolone"), DrugClass.STEROID)
+        self.assertEqual(self._cls("Tacrolimus"), DrugClass.CNI)
+        self.assertEqual(self._cls("Amlodipine + Telmisartan"), DrugClass.RAASI)
+
+
+class ReclassifyCommandTests(TestCase):
+    def setUp(self):
+        self.bad = DrugMaster.objects.create(
+            generic_name="Nystatin", drug_class=DrugClass.STATIN)
+        self.topical = DrugMaster.objects.create(
+            generic_name="Betamethasone 0.1% + Neomycin Topical",
+            drug_class=DrugClass.STEROID)
+        self.good = DrugMaster.objects.create(
+            generic_name="Rosuvastatin", drug_class=DrugClass.STATIN)
+        # Class came from the therapeutic class, not the name: not ours to move.
+        self.by_tc = DrugMaster.objects.create(
+            generic_name="Ezetimibe", drug_class=DrugClass.STATIN)
+
+    def _run(self, *args):
+        out = io.StringIO()
+        call_command("reclassify_drug_classes", *args, stdout=out)
+        return out.getvalue()
+
+    def test_report_only_by_default(self):
+        self.assertIn("Would change 2", self._run())
+        self.bad.refresh_from_db()
+        self.assertEqual(self.bad.drug_class, DrugClass.STATIN)
+
+    def test_apply_moves_only_false_positives(self):
+        self._run("--apply")
+        for row, expected in ((self.bad, DrugClass.OTHER),
+                              (self.topical, DrugClass.OTHER),
+                              (self.good, DrugClass.STATIN),
+                              (self.by_tc, DrugClass.STATIN)):
+            row.refresh_from_db()
+            self.assertEqual(row.drug_class, expected, row.generic_name)
+        self.assertIn("Would change 0", self._run())
