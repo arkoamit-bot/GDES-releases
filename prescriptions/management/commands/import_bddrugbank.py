@@ -791,7 +791,7 @@ class Command(BaseCommand):
             "--consolidate", action="store_true",
             help="Repair pre-existing rows first: merge DrugMaster rows whose "
                  "names differ only by a MedEx qualifier "
-                 "('Chlorhexidine Gluconate [4%]' -> 'Chlorhexidine "
+                 "('Chlorhexidine Gluconate [4%%]' -> 'Chlorhexidine "
                  "Gluconate'), repointing prescriptions/exposures/adverse "
                  "events at the survivor, and delete pre-existing device "
                  "rows. Destructive - always dry-run first.",

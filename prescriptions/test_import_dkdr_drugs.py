@@ -347,3 +347,14 @@ class DrugBundleGateTests(TestCase):
                 drug_bundle.apply_if_newer(log=lambda *_: None)
         self.assertIsNone(drug_bundle.installed_version())
         self.assertTrue(drug_bundle.should_apply())
+
+
+class CommandParsersTests(TestCase):
+    def test_every_management_command_builds_its_parser(self):
+        """Python 3.14 rejects a lone "%" in argparse help when the option is
+        added, so a bad help string breaks the command outright in the packaged
+        app - including the weekly MedEx sync, which calls import_bddrugbank."""
+        from django.core.management import get_commands, load_command_class
+        for name, app in get_commands().items():
+            with self.subTest(command=name):
+                load_command_class(app, name).create_parser("manage.py", name)
