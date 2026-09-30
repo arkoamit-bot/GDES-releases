@@ -126,6 +126,10 @@ def fold_salt_variant(name: str, index):
         short, long_ = sorted((toks, list(etoks)), key=len)
         if long_[:len(short)] != short or not short:
             continue
+        if set(short) <= SALT_WORDS:
+            # "Calcium" / "Sodium" name an ion, not a drug moiety: never a
+            # salt-variant of "Calcium Carbonate" / "Sodium Chloride".
+            continue
         if set(long_[len(short):]) <= SALT_WORDS:
             found.update(enames)
     return next(iter(found)) if len(found) == 1 else None

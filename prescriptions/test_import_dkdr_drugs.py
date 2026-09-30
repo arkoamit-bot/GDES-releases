@@ -176,6 +176,11 @@ class SaltFoldTests(TestCase):
         self.assertEqual(fold_salt_variant("Tobramycin Eye prep", idx),
                          "Tobramycin")
 
+    def test_a_bare_ion_is_not_a_salt_variant(self):
+        idx = self._index("Calcium Carbonate", "Sodium Chloride")
+        self.assertIsNone(fold_salt_variant("Calcium", idx))
+        self.assertIsNone(fold_salt_variant("Sodium", idx))
+
     def test_ambiguity_is_left_alone(self):
         idx = self._index("Cefuroxime Axetil", "Cefuroxime Sodium")
         self.assertIsNone(fold_salt_variant("Cefuroxime", idx))

@@ -11,7 +11,7 @@
 #define AppName "GDES Registry"
 #define AppPublisher "BIRDEM - Department of Nephrology"
 #ifndef AppVersion
-  #define AppVersion "7.4.2"
+  #define AppVersion "7.4.3"
 #endif
 #define AppExeName "GDES.exe"
 #define DistDir "..\\..\\dist\\GDES"
