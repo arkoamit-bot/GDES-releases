@@ -59,8 +59,12 @@ from treatments.models import DrugClass, DrugMaster, Route
 try:
     from prescriptions.management.commands.seed_drugs import DRUGS as _SEED_DRUGS
     CURATED_BRANDS = {row[0]: list(row[4]) for row in _SEED_DRUGS}
+    # Formulary drugs whose route list the seed states explicitly; there the
+    # first entry IS the intended default and the catalogue must not move it.
+    CURATED_ROUTES = {row[0]: list(row[7]) for row in _SEED_DRUGS if row[7]}
 except Exception:  # pragma: no cover - seed module is optional at runtime
     CURATED_BRANDS = {}
+    CURATED_ROUTES = {}
 
 # Model field limits. PrescriptionItem.brand is max_length=120, and
 # PrescriptionItem.strength/dose are max_length=120 too (widened from 40 because
@@ -134,6 +138,19 @@ _F_ORAL_WORDS = re.compile(r" (tablet|capsule|syrup|suspension|chewable|"
                            r"dispersible|effervescent|sachet|granule|granules|"
                            r"lozenge|pediatric drops|paediatric drops|"
                            r"powder for suspension|oral) ")
+
+
+# Route order for a drug the catalogue described: the first entry becomes the
+# form's default when the drug has no curated route. Alphabetical order would
+# default ceftriaxone (IM + IV) to IM; the usual hospital route is IV.
+ROUTE_PREFERENCE = [Route.PO, Route.IV, Route.IM, Route.SC, Route.INH,
+                    Route.SL, Route.PR, Route.TOP]
+
+
+def route_sort_key(route):
+    value = getattr(route, "value", route)
+    order = [r.value for r in ROUTE_PREFERENCE]
+    return (order.index(value) if value in order else len(order), value)
 
 
 def routes_from_dosage_form(form: str) -> frozenset:
@@ -675,6 +692,7 @@ def norm(s: str) -> str:
 # stored casing differs from the folded base ("Zoledronic acid" vs
 # "Zoledronic Acid"). _consolidate only needs membership, not the list.
 CURATED_BRANDS_NORM = {norm(k): v for k, v in CURATED_BRANDS.items()}
+CURATED_ROUTES_NORM = {norm(k) for k in CURATED_ROUTES}
 
 
 # SYNONYMS also indexed case/punctuation-insensitively, so MedEx's
@@ -934,14 +952,24 @@ class Command(BaseCommand):
             # --- routes: additive, never removing curated ones ---
             if data["routes"]:
                 routes = list(obj.available_routes or [])
-                for route in sorted(data["routes"]):
+                for route in sorted(data["routes"], key=route_sort_key):
                     if route not in routes:
                         routes.append(route)
                         counts["routes"] += 1
                 if routes:
-                    obj.available_routes = routes
-                    # default_route keeps pointing at a valid route
-                    if obj.default_route not in routes:
+                    if norm(canonical) in CURATED_ROUTES_NORM:
+                        # Seeded route list: keep its order and its default.
+                        obj.available_routes = routes
+                        if obj.default_route not in routes:
+                            obj.default_route = routes[0]
+                    else:
+                        # Derived from the catalogue, so recompute it rather
+                        # than keeping whatever an earlier import happened to
+                        # store first: paracetamol had been left defaulting to
+                        # IV because an "(IV Infusion)" name reached it before
+                        # any oral form did.
+                        routes = sorted(routes, key=route_sort_key)
+                        obj.available_routes = routes
                         obj.default_route = routes[0]
                 # Per-route strengths only for rows this import created, so
                 # curated strengths_by_route on formulary drugs is untouched.

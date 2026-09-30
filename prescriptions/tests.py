@@ -1207,6 +1207,39 @@ class ImportRouteFromDosageFormTests(TestCase):
         d = DrugMaster.objects.get(generic_name="Ceftriaxone")
         self.assertEqual(d.available_routes, [])
 
+    def test_a_catalogue_derived_default_is_recomputed_not_inherited(self):
+        """Paracetamol sat at default IV because an "(IV Infusion)" name
+        reached it before any oral form; merging must recompute the default,
+        not keep whatever an earlier import stored first."""
+        DrugMaster.objects.create(generic_name="Paracetamol",
+                                  default_route="IV", available_routes=["IV"])
+        self._import([
+            ["Napa", "Paracetamol", "500 mg", "", "X", "Tablet", ""],
+            ["Napa IV", "Paracetamol", "1 gm/100 ml", "", "X", "IV Infusion", ""],
+        ])
+        d = DrugMaster.objects.get(generic_name="Paracetamol")
+        self.assertEqual(d.default_route, "PO")
+        self.assertEqual(d.available_routes, ["PO", "IV"])
+
+    def test_a_seeded_route_list_keeps_its_own_order_and_default(self):
+        from .management.commands.import_bddrugbank import CURATED_ROUTES
+        self.assertIn("Cyclophosphamide", CURATED_ROUTES)
+        DrugMaster.objects.create(generic_name="Cyclophosphamide",
+                                  default_route="PO",
+                                  available_routes=["PO", "IV"])
+        self._import([["Endoxan", "Cyclophosphamide", "500 mg/vial", "", "X",
+                       "IV Injection", ""]])
+        d = DrugMaster.objects.get(generic_name="Cyclophosphamide")
+        self.assertEqual(d.available_routes, ["PO", "IV"])
+        self.assertEqual(d.default_route, "PO")
+
+    def test_iv_leads_im_when_the_drug_is_parenteral_only(self):
+        self._import([["Rocephin", "Ceftriaxone", "1 gm/vial", "", "X",
+                       "IM/IV Injection", ""]])
+        d = DrugMaster.objects.get(generic_name="Ceftriaxone")
+        self.assertEqual(d.available_routes, ["IV", "IM"])
+        self.assertEqual(d.default_route, "IV")
+
 
 class PreviewIframeTests(TestCase):
     """The preview embeds the slip in an iframe via srcdoc. render_to_string

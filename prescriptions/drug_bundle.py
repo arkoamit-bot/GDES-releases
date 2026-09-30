@@ -16,8 +16,11 @@ from __future__ import annotations
 
 from pathlib import Path
 
-# Bump when prescriptions/data/dkdr_drugs.csv.gz is regenerated.
-BUNDLE_VERSION = "2026.09.30"
+# Bump when prescriptions/data/dkdr_drugs.csv.gz is regenerated, and also when
+# the import reads it differently -- 2026.09.30.1 re-applies the same file now
+# that the importer takes routes from each product's dosage form, so an
+# installed PC stops offering an injection-only drug as oral.
+BUNDLE_VERSION = "2026.09.30.1"
 
 _STAMP_NAME = ".drug_bundle_version"
 
