@@ -108,6 +108,79 @@ FORM_ROUTES = {
     "iv infusion": Route.IV,
 }
 
+# How a product is given is stated in the catalogue's `dosage_form` column
+# ("IV Injection or Infusion", "IM/IV Injection", "Eye Drops"); the generic
+# name carries a route qualifier only occasionally. Ignoring the column left
+# every injection-only drug on DrugMaster's default route, so the prescription
+# form offered PO for meropenem and printed "PO" on the slip.
+#
+# Claiming a route the product does not have is a clinical risk, so a form
+# contributes a route only when it names one outright: a bare "Injection"
+# (IV? IM? SC?), a bare "Infusion", "Solution" or "Drops", a nasal spray and a
+# mouthwash all stay unassigned. Local forms are checked before the oral words
+# they contain, so "Vaginal Tablet" is not oral and "Eye Capsule" is not either.
+_F_INHALED = re.compile(r" (inhaler|inhalation|inhalations|mdi|dpi|nebuliser|"
+                        r"nebulizer|respirator|respirator solution) ")
+_F_ORAL_EXPLICIT = re.compile(r" (oral|mouth dissolving|orodispersible) ")
+_F_EYE_EAR = re.compile(r" (eye|ophthalmic|ear|otic|e e) ")
+_F_NOWHERE = re.compile(r" (nasal|vaginal|mouthwash|gargle|dialysis|irrigation|"
+                        r"bladder|implant|pessary) ")
+_F_RECTAL = re.compile(r" (rectal|suppository|enema) ")
+_F_SUBLINGUAL = re.compile(r" (sublingual|buccal) ")
+_F_TOPICAL = re.compile(r" (topical|cream|ointment|lotion|shampoo|scalp|"
+                        r"hand rub|medicated bar|paint|liniment|patch|"
+                        r"transdermal|nail lacquer|soap) ")
+_F_ORAL_WORDS = re.compile(r" (tablet|capsule|syrup|suspension|chewable|"
+                           r"dispersible|effervescent|sachet|granule|granules|"
+                           r"lozenge|pediatric drops|paediatric drops|"
+                           r"powder for suspension|oral) ")
+
+
+def routes_from_dosage_form(form: str) -> frozenset:
+    """Routes a catalogue `dosage_form` states outright; empty when ambiguous.
+
+    >>> sorted(routes_from_dosage_form("IV Injection or Infusion"))
+    ['IV']
+    >>> sorted(routes_from_dosage_form("IM/IV Injection"))
+    ['IM', 'IV']
+    >>> sorted(routes_from_dosage_form("Injection"))      # IV? IM? SC?
+    []
+    >>> sorted(routes_from_dosage_form("Vaginal Tablet"))  # not oral
+    []
+    """
+    f = " " + re.sub(r"[^a-z0-9]+", " ", (form or "").lower()).strip() + " "
+    if not f.strip():
+        return frozenset()
+
+    routes = set()
+    # Parenteral routes are additive: "IM/IV Injection" is genuinely both.
+    if re.search(r" (iv|intravenous) ", f):
+        routes.add(Route.IV)
+    if re.search(r" (im|intramuscular) ", f):
+        routes.add(Route.IM)
+    if re.search(r" (sc|subcutaneous) ", f):
+        routes.add(Route.SC)
+
+    # Exactly one non-parenteral route, first match wins.
+    if _F_INHALED.search(f):
+        routes.add(Route.INH)
+    elif _F_ORAL_EXPLICIT.search(f):
+        routes.add(Route.PO)
+    elif _F_EYE_EAR.search(f):
+        routes.add(Route.TOP)
+    elif _F_NOWHERE.search(f):
+        pass
+    elif _F_RECTAL.search(f):
+        routes.add(Route.PR)
+    elif _F_SUBLINGUAL.search(f):
+        routes.add(Route.SL)
+    elif _F_TOPICAL.search(f):
+        routes.add(Route.TOP)
+    elif _F_ORAL_WORDS.search(f):
+        routes.add(Route.PO)
+    return frozenset(routes)
+
+
 # Device / consumable "generics": never prescribable.
 DEVICE_RE = re.compile(
     r"(?i)\b(device|surgical|cannula|syringe|needle set|adhesive bandage|"
@@ -1184,6 +1257,7 @@ class Command(BaseCommand):
                 brand = (row.get("name") or "").strip()
                 strength = (row.get("strength") or "").strip()
                 tclass = (row.get("therapeutic_class") or "").strip()
+                form_routes = routes_from_dosage_form(row.get("dosage_form"))
 
                 data = generics[base]
                 # Brand name: include if it differs from the generic name.
@@ -1201,9 +1275,11 @@ class Command(BaseCommand):
                         skipped_long += 1
                     else:
                         data["strengths"].add(strength)
-                        if route:
-                            data["routes"].add(route)
-                            data["strengths_by_route"][route].add(strength)
+                        for r in ({route} if route else set()) | form_routes:
+                            data["routes"].add(r)
+                            data["strengths_by_route"][r].add(strength)
+                # A product with no strength still tells us its route.
+                data["routes"].update(form_routes)
                 if tclass:
                     data["therapeutic_classes"].add(tclass)
 

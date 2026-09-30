@@ -61,7 +61,11 @@
      real printers, so Print opens the slip alone (prescriptions:print) and
      prints that. -->
 <div style="border:1px solid #ddd;border-radius:8px;overflow:hidden;background:#fff">
-  <iframe id="rx-frame" title="Prescription" srcdoc="{{ prescription_html }}"
+  {# force_escape, not autoescape: render_to_string returns a SafeString, so
+     the slip went into the attribute raw and its first `lang="en"` closed
+     srcdoc after 27 characters -- an empty frame, and blank pages when the
+     page was printed. #}
+  <iframe id="rx-frame" title="Prescription" srcdoc="{{ prescription_html|force_escape }}"
           style="display:block;width:100%;min-height:297mm;border:0;background:#fff"></iframe>
 </div>
 
