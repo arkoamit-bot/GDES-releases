@@ -36,9 +36,9 @@
     </a>
   {% endif %}
 
-  <button class="btn" type="button" id="rx-print" style="background:#1d4ed8;color:#fff">
+  <a class="btn" id="rx-print" href="{% url 'prescriptions:print' rx.pk %}" target="_blank" rel="noopener" style="background:#1d4ed8;color:#fff">
     <i class="fas fa-print"></i> Print prescription
-  </button>
+  </a>
   <a class="btn ghost" href="{% url 'prescriptions:pdf' rx.pk %}" target="_blank">
     <i class="fas fa-file-pdf"></i> Save as PDF
   </a>
@@ -55,11 +55,11 @@
   {% endif %}
 </div>
 
-<!-- The prescription is its own document in an isolated frame: its print
-     stylesheet (sizes, @page margins, page breaks) cannot restyle the app, the
-     app cannot restyle it, and Print prints exactly this document -- the same
-     one the HTML download and the PDF engines render. (It used to be injected
-     into this page, with a visibility:hidden print hack that left blank pages.) -->
+<!-- The prescription is its own document in an isolated frame, so its styles
+     and the app's cannot touch each other. The frame is for viewing only: the
+     browser's Print on THIS page (or on the frame) came out as blank pages on
+     real printers, so Print opens the slip alone (prescriptions:print) and
+     prints that. -->
 <div style="border:1px solid #ddd;border-radius:8px;overflow:hidden;background:#fff">
   <iframe id="rx-frame" title="Prescription" srcdoc="{{ prescription_html }}"
           style="display:block;width:100%;min-height:297mm;border:0;background:#fff"></iframe>
@@ -76,9 +76,13 @@
     }
     frame.addEventListener('load', fit);
     window.addEventListener('resize', fit);
-    document.getElementById('rx-print').addEventListener('click', function () {
-      frame.contentWindow.focus();
-      frame.contentWindow.print();
+    // Ctrl/Cmd+P on this page would print the app layout around the slip (the
+    // blank-page problem); send it to the slip on its own instead.
+    document.addEventListener('keydown', function (e) {
+      if ((e.ctrlKey || e.metaKey) && !e.shiftKey && !e.altKey && (e.key === 'p' || e.key === 'P')) {
+        e.preventDefault();
+        window.open(document.getElementById('rx-print').href, '_blank');
+      }
     });
   })();
 </script>

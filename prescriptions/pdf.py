@@ -108,6 +108,25 @@ def render_prescription_html_download(prescription) -> str:
     return html.replace("</body>", extra + "\n</body>")
 
 
+def render_prescription_html_print(prescription) -> str:
+    """The slip as a stand-alone page that opens the print dialog on load.
+
+    Printing the slip as its own top-level document is the reliable route.
+    Printing the preview page (the slip inside an iframe under the app's own
+    layout) came out as extra blank pages on real printers, with the slip
+    pushed onto a later page.
+    """
+    html = render_prescription_html(prescription)
+    extra = """
+    <script>
+    window.addEventListener('load', function(){
+      setTimeout(function(){ window.print(); }, 400);
+    });
+    </script>
+    """
+    return html.replace("</body>", extra + "</body>")
+
+
 def save_prescription_pdf(prescription, data: bytes) -> Path | None:
     """Archive a FINALIZED prescription's PDF under MEDIA_ROOT/prescriptions/.
 

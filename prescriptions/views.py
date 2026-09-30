@@ -2,6 +2,7 @@
 Thin views to drive and inspect the workflow end-to-end:
 
     /prescriptions/<id>/preview/             -> rendered HTML prescription
+    /prescriptions/<id>/print/               -> the slip alone, opens Print
     /prescriptions/<id>/reconcile/preview/   -> JSON diff (writes nothing)
     /prescriptions/<id>/finalize/            -> POST: freeze + reconcile
     /prescriptions/<id>/pdf/                 -> PDF download (WeasyPrint)
@@ -21,7 +22,7 @@ def _wants_json(request):
         or "application/json" in request.headers.get("Accept", ""))
 
 from .models import Prescription
-from .pdf import PDFEngineUnavailable, render_prescription_html, render_prescription_html_download, render_prescription_pdf, save_prescription_pdf
+from .pdf import PDFEngineUnavailable, render_prescription_html, render_prescription_html_download, render_prescription_html_print, render_prescription_pdf, save_prescription_pdf
 from .services.finalize import FinalizeBlocked, finalize_prescription
 from .services.reconciliation import plan_reconciliation
 from .services.safety import check_prescription
@@ -35,6 +36,14 @@ def preview(request, pk):
         "rx": rx, "patient": rx.patient,
         "prescription_html": render_prescription_html(rx),
     })
+
+
+@login_required
+def print_page(request, pk):
+    """The slip on its own page, printing as soon as it opens."""
+    rx = get_object_or_404(Prescription, pk=pk)
+    return HttpResponse(render_prescription_html_print(rx),
+                        content_type="text/html; charset=utf-8")
 
 
 @login_required

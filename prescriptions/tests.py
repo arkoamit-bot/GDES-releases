@@ -1078,3 +1078,41 @@ def _abs(path):
 
 
 
+
+
+class PrintPageTests(TestCase):
+    """Print must not go through the preview page: printing the slip inside an
+    iframe under the app layout gave blank pages on real printers."""
+
+    def setUp(self):
+        self.user = User.objects.create_user("printer", password="pw")
+        self.client.force_login(self.user)
+        p = Patient.objects.create(patient_id="BGD-0950", name="Print User", sex="F")
+        enc = ClinicalEncounter.objects.create(
+            patient=p, encounter_date=dt.date(2026, 9, 1),
+            encounter_type=ClinicalEncounter.Type.FOLLOWUP)
+        self.rx = Prescription.objects.create(encounter=enc)
+        PrescriptionItem.objects.create(
+            prescription=self.rx, sort_order=1,
+            drug=DrugMaster.objects.create(generic_name="Ramipril",
+                                           drug_class=DrugClass.RAASI))
+
+    def test_print_page_is_the_slip_alone_and_opens_print(self):
+        resp = self.client.get(reverse("prescriptions:print", args=[self.rx.pk]))
+        self.assertEqual(resp.status_code, 200)
+        html = resp.content.decode()
+        self.assertIn("Ramipril", html)
+        self.assertIn("window.print()", html)
+        self.assertNotIn("<iframe", html)
+        self.assertNotIn("sidebar", html.lower())
+
+    def test_print_page_needs_login(self):
+        self.client.logout()
+        resp = self.client.get(reverse("prescriptions:print", args=[self.rx.pk]))
+        self.assertEqual(resp.status_code, 302)
+
+    def test_preview_print_button_opens_the_print_page_not_the_frame(self):
+        resp = self.client.get(reverse("prescriptions:preview", args=[self.rx.pk]))
+        html = resp.content.decode()
+        self.assertIn(reverse("prescriptions:print", args=[self.rx.pk]), html)
+        self.assertNotIn("contentWindow.print", html)
