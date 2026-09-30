@@ -24,6 +24,12 @@ Deliberately narrower than a full import:
   from MedEx in places ("Alogliptin" vs "Alogliptin Benzoate"), so creating
   rows for unmatched names would seed near-duplicates. Unmatched generics
   are counted and listed in the report instead; ``--create-generics`` opts in.
+* **Salt-only variants fold onto the existing row** (``--fold-salts``).
+  "Cefixime" is filed under the existing "Cefixime Trihydrate" when the two
+  differ only by salt/hydrate words and exactly one existing single-
+  ingredient generic qualifies; ambiguous or combination names never fold.
+* **Insulin names with no existing row are never created** - the curated
+  formulary owns insulin, and its dosing/finalize rules key on those rows.
 * **Strengths are normalised** ("30mg" -> "30 mg") and pack descriptions
   ("5's pack") are dropped, so the registry file does not add a second
   spelling of every strength MedEx already holds.
@@ -55,6 +61,73 @@ CSV_HEADER = ["name", "generic_name", "strength", "therapeutic_class",
 _UNIT_GLUE = re.compile(r"(?<=\d)(?=(?:mg|mcg|g|ml|iu|meq|gm|%)\b)", re.I)
 _PACK = re.compile(r"(?:'s\b|\bpack\b|\bstrip\b|\bbox\b|\bpcs?\b)", re.I)
 _BRAND_JUNK = re.compile(r"^[\W_]*$")
+
+
+# Words that name a salt / hydrate / ester form, not a different molecule.
+SALT_WORDS = frozenset("""
+    acetate acetonide anhydrous axetil benzoate besilate besylate bisulfate
+    bisulphate bitartrate bromide dihydrochloride oxalate
+    calcium carbonate chloride citrate dihydrate disodium dipropionate
+    fumarate furoate gluconate hemifumarate hemihydrate hcl hydrobromide
+    hydrochloride hydrogen magnesium maleate mesylate methylsulphate
+    monohydrate nitrate pamoate pentahydrate phosphate potassium proxetil
+    propionate sesquihydrate sodium succinate sulfate sulphate tartrate
+    tetrahydrate trihydrate valerate
+""".split())
+
+
+# Trailing registry tags that describe the product, not the molecule:
+# "Clobetasol Propionate 0.05% topical", "Tobramycin Eye prep".
+_FORM_TAIL = re.compile(
+    r"\s+(?:\d+(?:\.\d+)?\s*%\s*)?(?:topical|eye\s*(?:prep|drops?)|"
+    r"(?:eye\s*or\s*ear|e/e)\s*prep|ophthalmic|injection|infusion)\s*$",
+    re.I)
+
+
+def strip_form_tail(name: str) -> str:
+    """Drop a trailing strength/form tag so the bare molecule can be matched."""
+    out = (name or "").strip()
+    while True:
+        new = _FORM_TAIL.sub("", out).strip()
+        if new == out:
+            return out
+        out = new
+
+
+def _plain_tokens(name: str):
+    """Lower-case word tokens for a plain single-ingredient name, else None."""
+    if any(ch in name for ch in "+%()[]/,") or re.search(r"\d", name):
+        return None
+    return re.findall(r"[a-z]+", name.lower()) or None
+
+
+def build_salt_index(names):
+    """{tokens tuple: name} for existing plain single-ingredient generics."""
+    index = {}
+    for name in names:
+        toks = _plain_tokens(name)
+        if toks:
+            index.setdefault(tuple(toks), []).append(name)
+    return index
+
+
+def fold_salt_variant(name: str, index):
+    """The one existing generic that differs from `name` only by salt words.
+
+    Returns None when `name` is not a plain single ingredient, or when zero
+    or several existing rows qualify (ambiguous: never guess a molecule).
+    """
+    toks = _plain_tokens(strip_form_tail(name))
+    if not toks:
+        return None
+    found = set()
+    for etoks, enames in index.items():
+        short, long_ = sorted((toks, list(etoks)), key=len)
+        if long_[:len(short)] != short or not short:
+            continue
+        if set(long_[len(short):]) <= SALT_WORDS:
+            found.update(enames)
+    return next(iter(found)) if len(found) == 1 else None
 
 
 def clean_strength(raw: str) -> str:
@@ -111,13 +184,17 @@ class Command(BaseCommand):
         parser.add_argument("--create-generics", action="store_true",
                             help="Also create rows for generics with no match "
                                  "in DrugMaster (default: report them only)")
+        parser.add_argument("--fold-salts", action="store_true",
+                            help="File a name that differs from one existing "
+                                 "generic only by salt/hydrate words under "
+                                 "that generic instead of creating a twin")
         parser.add_argument("--skip-registry", action="store_true",
                             help="Use bd_med only, not brand_registry/drugs.xls")
         parser.add_argument("--report", default="",
                             help="Write unmatched generics (with brand counts) "
                                  "to this CSV for review")
 
-    def handle(self, *args, dkdr_dir, dry_run, create_generics,
+    def handle(self, *args, dkdr_dir, dry_run, create_generics, fold_salts,
                skip_registry, report, **options):
         data = Path(dkdr_dir) / "data"
         sources = [("bd_med", data / "bd_med" / "medicine.csv", _read_bd_med)]
@@ -132,6 +209,10 @@ class Command(BaseCommand):
         for name in DrugMaster.objects.values_list("generic_name", flat=True):
             existing.add(norm(name))
 
+        salt_index = build_salt_index(
+            DrugMaster.objects.values_list("generic_name", flat=True)
+        ) if fold_salts else {}
+        folded = Counter()
         kept = []
         seen = set()
         unmatched = Counter()
@@ -152,6 +233,18 @@ class Command(BaseCommand):
                 if len(canonical) > MAX_GENERIC:
                     skipped["long"] += 1
                     continue
+                if fold_salts and norm(canonical) not in existing:
+                    target = fold_salt_variant(canonical, salt_index)
+                    if target:
+                        folded[(canonical, target)] += 1
+                        canonical = generic = target
+                        row = {**row, "generic_name": target}
+                if norm(canonical) not in existing and                         canonical.lower().startswith("insulin"):
+                    # Insulins carry dedicated dosing/finalize handling keyed
+                    # on the curated formulary rows; never mint new ones here.
+                    unmatched[canonical] += 1
+                    unmatched_brands.setdefault(canonical, set()).add(brand)
+                    continue
                 if norm(canonical) not in existing and not create_generics:
                     unmatched[canonical] += 1
                     unmatched_brands.setdefault(canonical, set()).add(brand)
@@ -168,6 +261,11 @@ class Command(BaseCommand):
             f"DKDR rows kept: {len(kept)} ({dict(per_source)}); skipped: "
             f"{dict(skipped)}; rows for {len(unmatched)} generic(s) with no "
             f"DrugMaster match: {sum(unmatched.values())}")
+
+        if folded:
+            self.stdout.write(f"Folded {len(folded)} salt-only name(s) onto "
+                              f"existing generics, e.g. "
+                              f"{[f'{a} -> {b}' for a, b in list(folded)[:5]]}")
 
         if report:
             with open(report, "w", newline="", encoding="utf-8") as f:

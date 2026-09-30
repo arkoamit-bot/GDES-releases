@@ -9,7 +9,8 @@ from django.test import TestCase
 
 from treatments.models import DrugMaster
 
-from .management.commands.import_dkdr_drugs import clean_strength
+from .management.commands.import_dkdr_drugs import (build_salt_index, clean_strength,
+                                                    fold_salt_variant)
 
 BD_MED_HEADER = ["brand id", "brand name", "type", "slug", "dosage form",
                  "generic", "strength", "manufacturer", "package container",
@@ -115,3 +116,63 @@ class ImportDkdrDrugsTests(TestCase):
         self._run()
         self.ramipril.refresh_from_db()
         self.assertEqual(self.ramipril.brand_names, first)
+
+
+class SaltFoldTests(TestCase):
+    def _index(self, *names):
+        return build_salt_index(names)
+
+    def test_salt_only_difference_folds_either_way(self):
+        idx = self._index("Cefixime Trihydrate", "Pantoprazole")
+        self.assertEqual(fold_salt_variant("Cefixime", idx), "Cefixime Trihydrate")
+        self.assertEqual(
+            fold_salt_variant("Pantoprazole Sodium Sesquihydrate", idx),
+            "Pantoprazole")
+
+    def test_combinations_never_fold_or_count_as_targets(self):
+        idx = self._index("Amoxicillin + Clavulanic Acid")
+        self.assertIsNone(fold_salt_variant("Amoxicillin", idx))
+        self.assertIsNone(fold_salt_variant(
+            "Amlodipine + Atenolol",
+            self._index("Amlodipine Besilate + Atenolol")))
+
+    def test_a_different_molecule_is_not_a_salt(self):
+        idx = self._index("Metformin Hydrochloride")
+        self.assertIsNone(fold_salt_variant("Metformin Glibenclamide", idx))
+        self.assertIsNone(fold_salt_variant("Meta", idx))
+
+    def test_form_tags_and_more_salts(self):
+        idx = self._index("Clobetasol Propionate", "Escitalopram Oxalate",
+                          "Tobramycin")
+        self.assertEqual(fold_salt_variant("Clobetasol Propionate 0.05% topical",
+                                           idx), "Clobetasol Propionate")
+        self.assertEqual(fold_salt_variant("Escitalopram", idx),
+                         "Escitalopram Oxalate")
+        self.assertEqual(fold_salt_variant("Tobramycin Eye prep", idx),
+                         "Tobramycin")
+
+    def test_ambiguity_is_left_alone(self):
+        idx = self._index("Cefuroxime Axetil", "Cefuroxime Sodium")
+        self.assertIsNone(fold_salt_variant("Cefuroxime", idx))
+
+
+class FoldSaltsCommandTests(ImportDkdrDrugsTests):
+    def test_new_insulin_generics_are_never_created(self):
+        data = Path(self.dkdr) / "data"
+        _write(data / "bd_med" / "medicine.csv", BD_MED_HEADER,
+               [_med("Insu", "Insulin (Human) R", "100 IU/ml")])
+        self._run("--create-generics", "--fold-salts")
+        self.assertFalse(DrugMaster.objects.filter(
+            generic_name__istartswith="Insulin").exists())
+
+    def test_fold_salts_avoids_a_twin_row(self):
+        DrugMaster.objects.create(generic_name="Cefixime Trihydrate",
+                                  brand_names=["Old"])
+        data = Path(self.dkdr) / "data"
+        _write(data / "bd_med" / "medicine.csv", BD_MED_HEADER,
+               [_med("Fixo", "Cefixime", "200 mg")])
+        self._run("--create-generics", "--fold-salts")
+        self.assertFalse(DrugMaster.objects.filter(
+            generic_name="Cefixime").exists())
+        self.assertIn("Fixo", DrugMaster.objects.get(
+            generic_name="Cefixime Trihydrate").brand_names)
